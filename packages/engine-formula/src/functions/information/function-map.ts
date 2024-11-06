@@ -18,6 +18,7 @@ import { Cell } from './cell';
 import { ErrorType } from './error-type';
 import { FUNCTION_NAMES_INFORMATION } from './function-names';
 import { Isblank } from './isblank';
+import { Isemail } from './isemail';
 import { Iserr } from './iserr';
 import { Iserror } from './iserror';
 import { Iseven } from './iseven/iseven';
@@ -39,6 +40,7 @@ export const functionInformation = [
     [Cell, FUNCTION_NAMES_INFORMATION.CELL],
     [ErrorType, FUNCTION_NAMES_INFORMATION.ERROR_TYPE],
     [Isblank, FUNCTION_NAMES_INFORMATION.ISBLANK],
+    [Isemail, FUNCTION_NAMES_INFORMATION.ISEMAIL],
     [Iserr, FUNCTION_NAMES_INFORMATION.ISERR],
     [Iserror, FUNCTION_NAMES_INFORMATION.ISERROR],
     [Iseven, FUNCTION_NAMES_INFORMATION.ISEVEN],
