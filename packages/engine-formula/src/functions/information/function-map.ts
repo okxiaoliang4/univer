@@ -17,6 +17,7 @@
 import { Cell } from './cell';
 import { ErrorType } from './error-type';
 import { FUNCTION_NAMES_INFORMATION } from './function-names';
+import { Isbetween } from './isbetween';
 import { Isblank } from './isblank';
 import { Iserr } from './iserr';
 import { Iserror } from './iserror';
@@ -38,6 +39,7 @@ import { Type } from './type';
 export const functionInformation = [
     [Cell, FUNCTION_NAMES_INFORMATION.CELL],
     [ErrorType, FUNCTION_NAMES_INFORMATION.ERROR_TYPE],
+    [Isbetween, FUNCTION_NAMES_INFORMATION.ISBETWEEN],
     [Isblank, FUNCTION_NAMES_INFORMATION.ISBLANK],
     [Iserr, FUNCTION_NAMES_INFORMATION.ISERR],
     [Iserror, FUNCTION_NAMES_INFORMATION.ISERROR],
