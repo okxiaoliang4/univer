@@ -17,7 +17,7 @@
 /* eslint-disable ts/no-explicit-any */
 
 import type { Nullable } from '../../shared';
-import type { ICellDataForSheetInterceptor, IActualCellWithCoord } from '../../sheets/typedef';
+import type { IActualCellWithCoord, ICellDataForSheetInterceptor } from '../../sheets/typedef';
 import type { Workbook } from '../../sheets/workbook';
 import type { Worksheet } from '../../sheets/worksheet';
 import type { IStyleData } from './i-style-data';

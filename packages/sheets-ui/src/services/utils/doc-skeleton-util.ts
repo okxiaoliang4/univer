@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { ICustomRange, Injector, IParagraph, IActualCellWithCoord, ITextRangeParam, Workbook } from '@univerjs/core';
+import type { IActualCellWithCoord, ICustomRange, Injector, IParagraph, ITextRangeParam, Workbook } from '@univerjs/core';
 import type { DocumentSkeleton, IBoundRectNoAngle, IDocumentSkeletonGlyph, IFontCacheItem } from '@univerjs/engine-render';
 import { CustomRangeType, HorizontalAlign, IUniverInstanceService, PresetListType, UniverInstanceType, VerticalAlign } from '@univerjs/core';
 import { DocSkeletonManagerService } from '@univerjs/docs';

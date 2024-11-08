@@ -17,7 +17,7 @@
 /* eslint-disable max-lines-per-function */
 /* eslint-disable complexity */
 
-import type { ICellDataForSheetInterceptor, IRange, IScale, IActualCellWithCoord, Nullable, ObjectMatrix } from '@univerjs/core';
+import type { IActualCellWithCoord, ICellDataForSheetInterceptor, IRange, IScale, Nullable, ObjectMatrix } from '@univerjs/core';
 import type { UniverRenderingContext } from '../../../context';
 import type { Documents } from '../../docs/document';
 import type { IDrawInfo } from '../../extension';

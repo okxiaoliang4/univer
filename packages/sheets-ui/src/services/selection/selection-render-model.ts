@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import type { IActualCellWithCoord, IRangeWithCoord, ISelectionWithCoord, Nullable } from '@univerjs/core';
+import type { IActualCellWithCoord, IRangeWithCoord, Nullable } from '@univerjs/core';
+import type { ISelectionWithCoord } from '@univerjs/sheets';
 import { convertCellToRange, RANGE_TYPE } from '@univerjs/core';
 
 /**

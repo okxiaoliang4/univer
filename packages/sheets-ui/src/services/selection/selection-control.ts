@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import type { IActualCellWithCoord, IRangeWithCoord, ISelectionWithCoord, Nullable, ThemeService } from '@univerjs/core';
+import type { IActualCellWithCoord, IRangeWithCoord, Nullable, ThemeService } from '@univerjs/core';
 import type { IObjectFullState, IRectProps, Scene } from '@univerjs/engine-render';
-import type { ISelectionWidgetConfig, ISelectionWithCoordAndStyle, ISelectionWithStyle, IStyleForSelection } from '@univerjs/sheets';
+import type { ISelectionWidgetConfig, ISelectionWithCoord, IStyleForSelection } from '@univerjs/sheets';
 import { ColorKit, Disposable, RANGE_TYPE, toDisposable } from '@univerjs/core';
 import { cancelRequestFrame, DashedRect, FIX_ONE_PIXEL_BLUR_OFFSET, Group, Rect, requestNewFrame, TRANSFORM_CHANGE_OBSERVABLE_TYPE } from '@univerjs/engine-render';
 import {
@@ -157,6 +157,7 @@ export class SelectionControl extends Disposable {
             enableAutoFill?: boolean;
             rowHeaderWidth: number;
             columnHeaderHeight: number;
+            rangeType?: RANGE_TYPE;
         }
     ) {
         super();
@@ -249,7 +250,7 @@ export class SelectionControl extends Disposable {
                         return;
                     }
 
-                    this._updateLayoutOfSelectionControlByStyle(this._currentStyle);
+                    this._updateLayoutOfSelectionControl(this._currentStyle);
                     this._updateControlCoord();
                 })
             )
@@ -404,6 +405,7 @@ export class SelectionControl extends Disposable {
         return this._selectionShapeGroup;
     }
 
+    // That's so bad! _selectionModel is protected! But I don't want to expose it to the outside world
     get model(): SelectionRenderModel {
         return this._selectionModel;
     }
@@ -503,17 +505,15 @@ export class SelectionControl extends Disposable {
         this._selectionFilled$.next(val);
     }
 
-    private _updateLayoutOfSelectionControl(): void {
-        this._updateLayoutOfSelectionControlByStyle(this.currentStyle);
-    }
-
     /**
      * Update Control Style And Position of SelectionControl
      * @param selectionStyle
      */
     // eslint-disable-next-line max-lines-per-function
-    protected _updateLayoutOfSelectionControlByStyle(selectionStyle: Partial<IStyleForSelection>): void {
-        this.currentStyle = Object.assign({}, this._defaultStyle, selectionStyle);
+    protected _updateLayoutOfSelectionControl(selectionStyle?: Nullable<Partial<IStyleForSelection>>): void {
+        if (selectionStyle) {
+            this.currentStyle = Object.assign({}, this._defaultStyle, selectionStyle);
+        }
         const currentStyle = this.currentStyle as Required<IStyleForSelection>;
 
         const {
@@ -651,7 +651,7 @@ export class SelectionControl extends Disposable {
     }
 
     updateStyle(style: Partial<IStyleForSelection>): void {
-        this._updateLayoutOfSelectionControlByStyle(style);
+        this._updateLayoutOfSelectionControl(style);
         this._updateControlCoord();
     }
 
@@ -663,14 +663,14 @@ export class SelectionControl extends Disposable {
     updateRange(range: IRangeWithCoord, primaryCell: Nullable<IActualCellWithCoord>): void {
         this._selectionModel.setValue(range, primaryCell);
         this._showAutoFill = primaryCell !== null;
-        this._updateLayoutOfSelectionControlByStyle(this._currentStyle);
+        this._updateLayoutOfSelectionControl();
         this._updateControlCoord();
     }
 
-    updateBySelectionWithCoord(selection: ISelectionWithCoord) {
+    updateRangeBySelectionWithCoord(selection: ISelectionWithCoord) {
         this._selectionModel.setValue(selection.rangeWithCoord, selection.primaryWithCoord);
         this._showAutoFill = selection.primaryWithCoord !== null;
-        this._updateLayoutOfSelectionControl();
+        this._updateLayoutOfSelectionControl(selection.style);
         this._updateControlCoord();
     }
 
@@ -692,7 +692,10 @@ export class SelectionControl extends Disposable {
     ): void {
         this._rowHeaderWidth = rowHeaderWidth;
         this._columnHeaderHeight = columnHeaderHeight;
-        this.updateRange(newSelectionRange, primaryCell);
+        this.updateRangeBySelectionWithCoord({
+            rangeWithCoord: newSelectionRange,
+            primaryWithCoord: primaryCell,
+        });
         if (style) {
             this.updateStyle(style);
         }
@@ -712,7 +715,7 @@ export class SelectionControl extends Disposable {
         // in multiple selection shape, only shape with highlight has auto fill.
         this._showAutoFill = false;
         this._selectionModel.clearCurrentCell();
-        this._updateLayoutOfSelectionControlByStyle(this._currentStyle);
+        this._updateLayoutOfSelectionControl(this._currentStyle);
     }
 
     getScene(): Scene {
@@ -795,7 +798,7 @@ export class SelectionControl extends Disposable {
         }
     }
 
-    getValue(): ISelectionWithCoordAndStyle {
+    getValue(): ISelectionWithCoord {
         return {
             ...this._selectionModel.getValue(),
             style: this._currentStyle,

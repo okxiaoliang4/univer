@@ -70,7 +70,6 @@ export class WorkbookSelectionDataModel extends Disposable {
 
     /**
      * Set selectionDatas to _worksheetSelections, and emit selectionDatas by type.
-     * If type is not specified, this method would clear all existing selections.
      * @param sheetId
      * @param selectionDatas
      * @param type
