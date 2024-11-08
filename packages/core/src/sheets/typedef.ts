@@ -639,9 +639,22 @@ export interface IActualCellWithCoord extends IPosition, ISingleCell {
 }
 
 /**
+ * @deprecated  use ICellInfo instead.
  * Range & SingleCell & isMerged.
+ * startRow: number;
+ * startColumn: number;
+ * endRow: number;
+ * endColumn: number;
+ *
+ * actualRow: number;
+ * actualColumn: number;
+ * isMerged: boolean;
+ * isMergedMainCell: boolean;
  */
+// Bad name!! selection is a concept in sheet-ui !!
 export interface ISelectionCell extends IRange, ISingleCell { }
+
+export interface ICellInfo extends ISelectionCell {}
 
 /**
  * @deprecated use IActualCellWithCoord instead.
@@ -663,18 +676,6 @@ export interface ISelection {
      */
     primary: Nullable<ISelectionCell>;
 }
-
-/**
- * Selection range Info, contains selection range & primary range
- * primary range is the range of the highlighted cell.
- * rangeWithCoord: IRangeWithCoord;
- * primaryWithCoord: Nullable<IActualCellWithCoord>;
- */
-export interface ISelectionWithCoord {
-    rangeWithCoord: IRangeWithCoord;
-    primaryWithCoord: Nullable<IActualCellWithCoord>;
-}
-
 export interface ITextRangeStart {
     startOffset: number;
 }

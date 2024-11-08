@@ -15,10 +15,10 @@
  */
 
 import type {
-    IRange,
-    ISelection,
     IActualCellWithCoord,
-    ISelectionWithCoord,
+    IRange,
+    IRangeWithCoord,
+    ISelection,
     Nullable,
 } from '@univerjs/core';
 import { getCellInfoInMergeData, makeCellRangeToRangeData } from '@univerjs/core';
@@ -131,14 +131,28 @@ export interface IStyleForSelection {
 }
 
 /**
+ * Selection range Info, contains selection range & primary range
+ * primary range is the range of the highlighted cell.
+ *
+ * rangeWithCoord: IRangeWithCoord;
+ * primaryWithCoord: Nullable<IActualCellWithCoord>;
+ * style?
+ */
+export interface ISelectionWithCoord {
+    rangeWithCoord: IRangeWithCoord;
+    primaryWithCoord: Nullable<IActualCellWithCoord>;
+    style?: Nullable<IStyleForSelection>;
+}
+
+/**
  * Extend ISelectionWithCoord with style
  * rangeWithCoord
  * primaryWithCoord
  * style
  */
-export interface ISelectionWithCoordAndStyle extends ISelectionWithCoord {
-    style: Nullable<IStyleForSelection>;
-}
+// export interface ISelectionWithCoordWithStyleISelectionWithCoordAndStyle extends ISelectionWithCoord {
+//     style: Nullable<IStyleForSelection>;
+// }
 
 /**
  * range: IRange;
@@ -164,7 +178,7 @@ export interface ISheetRangeLocation {
  * @returns
  */
 export function convertSelectionDataToRange(
-    selectionWithCoordAndStyle: ISelectionWithCoordAndStyle
+    selectionWithCoordAndStyle: ISelectionWithCoord
 ): ISelectionWithStyle {
     const { rangeWithCoord, primaryWithCoord, style } = selectionWithCoordAndStyle;
     const result: ISelectionWithStyle = {

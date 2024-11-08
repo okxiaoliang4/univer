@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import type { ISelectionWithStyle, IStyleForSelection } from '@univerjs/sheets';
+import type { ISelectionWithStyle } from '@univerjs/sheets';
 import { ColorKit, Quantity, UniverInstanceType } from '@univerjs/core';
 import { CURSOR_TYPE, IRenderManagerService, Rect, ScrollTimer, ScrollTimerType, SHEET_VIEWPORT_KEY, Vector2 } from '@univerjs/engine-render';
 import { SELECTION_CONTROL_BORDER_BUFFER_WIDTH } from '@univerjs/sheets';
 /* eslint-disable max-lines-per-function */
-import type { IFreeze, Injector, IRangeWithCoord, Nullable, ThemeService } from '@univerjs/core';
+import type { IFreeze, Injector, IRange, IRangeWithCoord, Nullable, ThemeService } from '@univerjs/core';
 import type { IMouseEvent, IPointerEvent, Scene, SpreadsheetSkeleton, Viewport } from '@univerjs/engine-render';
 
 import type { Subscription } from 'rxjs';
@@ -27,7 +27,7 @@ import type { SelectionControl } from './selection-control';
 import { SheetSkeletonManagerService } from '../sheet-skeleton-manager.service';
 import { ISheetSelectionRenderService } from './base-selection-render.service';
 import { genNormalSelectionStyle, RANGE_FILL_PERMISSION_CHECK, RANGE_MOVE_PERMISSION_CHECK } from './const';
-import { attachPrimaryWithCoord } from './util';
+import { attachSelectionWithCoord } from './util';
 
 const HELPER_SELECTION_TEMP_NAME = '__SpreadsheetHelperSelectionTempRect';
 
@@ -225,38 +225,41 @@ export class SelectionShapeExtension {
         const selection: ISelectionWithStyle = {
             range: { startRow, endRow, startColumn, endColumn },
             primary: primaryCell,
+            style: null,
         };
-        const startCell = this._skeleton.getNoMergeCellPositionByIndex(startRow, startColumn);
-        const endCell = this._skeleton.getNoMergeCellPositionByIndex(endRow, endColumn);
-        const startY = startCell?.startY || 0;
-        const endY = endCell?.endY || 0;
-        const startX = startCell?.startX || 0;
-        const endX = endCell?.endX || 0;
+        const selectionWithCoord = attachSelectionWithCoord(selection, this._skeleton);
+        // const startCell = this._skeleton.getNoMergeCellPositionByIndex(startRow, startColumn);
+        // const endCell = this._skeleton.getNoMergeCellPositionByIndex(endRow, endColumn);
+        // const startY = startCell?.startY || 0;
+        // const endY = endCell?.endY || 0;
+        // const startX = startCell?.startX || 0;
+        // const endX = endCell?.endX || 0;
 
-        this._helperSelection?.transformByState({
-            left: startX,
-            top: startY,
-            width: endX - startX,
-            height: endY - startY,
-        });
+        // this._helperSelection?.transformByState({
+        //     left: startX,
+        //     top: startY,
+        //     width: endX - startX,
+        //     height: endY - startY,
+        // });
 
-        this._targetSelection = {
-            startY,
-            endY,
-            startX,
-            endX,
-            startRow,
-            endRow,
-            startColumn,
-            endColumn,
-        };
-        const primaryWithCoordAndMergeInfo = attachPrimaryWithCoord(this._skeleton, primaryCell);
-        this._control.updateRange(this._targetSelection, primaryWithCoordAndMergeInfo);
-        this._control.selectionMoving$.next(this._targetSelection);
+        // this._targetSelection = {
+        //     startY,
+        //     endY,
+        //     startX,
+        //     endX,
+        //     startRow,
+        //     endRow,
+        //     startColumn,
+        //     endColumn,
+        // };
+        // const primaryWithCoordAndMergeInfo = attachPrimaryWithCoord(this._skeleton, primaryCell);
+        // this._control.updateRange(this._targetSelection, primaryWithCoordAndMergeInfo);
+        this._control.updateRangeBySelectionWithCoord(selectionWithCoord);
+        this._control.selectionMoving$.next(selectionWithCoord.rangeWithCoord);
     }
 
     /**
-     * Drag move whole selectionControl when cusor turns to crosshair. Not for dragging 8 control points.
+     * Drag move whole selectionControl when cursor turns to crosshair. Not for dragging 8 control points.
      * @param evt
      */
     private _controlEvent(evt: IMouseEvent | IPointerEvent) {
@@ -564,36 +567,33 @@ export class SelectionShapeExtension {
             endColumn = this._relativeSelectionPositionColumn + this._relativeSelectionColumnLength;
         }
 
-        const {
-            startRow: finalStartRow,
-            startColumn: finalStartColumn,
-            endRow: finalEndRow,
-            endColumn: finalEndColumn,
-        } = this._swapPositions(startRow, startColumn, endRow, endColumn);
+        const range = this._swapPositions(startRow, startColumn, endRow, endColumn);
+        const primaryCell = this._skeleton.getCellWithMergeInfoByIndex(startRow, startColumn);
+        const selectionWithStyle: ISelectionWithStyle = { range, primary: primaryCell, style: null };
+        const selectionRangeWithCoord = attachSelectionWithCoord(selectionWithStyle, this._skeleton);
+        this._targetSelection = selectionRangeWithCoord.rangeWithCoord;
+        // const startCell = this._skeleton.getNoMergeCellPositionByIndex(finalStartRow, finalStartColumn);
+        // const endCell = this._skeleton.getNoMergeCellPositionByIndex(finalEndRow, finalEndColumn);
 
-        const startCell = this._skeleton.getNoMergeCellPositionByIndex(finalStartRow, finalStartColumn);
-        const endCell = this._skeleton.getNoMergeCellPositionByIndex(finalEndRow, finalEndColumn);
+        // const startY = startCell?.startY || 0;
+        // const endY = endCell?.endY || 0;
+        // const startX = startCell?.startX || 0;
+        // const endX = endCell?.endX || 0;
 
-        const startY = startCell?.startY || 0;
-        const endY = endCell?.endY || 0;
-        const startX = startCell?.startX || 0;
-        const endX = endCell?.endX || 0;
+        // this._targetSelection = {
+        //     startY,
+        //     endY,
+        //     startX,
+        //     endX,
+        //     startRow,
+        //     endRow,
+        //     startColumn,
+        //     endColumn,
+        // };
+        // const primaryWithCoord = this._skeleton.getCellWithCoordByIndex(startRow, startColumn);
+        // this._control.updateRange(this._targetSelection, primaryWithCoord);
 
-        this._targetSelection = {
-            startY,
-            endY,
-            startX,
-            endX,
-            startRow,
-            endRow,
-            startColumn,
-            endColumn,
-        };
-        // const primary = this._control.model.currentCell; // selectionModel.currentCell;
-        // const primary = getTopLeftAsPrimaryOfCurrRange(this._skeleton, { startRow, startColumn, endRow, endColumn });
-        const primaryWithCoord = this._skeleton.getCellWithCoordByIndex(startRow, startColumn);
-
-        this._control.updateRange(this._targetSelection, primaryWithCoord);
+        this._control.updateRangeBySelectionWithCoord(selectionRangeWithCoord);
         this._control.selectionScaling$.next(this._targetSelection);
     }
 
@@ -922,7 +922,16 @@ export class SelectionShapeExtension {
         return this._skeleton.worksheet.getMergedCellRange(startRow, startColumn, endRow, endColumn).length > 0;
     }
 
-    private _swapPositions(startRow: number, startColumn: number, endRow: number, endColumn: number) {
+    /**
+     * Make sure startRow < endRow and startColumn < endColumn
+     *
+     * @param startRow
+     * @param startColumn
+     * @param endRow
+     * @param endColumn
+     * @returns {IRange} range
+     */
+    private _swapPositions(startRow: number, startColumn: number, endRow: number, endColumn: number): IRange {
         const finalStartRow = Math.min(startRow, endRow);
         const finalStartColumn = Math.min(startColumn, endColumn);
         const finalEndRow = Math.max(startRow, endRow);

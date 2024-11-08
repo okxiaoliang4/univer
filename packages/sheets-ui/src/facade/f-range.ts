@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { IDisposable, IActualCellWithCoord, Nullable } from '@univerjs/core';
+import type { IActualCellWithCoord, IDisposable, Nullable } from '@univerjs/core';
 import type { ISheetLocation } from '@univerjs/sheets';
 import type { ComponentType } from '@univerjs/ui';
 import { DisposableCollection, generateRandomId } from '@univerjs/core';

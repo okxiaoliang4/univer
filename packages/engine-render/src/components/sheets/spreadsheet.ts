@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { IRange, IActualCellWithCoord, Nullable, ObjectMatrix } from '@univerjs/core';
+import type { IActualCellWithCoord, IRange, Nullable, ObjectMatrix } from '@univerjs/core';
 import type { IBoundRectNoAngle, IViewportInfo, Vector2 } from '../../basics/vector2';
 import type { Canvas } from '../../canvas';
 import type { UniverRenderingContext2D } from '../../context';

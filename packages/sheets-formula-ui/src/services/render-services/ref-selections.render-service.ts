@@ -16,7 +16,7 @@
 
 import type { IDisposable, IRangeWithCoord, Nullable, Workbook } from '@univerjs/core';
 import type { IMouseEvent, IPointerEvent, IRenderContext, IRenderModule, Scene, SpreadsheetSkeleton, Viewport } from '@univerjs/engine-render';
-import type { IStyleForSelection, ISelectionWithCoordAndStyle, ISelectionWithStyle, SheetsSelectionsService, WorkbookSelectionDataModel } from '@univerjs/sheets';
+import type { ISelectionWithCoord, ISelectionWithStyle, IStyleForSelection, SheetsSelectionsService, WorkbookSelectionDataModel } from '@univerjs/sheets';
 import { DisposableCollection, Inject, Injector, RANGE_TYPE, ThemeService, toDisposable } from '@univerjs/core';
 import { ScrollTimerType, SHEET_VIEWPORT_KEY, Vector2 } from '@univerjs/engine-render';
 import { convertSelectionDataToRange, IRefSelectionsService, SelectionMoveType } from '@univerjs/sheets';
@@ -150,8 +150,8 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
 
             const skeleton = this._sheetSkeletonManagerService.getCurrent()!.skeleton;
             const selectionWithStyle = getAllSelection(skeleton);
-            const selectionData = this.attachSelectionWithCoord(selectionWithStyle);
-            this._addSelectionControlBySelectionData(selectionData);
+            const selectionWithCoord = attachSelectionWithCoord(selectionWithStyle, skeleton);
+            this._addSelectionControlBySelectionData(selectionWithCoord);
             this._selectionMoveStart$.next(this.getSelectionDataWithStyle());
             const dispose = scene.onPointerUp$.subscribeEvent(() => {
                 dispose.unsubscribe();
@@ -180,7 +180,7 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
         }));
     }
 
-    private _updateSelections(selectionDataWithStyleList: ISelectionWithCoordAndStyle[], type: SelectionMoveType): void {
+    private _updateSelections(selectionDataWithStyleList: ISelectionWithCoord[], type: SelectionMoveType): void {
         const workbook = this._context.unit;
         const sheetId = workbook.getActiveSheet()!.getSheetId();
 
@@ -199,11 +199,12 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
         // beforeSelectionMoveEnd$ & selectionMoveEnd$ would triggered when change skeleton(change sheet).
         this.disposeWithMe(merge(this._workbookSelections.selectionMoveEnd$, this._workbookSelections.selectionSet$).subscribe((selectionsWithStyles) => {
             this._reset();
-
+            const skeleton = this._skeleton;
+            if (!skeleton) return;
             // The selections' style would be colorful here. PromptController would change the color of selections later.
             for (const selectionWithStyle of selectionsWithStyles) {
-                const selectionData = this.attachSelectionWithCoord(selectionWithStyle);
-                this._addSelectionControlBySelectionData(selectionData);
+                const selectionWithCoord = attachSelectionWithCoord(selectionWithStyle, skeleton);
+                this._addSelectionControlBySelectionData(selectionWithCoord);
             }
         }));
     }
@@ -292,10 +293,10 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
 
         const scrollXY = scene.getVpScrollXYInfoByViewport(relativeCoords);
         const { scaleX, scaleY } = scene.getAncestorScale();
-        const cursorCellRangeInfo = this._getSelectRangeWithCoordByOffset(viewportPosX, viewportPosY, scaleX, scaleY, scrollXY);
-        if (!cursorCellRangeInfo) return;
+        const selectionCellWithCoord = this._getSelectionWithCoordByOffset(viewportPosX, viewportPosY, scaleX, scaleY, scrollXY);
+        if (!selectionCellWithCoord) return;
 
-        const { rangeWithCoord: cursorCellRange, primaryWithCoord: primaryCursorCellRange } = cursorCellRangeInfo;
+        const { rangeWithCoord: cursorCellRange, primaryWithCoord: _primaryCursorCellRange } = selectionCellWithCoord;
         const cursorCellRangeWithRangeType: IRangeWithCoord = { ...cursorCellRange, rangeType };
         this._startRangeWhenPointerDown = { ...cursorCellRange, rangeType };
 
@@ -327,7 +328,7 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
         //#region update selection control
         if (expandByShiftKey && currentCell) {
             // Perform pointer down selection.
-            this._performSelectionByTwoCells(
+            this._makeSelectionByTwoCells(
                 currentCell,
                 cursorCellRangeWithRangeType,
                 skeleton,
@@ -338,12 +339,12 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
             // Supports the formula ref text selection feature,
             // under the condition of preserving all previous selections, it modifies the position of the latest selection.
 
-            activeSelectionControl.updateRange(cursorCellRangeWithRangeType, primaryCursorCellRange);
+            // activeSelectionControl.updateRange(cursorCellRangeWithRangeType, primaryCursorCellRange);
+            activeSelectionControl.updateRangeBySelectionWithCoord(selectionCellWithCoord);
         } else {
             // In normal situation, pointerdown ---> Create new SelectionControl,
-            activeSelectionControl = this.newSelectionControl(scene, rangeType, skeleton);
-
-            activeSelectionControl.updateRange(cursorCellRangeWithRangeType, primaryCursorCellRange);
+            activeSelectionControl = this.newSelectionControl(scene, skeleton, selectionCellWithCoord);
+            // activeSelectionControl.updateRange(cursorCellRangeWithRangeType, primaryCursorCellRange);
         }
         //#endregion
 
@@ -387,7 +388,7 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
         }
     }
 
-    override newSelectionControl(scene: Scene, _rangeType: RANGE_TYPE, skeleton: SpreadsheetSkeleton): SelectionControl {
+    override newSelectionControl(scene: Scene, skeleton: SpreadsheetSkeleton, selectionWithCoord: ISelectionWithCoord): SelectionControl {
         const zIndex = this.getSelectionControls().length;
         const { rowHeaderWidth, columnHeaderHeight } = skeleton;
         const control = new SelectionControl(scene, zIndex, this._themeService, {
@@ -396,8 +397,8 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
             rowHeaderWidth,
             columnHeaderHeight,
         });
+        control.updateRangeBySelectionWithCoord(selectionWithCoord);
         this._selectionControls.push(control);
-
         return control;
     }
 }

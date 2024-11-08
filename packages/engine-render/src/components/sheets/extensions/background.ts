@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { IRange, IScale, IActualCellWithCoord, ObjectMatrix } from '@univerjs/core';
+import type { IActualCellWithCoord, IRange, IScale, ObjectMatrix } from '@univerjs/core';
 import type { UniverRenderingContext } from '../../../context';
 import type { IDrawInfo } from '../../extension';
 import type { SpreadsheetSkeleton } from '../sheet-skeleton';

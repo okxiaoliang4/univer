@@ -19,10 +19,9 @@ import type { ISelectionWithStyle } from '@univerjs/sheets';
 import { createIdentifier, Disposable, Inject, IUniverInstanceService, ThemeService, Tools, UniverInstanceType } from '@univerjs/core';
 import { IRenderManagerService } from '@univerjs/engine-render';
 
-import { ISheetSelectionRenderService } from '../selection/base-selection-render.service';
 import { SELECTION_SHAPE_DEPTH } from '../selection/const';
-// import { ISheetSelectionRenderService } from '../selection/base-selection-render.service';
 import { SelectionControl } from '../selection/selection-control';
+import { attachSelectionWithCoord } from '../selection/util';
 import { SheetSkeletonManagerService } from '../sheet-skeleton-manager.service';
 
 export interface IMarkSelectionService {
@@ -106,12 +105,8 @@ export class MarkSelectionService extends Disposable implements IMarkSelectionSe
                 rowHeaderWidth,
                 columnHeaderHeight,
             });
-            const { rangeWithCoord, primaryWithCoord } = renderUnit.with(ISheetSelectionRenderService).attachSelectionWithCoord(selection);
-            control.updateRange(rangeWithCoord, primaryWithCoord);
-            const { style } = selection;
-            if (style) {
-                control.updateStyle(style);
-            }
+            const selectionWithCoord = attachSelectionWithCoord(selection, skeleton);
+            control.updateRangeBySelectionWithCoord(selectionWithCoord);
             shape.control = control;
         });
     }

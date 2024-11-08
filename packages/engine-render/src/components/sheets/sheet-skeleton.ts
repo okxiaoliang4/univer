@@ -20,6 +20,7 @@ import type {
     IBorderStyleData,
     ICellData,
     ICellDataForSheetInterceptor,
+    ICellInfo,
     IColAutoWidthInfo,
     IColumnData,
     IColumnRange,
@@ -940,6 +941,15 @@ export class SpreadsheetSkeleton extends Skeleton {
         };
     }
 
+    /**
+     * expand curr range if it's intersect with merge range.
+     * @param range
+     * @returns {IRange} expanded range because merge info.
+     */
+    expandRangeByMerge(range: IRange): IRange {
+        return this.getMergeBounding(range.startRow, range.startColumn, range.endRow, range.endColumn);
+    }
+
     appendToOverflowCache(row: number, column: number, startColumn: number, endColumn: number): void {
         this._overflowCache.setValue(row, column, {
             startRow: row,
@@ -1124,6 +1134,32 @@ export class SpreadsheetSkeleton extends Skeleton {
             row,
             column,
         };
+    }
+
+    getCellByOffset(
+        offsetX: number,
+        offsetY: number,
+        scaleX: number,
+        scaleY: number,
+        scrollXY: { x: number; y: number }
+    ): Nullable<ICellInfo> {
+        const cellIndex = this?.getCellIndexByOffset(
+            offsetX,
+            offsetY,
+            scaleX,
+            scaleY,
+            scrollXY,
+            { firstMatch: true } // for visible
+        );
+        if (!cellIndex) return null;
+
+        const selectionCell = this.worksheet.getCellInfoInMergeData(cellIndex.row, cellIndex.column);
+        return selectionCell;
+    }
+
+    getCellWithMergeInfoByIndex(row: number, column: number): Nullable<ICellInfo> {
+        const selectionCell = this.worksheet.getCellInfoInMergeData(row, column);
+        return selectionCell;
     }
 
     /**
