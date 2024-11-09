@@ -38,6 +38,14 @@ export interface ISelectionShapeTargetSelection {
     targetSelection: IRangeWithCoord;
 }
 
+export interface ISelectionShapeExtensionOption {
+    skeleton: SpreadsheetSkeleton;
+    scene: Scene;
+    themeService: ThemeService;
+    injector: Injector;
+    selectionHooks: Record<string, () => void>;
+}
+
 /**
  * for auto-fill (crosshair expand selection range)
  * drag selection range
@@ -80,20 +88,24 @@ export class SelectionShapeExtension {
 
     private _fillControlColors: string[] = [];
 
+    private _skeleton: SpreadsheetSkeleton;
+    private _scene: Scene;
+    private readonly _themeService: ThemeService;
+    private readonly _injector: Injector;
+    private _selectionHooks: Record<string, () => void>;
     constructor(
         private _control: SelectionControl,
-        private _skeleton: SpreadsheetSkeleton,
-        private _scene: Scene,
-        private readonly _themeService: ThemeService,
-
-        /** @deprecated injection in extensions should be strictly limited. */
-        // TODO@ybzky: remove injector here, permission control should be update from the outside.
-        private readonly _injector: Injector,
-        private _selectionHooks: Record<string, () => void>
+        options: ISelectionShapeExtensionOption
     ) {
+        this._skeleton = options.skeleton;
+        this._scene = options.scene;
+        this._themeService = options.themeService;
+        this._injector = options.injector;
+        this._selectionHooks = options.selectionHooks;
+
         this._initialControl();
         this._initialWidget();
-        this._initialFill();
+        this._initialAutoFill();
 
         this._control.dispose$.subscribe(() => {
             this.dispose();
@@ -189,7 +201,7 @@ export class SelectionShapeExtension {
      */
     private _controlMoving(moveOffsetX: number, moveOffsetY: number) {
         const scene = this._scene;
-        const scrollXY = scene.getVpScrollXYInfoByViewport(Vector2.FromArray([moveOffsetX, moveOffsetY]));
+        const scrollXY = scene.getScrollXYInfoByViewport(Vector2.FromArray([moveOffsetX, moveOffsetY]));
         const { scaleX, scaleY } = scene.getAncestorScale();
 
         const actualCellIndex = this._skeleton.getCellIndexByOffset(
@@ -271,7 +283,7 @@ export class SelectionShapeExtension {
 
         const { x: newEvtOffsetX, y: newEvtOffsetY } = relativeCoords;
 
-        const scrollXY = scene.getVpScrollXYInfoByViewport(relativeCoords);
+        const scrollXY = scene.getScrollXYInfoByViewport(relativeCoords);
 
         const { scaleX, scaleY } = scene.getAncestorScale();
 
@@ -514,7 +526,7 @@ export class SelectionShapeExtension {
     private _widgetMoving(moveOffsetX: number, moveOffsetY: number, cursor: CURSOR_TYPE) {
         const scene = this._scene;
 
-        const scrollXY = scene.getVpScrollXYInfoByViewport(Vector2.FromArray([this._startOffsetX, this._startOffsetY]));
+        const scrollXY = scene.getScrollXYInfoByViewport(Vector2.FromArray([this._startOffsetX, this._startOffsetY]));
         const { scaleX, scaleY } = scene.getAncestorScale();
         const moveActualSelection = this._skeleton.getCellIndexByOffset(
             moveOffsetX,
@@ -597,7 +609,7 @@ export class SelectionShapeExtension {
         this._control.selectionScaling$.next(this._targetSelection);
     }
 
-    private _initialFill() {
+    private _initialAutoFill() {
         const { fillControl } = this._control;
 
         fillControl.onPointerEnter$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
@@ -613,11 +625,11 @@ export class SelectionShapeExtension {
             fillControl.resetCursor();
         });
 
-        fillControl.onPointerDown$.subscribeEvent(this._fillEvent.bind(this));
+        fillControl.onPointerDown$.subscribeEvent(this._autoFillForPointerdown.bind(this));
     }
 
     // eslint-disable-next-line complexity
-    private _fillMoving(moveOffsetX: number, moveOffsetY: number) {
+    private _autoFillMoving(moveOffsetX: number, moveOffsetY: number) {
         const scene = this._scene;
         // const activeViewport = scene.getActiveViewportByCoord(Vector2.FromArray([moveOffsetX, moveOffsetY]));
         // const scrollXY = activeViewport ? scene.getScrollXY(activeViewport) : { x: 0, y: 0 };
@@ -760,7 +772,7 @@ export class SelectionShapeExtension {
         this._control.selectionFilling$.next(this._targetSelection);
     }
 
-    private _fillEvent(evt: IMouseEvent | IPointerEvent) {
+    private _autoFillForPointerdown(evt: IMouseEvent | IPointerEvent) {
         const { offsetX: evtOffsetX, offsetY: evtOffsetY } = evt;
 
         const scene = this._scene;
@@ -852,7 +864,7 @@ export class SelectionShapeExtension {
                 Vector2.FromArray([moveOffsetX, moveOffsetY])
             );
 
-            this._fillMoving(newMoveOffsetX, newMoveOffsetY);
+            this._autoFillMoving(newMoveOffsetX, newMoveOffsetY);
 
             scene.setCursor(CURSOR_TYPE.CROSSHAIR);
 
@@ -896,7 +908,7 @@ export class SelectionShapeExtension {
             }
 
             scrollTimer.scrolling(newMoveOffsetX, newMoveOffsetY, () => {
-                this._fillMoving(newMoveOffsetX, newMoveOffsetY);
+                this._autoFillMoving(newMoveOffsetX, newMoveOffsetY);
             });
         });
 

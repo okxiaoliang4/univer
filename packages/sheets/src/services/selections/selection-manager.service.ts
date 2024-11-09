@@ -162,7 +162,7 @@ export class SheetsSelectionsService extends RxDisposable {
         }
 
         const { unitId, sheetId } = current;
-        return this._ensureWorkbookSelection(unitId).getSelectionOfWorksheet(sheetId);
+        return this._ensureWorkbookSelection(unitId).getSelectionsOfWorksheet(sheetId);
     }
 
     getWorkbookSelections(unitId: string): WorkbookSelectionDataModel {

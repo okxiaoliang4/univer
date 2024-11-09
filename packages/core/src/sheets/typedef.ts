@@ -595,10 +595,17 @@ export interface ISingleCell {
 export interface IRangeWithCoord extends IPosition, IRange { }
 
 /**
+ * @deprecated use ICellWithCoord instead.
+ */
+export interface ISelectionCellWithMergeInfo extends IPosition, ISingleCell {
+    mergeInfo: IRangeWithCoord; // merge cell, start and end is upper left cell
+}
+
+/**
  * SingleCell & coordinate and mergeRange.
  */
 // Original name: ISelectionCellWithMergeInfo
-export interface IActualCellWithCoord extends IPosition, ISingleCell {
+export interface ICellWithCoord extends IPosition, ISingleCell {
     mergeInfo: IRangeWithCoord; // merge cell, start and end is upper left cell
 
     /**
@@ -655,13 +662,6 @@ export interface IActualCellWithCoord extends IPosition, ISingleCell {
 export interface ISelectionCell extends IRange, ISingleCell { }
 
 export interface ICellInfo extends ISelectionCell {}
-
-/**
- * @deprecated use IActualCellWithCoord instead.
- */
-export interface ISelectionCellWithMergeInfo extends IPosition, ISingleCell {
-    mergeInfo: IRangeWithCoord; // merge cell, start and end is upper left cell
-}
 
 export interface ISelection {
     /**

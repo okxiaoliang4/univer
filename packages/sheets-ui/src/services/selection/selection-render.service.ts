@@ -122,8 +122,7 @@ export class SheetSelectionRenderService extends BaseSelectionRenderService impl
 
             const skeleton = this._sheetSkeletonManagerService.getCurrent()!.skeleton;
             const selectionWithStyle = getAllSelection(skeleton);
-            const selectionData = attachSelectionWithCoord(selectionWithStyle, skeleton);
-            this._addSelectionControlBySelectionData(selectionData);
+            this._addSelectionControlByModelData(selectionWithStyle);
             this.refreshSelectionMoveEnd();
 
             if (evt.button !== 2) {
@@ -137,8 +136,7 @@ export class SheetSelectionRenderService extends BaseSelectionRenderService impl
             this._resetSelectionStyle();
             const selections = this._workbookSelections.getCurrentSelections();
             if (!selections) return;
-
-            this._refreshSelectionControl(selections);
+            this.resetSelectionsByModelData(selections);
         }));
     }
 
@@ -148,11 +146,10 @@ export class SheetSelectionRenderService extends BaseSelectionRenderService impl
 
     private _initSelectionChangeListener(): void {
         // When selection completes, we need to update the selections' rendering and clear event handlers.
-        this.disposeWithMe(merge(this._workbookSelections.selectionMoveEnd$, this._workbookSelections.selectionSet$).subscribe((params) => {
+        this.disposeWithMe(merge(this._workbookSelections.selectionMoveEnd$, this._workbookSelections.selectionSet$).subscribe((selectionWithStyleList) => {
             this._reset();
-            for (const selectionWithStyle of params) {
-                const selectionData = attachSelectionWithCoord(selectionWithStyle, this._skeleton);
-                this._addSelectionControlBySelectionData(selectionData);
+            for (const selectionWithStyle of selectionWithStyleList) {
+                this._addSelectionControlByModelData(selectionWithStyle);
             }
         }));
     }
@@ -235,7 +232,7 @@ export class SheetSelectionRenderService extends BaseSelectionRenderService impl
             const currentSelections = this._workbookSelections.getCurrentSelections();
             // for col width & row height resize
             if (currentSelections != null) {
-                this._refreshSelectionControl(currentSelections);
+                this.resetSelectionsByModelData(currentSelections);
             }
         }));
     }
@@ -288,7 +285,7 @@ export class SheetSelectionRenderService extends BaseSelectionRenderService impl
         this._startViewportPosX = offsetX;
         this._startViewportPosY = offsetY;
 
-        const scrollXY = scene.getVpScrollXYInfoByViewport(relativeCoords);
+        const scrollXY = scene.getScrollXYInfoByViewport(relativeCoords);
         const { scaleX, scaleY } = scene.getAncestorScale();
 
         const selectCell = this._skeleton.getCellByOffset(offsetX, offsetY, scaleX, scaleY, scrollXY);

@@ -47,6 +47,7 @@ export const IMarkSelectionService = createIdentifier<IMarkSelectionService>('un
 /**
  * For copy and cut selection.
  * also for selection when hover on conditional format items in the cf panel on the right.
+ * but hover on panel if data validation, uses another method to draw selection.
  */
 export class MarkSelectionService extends Disposable implements IMarkSelectionService {
     private _shapeMap: Map<string, IMarkSelectionInfo> = new Map();
@@ -64,14 +65,16 @@ export class MarkSelectionService extends Disposable implements IMarkSelectionSe
         const subUnitId = workbook.getActiveSheet()?.getSheetId();
         if (!subUnitId) return null;
         const id = Tools.generateRandomId();
-        this._shapeMap.set(id, {
+
+        const markSelectionInfo: IMarkSelectionInfo = {
             selection,
             subUnitId,
             unitId: workbook.getUnitId(),
             zIndex,
             control: null,
             exits,
-        });
+        };
+        this._shapeMap.set(id, markSelectionInfo);
 
         this.refreshShapes();
         return id;

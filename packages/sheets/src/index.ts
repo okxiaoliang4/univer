@@ -37,7 +37,7 @@ export {
     type ISelectionWithCoord,
     type ISelectionWithStyle,
     type ISheetRangeLocation,
-    type IStyleForSelection,
+    type ISelectionStyle,
     SELECTION_CONTROL_BORDER_BUFFER_COLOR,
     SELECTION_CONTROL_BORDER_BUFFER_WIDTH,
 } from './basics/selection';

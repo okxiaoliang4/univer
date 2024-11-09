@@ -18,7 +18,7 @@
 /* eslint-disable max-lines-per-function */
 import type {
     EventState,
-    IActualCellWithCoord,
+    ICellWithCoord,
     IDisposable,
     IRange,
     IRangeWithCoord,
@@ -128,11 +128,10 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
 
     private _initSelectionChangeListener() {
         // When selection completes, we need to update the selections' rendering and clear event handlers.
-        this.disposeWithMe(this._workbookSelections.selectionMoveEnd$.subscribe((params) => {
+        this.disposeWithMe(this._workbookSelections.selectionMoveEnd$.subscribe((ISelectionWithStyleList) => {
             this._reset();
-            for (const selectionWithStyle of params) {
-                const selectionData = attachSelectionWithCoord(selectionWithStyle, this._skeleton);
-                this._addSelectionControlBySelectionData(selectionData);
+            for (const selectionWithStyle of ISelectionWithStyleList) {
+                this._addSelectionControlByModelData(selectionWithStyle);
             }
         }));
     }
@@ -179,8 +178,7 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
 
             const skeleton = this._sheetSkeletonManagerService.getCurrent()!.skeleton;
             const selectionWithStyle = getAllSelection(skeleton);
-            const selectionData = attachSelectionWithCoord(selectionWithStyle, skeleton);
-            this._addSelectionControlBySelectionData(selectionData);
+            this._addSelectionControlByModelData(selectionWithStyle);
             // pointerup --> create selection
             this.refreshSelectionMoveStart();
 
@@ -316,15 +314,15 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
         const { offsetX: evtOffsetX, offsetY: evtOffsetY } = evt;
         const relativeCoords = scene.getCoordRelativeToViewport(Vector2.FromArray([evtOffsetX, evtOffsetY]));
 
-        const { x: viewportPosX, y: viewportPosY } = relativeCoords;
-        // this._startViewportPosX = viewportPosX;
-        // this._startViewportPosY = viewportPosY;
-        const scrollXY = scene.getVpScrollXYInfoByViewport(relativeCoords);
+        const { x: offsetX, y: offsetY } = relativeCoords;
+        this._startViewportPosX = offsetX;
+        this._startViewportPosY = offsetY;
+        const scrollXY = scene.getScrollXYInfoByViewport(relativeCoords);
         const { scaleX, scaleY } = scene.getAncestorScale();
         // const selectionCellWithCoord: Nullable<ISelectionWithCoord> = this._getSelectionWithCoordByOffset(viewportPosX, viewportPosY, scaleX, scaleY, scrollXY);
         // if (!selectionCellWithCoord) return;
         // const { rangeWithCoord: cursorCellRange, primaryWithCoord: primaryCursorCellRange } = cursorCellRangeInfo;
-        const selectCell = this._skeleton.getCellByOffset(viewportPosX, viewportPosY, scaleX, scaleY, scrollXY);
+        const selectCell = this._skeleton.getCellByOffset(offsetX, offsetY, scaleX, scaleY, scrollXY);
         if (!selectCell) return;
         switch (rangeType) {
             case RANGE_TYPE.NORMAL:
@@ -385,7 +383,7 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
         const { rowHeaderWidth, columnHeaderHeight } = skeleton;
         const rangeType = selectionWithCoord.rangeWithCoord.rangeType;
         const control = new MobileSelectionControl(scene, selectionControls.length, this._themeService, {
-            highlightHeader: this._isHeaderHighlight,
+            highlightHeader: this._highlightHeader,
             rowHeaderWidth,
             columnHeaderHeight,
             rangeType,
@@ -525,11 +523,11 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
         // #endregion
     }
 
-    private _changeCurrCellWhenControlPointerDown(): IActualCellWithCoord {
+    private _changeCurrCellWhenControlPointerDown(): ICellWithCoord {
         const activeSelectionControl = this.getActiveSelectionControl<MobileSelectionControl>()!;
         const skeleton = this._skeleton;
 
-        let currCellRange: IActualCellWithCoord;
+        let currCellRange: ICellWithCoord;
 
         const { startRow, startColumn, endRow, endColumn } = activeSelectionControl.model;
         switch (this.expandingControlMode) {
@@ -600,7 +598,7 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
 
         const targetViewport = this._getViewportByCell(currSelectionRange.endRow, currSelectionRange.endColumn) ?? viewportMain;
 
-        const scrollXY = scene.getVpScrollXYInfoByViewport(
+        const scrollXY = scene.getScrollXYInfoByViewport(
             Vector2.FromArray([this._startViewportPosX, this._startViewportPosY]),
             targetViewport
         );

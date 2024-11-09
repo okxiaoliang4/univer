@@ -15,8 +15,8 @@
  */
 
 import type {
-    IActualCellWithCoord,
     ICellInfo,
+    ICellWithCoord,
     IPosition,
     IRange,
     IRangeWithCoord,
@@ -529,7 +529,7 @@ export function getCellPositionByIndex(
  * @param {number[]} rowHeightAccumulation The accumulated height of each row
  * @param {number[]} columnWidthAccumulation The accumulated width of each column
  * @param {ICellInfo} mergeData The merge information of the cell
- * @returns {IActualCellWithCoord} The cell position information of the specified row and column, including the position information of the cell and the merge information of the cell
+ * @returns {ICellWithCoord} The cell position information of the specified row and column, including the position information of the cell and the merge information of the cell
  */
 export function getCellWithCoordByIndexCore(
     row: number,
@@ -537,7 +537,7 @@ export function getCellWithCoordByIndexCore(
     rowHeightAccumulation: number[],
     columnWidthAccumulation: number[],
     mergeDataInfo: ICellInfo
-): IActualCellWithCoord {
+): ICellWithCoord {
     // eslint-disable-next-line prefer-const
     let { startY, endY, startX, endX } = getCellPositionByIndex(
         row,
@@ -606,8 +606,8 @@ export function getCellWithCoordByIndexCore(
 /**
  * @deprecated please use getCellWithCoordByIndexCore instead
  */
-const getCellByIndex = getCellWithCoordByIndexCore;
-export { getCellByIndex };
+const getCellByIndexWithMergeInfo = getCellWithCoordByIndexCore;
+export { getCellByIndexWithMergeInfo };
 
 /**
  * Determine whether there are any cells in a row that are not in the merged cells, mainly used for the calculation of auto height

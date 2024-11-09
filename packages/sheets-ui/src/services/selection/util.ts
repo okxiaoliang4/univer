@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { IActualCellWithCoord, IRange, IRangeWithCoord, ISelectionCell } from '@univerjs/core';
+import type { ICellWithCoord, IRange, IRangeWithCoord, ISelectionCell } from '@univerjs/core';
 import type { SpreadsheetSkeleton } from '@univerjs/engine-render';
 import type { ISelectionWithCoord, ISelectionWithStyle } from '@univerjs/sheets';
 
@@ -69,7 +69,7 @@ export function attachSelectionWithCoord(selection: ISelectionWithStyle, skeleto
     } as ISelectionWithCoord;
 }
 
-export function attachPrimaryWithCoord(skeleton: SpreadsheetSkeleton, primary: ISelectionCell): IActualCellWithCoord {
+export function attachPrimaryWithCoord(skeleton: SpreadsheetSkeleton, primary: ISelectionCell): ICellWithCoord {
     const { actualRow, actualColumn, isMerged, isMergedMainCell, startRow, startColumn, endRow, endColumn } = primary;
     const cellPosition = skeleton.getNoMergeCellPositionByIndex(actualRow, actualColumn);
     const startCell = skeleton.getNoMergeCellPositionByIndex(startRow, startColumn);
@@ -94,5 +94,5 @@ export function attachPrimaryWithCoord(skeleton: SpreadsheetSkeleton, primary: I
             startX: startCell?.startX || 0,
             endX: endCell?.endX || 0,
         },
-    } as IActualCellWithCoord;
+    } as ICellWithCoord;
 }
