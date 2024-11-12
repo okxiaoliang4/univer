@@ -16,7 +16,7 @@
 
 import type { Dependency } from '@univerjs/core';
 import type { IUniverUIConfig } from '@univerjs/ui';
-import { DependentOn, IContextService, ILocalStorageService, Inject, Injector, mergeOverrideWithDependencies, Plugin, Tools } from '@univerjs/core';
+import { DependentOn, ICommandService, IContextService, ILocalStorageService, Inject, Injector, mergeOverrideWithDependencies, Plugin, Tools } from '@univerjs/core';
 import { UniverRenderEnginePlugin } from '@univerjs/engine-render';
 import {
     BrowserClipboardService,
@@ -68,6 +68,7 @@ import {
     UNIVER_UI_PLUGIN_NAME,
     ZIndexManager,
 } from '@univerjs/ui';
+import { SetEditorResizeOperation } from './commands/operations/set-editor-resize.operation';
 import { UniverUniUIController } from './controllers/uniui-desktop.controller';
 import { UniuiFlowController } from './controllers/uniui-flow.controller';
 import { UniuiLeftSidebarController } from './controllers/uniui-leftsidebar.controller';
@@ -87,7 +88,8 @@ export class UniverUniUIPlugin extends Plugin {
     constructor(
         private readonly _config: Partial<IUniverUIConfig> = {},
         @Inject(Injector) protected readonly _injector: Injector,
-        @IContextService private readonly _contextService: IContextService
+        @IContextService private readonly _contextService: IContextService,
+        @ICommandService private readonly _commandService: ICommandService
     ) {
         super();
 
@@ -145,5 +147,7 @@ export class UniverUniUIPlugin extends Plugin {
         this._injector.get(UniuiFlowController);
         this._injector.get(UniuiLeftSidebarController);
         this._injector.get(UniuiToolbarController);
+        // This command is in the ui-package, so just copy it.
+        this._commandService.registerCommand(SetEditorResizeOperation);
     }
 }
