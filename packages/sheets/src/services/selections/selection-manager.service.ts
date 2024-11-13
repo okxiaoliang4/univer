@@ -108,10 +108,10 @@ export class SheetsSelectionsService extends RxDisposable {
         unitIdOrSelections: string | ISelectionWithStyle[],
         worksheetIdOrType: string | SelectionMoveType | undefined,
         selectionDatas?: ISelectionWithStyle[],
-        type?: SelectionMoveType
+        type: SelectionMoveType = SelectionMoveType.ONLY_SET
     ): void {
         if (typeof unitIdOrSelections === 'string') {
-            this._ensureWorkbookSelection(unitIdOrSelections).setSelections(worksheetIdOrType as string, selectionDatas!, type ?? SelectionMoveType.MOVE_END);
+            this._ensureWorkbookSelection(unitIdOrSelections).setSelections(worksheetIdOrType as string, selectionDatas!, type);
             return;
         }
 
@@ -121,7 +121,9 @@ export class SheetsSelectionsService extends RxDisposable {
         }
 
         const { unitId, sheetId } = current;
-        this._ensureWorkbookSelection(unitId).setSelections(sheetId, unitIdOrSelections ?? selectionDatas, worksheetIdOrType as SelectionMoveType ?? SelectionMoveType.MOVE_END);
+        const selections = unitIdOrSelections ?? selectionDatas;
+        const moveType = (worksheetIdOrType as SelectionMoveType) ?? type;
+        this._ensureWorkbookSelection(unitId).setSelections(sheetId, selections, moveType);
     }
 
     clearCurrentSelections(): void {
