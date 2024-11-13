@@ -61,7 +61,7 @@ export class ComponentExtension<T, U, V> {
     }
 
     clearCache() {
-        /* abstract */
+        /* abstract */  
     }
 
     protected _getScale(parentScale: IScale) {

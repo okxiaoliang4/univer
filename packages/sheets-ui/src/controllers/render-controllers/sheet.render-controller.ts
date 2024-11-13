@@ -57,7 +57,7 @@ export class SheetRenderController extends RxDisposable implements IRenderModule
         @Optional(ITelemetryService) private readonly _telemetryService?: ITelemetryService
     ) {
         super();
-
+        console.log('!!!!SheetRenderController init');
         this._addNewRender();
         this._initRenderMetricSubscriber();
     }
@@ -78,6 +78,7 @@ export class SheetRenderController extends RxDisposable implements IRenderModule
         this._sheetSkeletonManagerService.setCurrent({ sheetId });
 
         // TODO: we should attach the context object to the RenderContext object on scene.canvas.
+        engine.setUnitId(workbook.getUnitId());
         engine.runRenderLoop(() => scene.render());
     }
 

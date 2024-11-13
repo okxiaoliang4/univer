@@ -134,6 +134,7 @@ export class Spreadsheet extends SheetComponent {
                 viewportKey: viewportInfo.viewportKey,
                 viewBound: viewportInfo.cacheBound,
             } as IDrawInfo);
+            console.log(`draw ${extension.uKey} time: ${Tools.now() - st}`);
             this.addRenderFrameTimeMetricToScene(timeKey, Tools.now() - st, scene);
         }
     }

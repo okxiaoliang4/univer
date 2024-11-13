@@ -21,6 +21,7 @@ import type { IKeyboardEvent, IPointerEvent } from './basics/i-events';
 import type { ITimeMetric } from './basics/interfaces';
 import type { IBasicFrameInfo } from './basics/performance-monitor';
 import type { Scene } from './scene';
+import { time } from 'node:console';
 import { toDisposable, Tools } from '@univerjs/core';
 import { Observable, shareReplay, Subject } from 'rxjs';
 import { DeviceType, PointerInput } from './basics/i-events';
@@ -74,6 +75,10 @@ export class Engine extends ThinEngine<Scene> {
 
     private _renderFrameTasks = new Array<() => void>();
 
+    /**
+     * _renderFunction = _renderFunctionCore.bind(this)
+     * @param _timestamp
+     */
     private _renderFunction = (_timestamp: number) => { /* empty */ };
 
     private _requestNewFrameHandler: number = -1;
@@ -151,6 +156,7 @@ export class Engine extends ThinEngine<Scene> {
         if (mode !== CanvasRenderMode.Printing) {
             this._matchMediaHandler();
         }
+        console.log('!!!!EngineRender is constructed');
     }
 
     _init() {
@@ -324,12 +330,17 @@ export class Engine extends ThinEngine<Scene> {
     }
 
     startRenderLoop(): void {
+        console.log('!!!!startRenderLoop!!!!');
         if (!this._renderingQueueLaunched) {
             this._renderStartTime = performance.now();
             this._renderingQueueLaunched = true;
-            this._renderFunction = this._renderFunctionCore.bind(this);
-            this._requestNewFrameHandler = requestNewFrame(this._renderFunction);
+            this._renderFunctionRAF = this._renderFunctionRAF.bind(this);
+            this._requestNewFrameHandler = requestNewFrame(this._renderFunctionRAF);
         }
+    }
+
+    setUnitId(unitId: string): void {
+        this._unitId = unitId;
     }
 
     /**
@@ -443,7 +454,11 @@ export class Engine extends ThinEngine<Scene> {
      * call itself by raf
      * Exec all function in _renderFrameTasks in _renderFrame()
      */
-    private _renderFunctionCore(timestamp: number): void {
+    private _renderFunctionRAF(timestamp: number): void {
+        if (window.test) {
+            console.log('unitId', this._unitId);
+            console.group('_renderFunctionCore');
+        }
         let shouldRender = true;
         if (!this.renderEvenInBackground) {
             shouldRender = false;
@@ -456,10 +471,17 @@ export class Engine extends ThinEngine<Scene> {
             this._endFrame(timestamp);
         }
 
+        // console.timeEnd('_renderFunctionCore');
+
         if (this._renderFrameTasks.length > 0) {
-            this._requestNewFrameHandler = requestNewFrame(this._renderFunction);
+            this._requestNewFrameHandler = requestNewFrame(this._renderFunctionRAF);
         } else {
             this._renderingQueueLaunched = false;
+        }
+
+        if (window.test) {
+            console.log('unitId', this._unitId);
+            console.groupEnd('_renderFunctionCore');
         }
     }
 
