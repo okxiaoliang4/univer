@@ -21,9 +21,6 @@ import { includeFormulaLexerToken } from '../../basics/match-token';
 import { isReferenceString, UNIT_NAME_REGEX_PRECOMPILING } from '../../basics/regex';
 import { prefixToken, SPACE_TOKEN } from '../../basics/token';
 
-const $ROW_REGEX = /[^0-9]/g;
-const $COLUMN_REGEX = /[^A-Za-z]/g;
-
 export interface IAbsoluteRefTypeForRange {
     startAbsoluteRefType: AbsoluteRefType;
     endAbsoluteRefType?: AbsoluteRefType;
@@ -185,10 +182,70 @@ export function serializeRangeToRefString(gridRangeName: IUnitRangeName) {
 }
 
 export function singleReferenceToGrid(refBody: string) {
-    const row = Number.parseInt(refBody.replace($ROW_REGEX, '')) - 1;
-    const column = Tools.ABCatNum(refBody.replace($COLUMN_REGEX, ''));
+    let i = 0;
+    let isColumnAbsolute = false;
+    if (refBody[i] === '$') {
+        isColumnAbsolute = true;
+        i++;
+    }
 
-    const absoluteRefType = getAbsoluteRefTypeWithSingleString(refBody);
+    const columnPartStart = i;
+    let columnValue = 0;
+    while (i < refBody.length) {
+        const charCode = refBody.charCodeAt(i);
+        // 'A'~'Z'
+        if (charCode >= 65 && charCode <= 90) {
+            columnValue = columnValue * 26 + charCode - 64;
+            i++;
+            // 'a'~'z'
+        } else if (charCode >= 97 && charCode <= 122) {
+            columnValue = columnValue * 26 + charCode - 96;
+            i++;
+        } else {
+            break;
+        }
+    }
+    const column = i > columnPartStart ? columnValue - 1 : Number.NaN;
+
+    let isRowAbsolute = false;
+    if (i < refBody.length && refBody[i] === '$') {
+        isRowAbsolute = true;
+        i++;
+    }
+
+    // Inlined row number parsing
+    const rowPartStart = i;
+    let rowValue = 0;
+    while (i < refBody.length) {
+        const charCode = refBody.charCodeAt(i);
+        // '0'~'9'
+        if (charCode >= 48 && charCode <= 57) {
+            rowValue = rowValue * 10 + (charCode - 48);
+            i++;
+        } else {
+            break;
+        }
+    }
+    const hasRow = i > rowPartStart;
+
+    // This handles the case like '$1', which is a row-absolute reference.
+    if (Number.isNaN(column) && hasRow && isColumnAbsolute) {
+        isColumnAbsolute = false;
+        isRowAbsolute = true;
+    }
+
+    const row = hasRow ? rowValue - 1 : Number.NaN;
+
+    let absoluteRefType: AbsoluteRefType;
+    if (isColumnAbsolute && isRowAbsolute) {
+        absoluteRefType = AbsoluteRefType.ALL;
+    } else if (isColumnAbsolute) {
+        absoluteRefType = AbsoluteRefType.COLUMN;
+    } else if (isRowAbsolute) {
+        absoluteRefType = AbsoluteRefType.ROW;
+    } else {
+        absoluteRefType = AbsoluteRefType.NONE;
+    }
 
     return {
         row,

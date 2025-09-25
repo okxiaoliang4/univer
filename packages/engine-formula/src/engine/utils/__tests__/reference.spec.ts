@@ -26,6 +26,7 @@ import {
     needsQuoting,
     serializeRange,
     serializeRangeToRefString,
+    singleReferenceToGrid,
 } from '../reference';
 
 describe('Test Reference', () => {
@@ -419,5 +420,63 @@ describe('Test Reference', () => {
         expect(isReferenceStrings('A1:B10,Sheet1!A1,Sheet2!A1,DefinedName1,Sheet3!A1')).toBeFalsy();
         expect(isReferenceStrings('A1:B10,')).toBeFalsy();
         expect(isReferenceStrings('A1:B10,  B30:C20')).toBeTruthy();
+    });
+
+    it('singleReferenceToGrid', () => {
+        // Basic
+        expect(singleReferenceToGrid('A1')).toStrictEqual({
+            row: 0,
+            column: 0,
+            absoluteRefType: AbsoluteRefType.NONE,
+        });
+
+        // Lowercase
+        expect(singleReferenceToGrid('a1')).toStrictEqual({
+            row: 0,
+            column: 0,
+            absoluteRefType: AbsoluteRefType.NONE,
+        });
+
+        // Absolute column
+        expect(singleReferenceToGrid('$A1')).toStrictEqual({
+            row: 0,
+            column: 0,
+            absoluteRefType: AbsoluteRefType.COLUMN,
+        });
+
+        // Absolute row
+        expect(singleReferenceToGrid('A$1')).toStrictEqual({
+            row: 0,
+            column: 0,
+            absoluteRefType: AbsoluteRefType.ROW,
+        });
+
+        // Absolute all
+        expect(singleReferenceToGrid('$A$1')).toStrictEqual({
+            row: 0,
+            column: 0,
+            absoluteRefType: AbsoluteRefType.ALL,
+        });
+
+        // Multi-char column
+        expect(singleReferenceToGrid('AA100')).toStrictEqual({
+            row: 99,
+            column: 26,
+            absoluteRefType: AbsoluteRefType.NONE,
+        });
+
+        // Max range
+        expect(singleReferenceToGrid('$XFD$1048576')).toStrictEqual({
+            row: 1048575,
+            column: 16383,
+            absoluteRefType: AbsoluteRefType.ALL,
+        });
+
+        // Tricky case: row-only absolute reference
+        expect(singleReferenceToGrid('$1')).toStrictEqual({
+            row: 0,
+            column: Number.NaN,
+            absoluteRefType: AbsoluteRefType.ROW,
+        });
     });
 });
