@@ -142,7 +142,7 @@ function mergeStyle(
         }
         // you can only choose one of the themeColor and rgbColor of the border setting
         if (k in backupStyle && k === 'bd') {
-            backupStyle[k] = Object.assign(backupStyle[k], newStyle[k]);
+            backupStyle[k] = Object.assign(backupStyle[k] || {}, newStyle[k]);
         } else {
             backupStyle[k] = (newStyle as IKeyValue)[k];
         }
