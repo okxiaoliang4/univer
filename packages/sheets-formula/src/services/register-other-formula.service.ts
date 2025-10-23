@@ -20,7 +20,7 @@ import type { IOtherFormulaMarkDirtyParams } from '../commands/mutations/formula
 import type { IOtherFormulaResult } from './formula-common';
 import { Disposable, generateRandomId, ICommandService, Inject, LifecycleService, ObjectMatrix } from '@univerjs/core';
 import { IActiveDirtyManagerService, RemoveOtherFormulaMutation, SetFormulaCalculationResultMutation, SetOtherFormulaMutation } from '@univerjs/engine-formula';
-import { BehaviorSubject, bufferWhen, filter, Subject } from 'rxjs';
+import { BehaviorSubject, buffer, filter, skip, Subject } from 'rxjs';
 import { OtherFormulaMarkDirty } from '../commands/mutations/formula.mutation';
 import { FormulaResultStatus } from './formula-common';
 
@@ -119,7 +119,7 @@ export class RegisterOtherFormulaService extends Disposable {
 
         this.disposeWithMe(
             this._formulaChangeWithRange$
-                .pipe(bufferWhen(() => this.calculateStarted$.pipe(filter((calculateStarted) => calculateStarted))))
+                .pipe(buffer(this.calculateStarted$.pipe(skip(1), filter((v) => v))))
                 .subscribe((options) => options.forEach(handleRegister))
         );
 
