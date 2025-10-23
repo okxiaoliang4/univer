@@ -626,6 +626,9 @@ export class EditingRenderController extends Disposable {
             return true;
         }
 
+        // Remove the same style attributes that have been set by composed style in the cell data.
+        this._removeComposedCellStyleInCellData(cellData, worksheet.getComposedCellStyle(row, column));
+
         const finalCell = this._sheetInterceptorService.onWriteCell(workbook, worksheet, row, column, cellData) as ICellData;
         if (Tools.diffValue(cleanCellDataObject(finalCell), cleanCellDataObject(worksheet.getCellRaw(row, column)))) {
             return true;
@@ -660,6 +663,20 @@ export class EditingRenderController extends Disposable {
         return true;
     }
 
+    private _removeComposedCellStyleInCellData(cellData: ICellData, composedStyle: IStyleData) {
+        if (!cellData.s || typeof cellData.s === 'string') {
+            return;
+        }
+
+        const keys = Object.keys(cellData.s);
+
+        for (const key of keys) {
+            if (composedStyle[key as keyof IStyleData] !== undefined && Tools.diffValue(cellData.s[key as keyof IStyleData], composedStyle[key as keyof IStyleData])) {
+                delete cellData.s[key as keyof IStyleData];
+            }
+        }
+    }
+
     private _exitInput(param: IEditorBridgeServiceVisibleParam) {
         this._contextService.setContextValue(FOCUSING_EDITOR_INPUT_FORMULA, false);
         this._contextService.setContextValue(EDITOR_ACTIVATED, false);
@@ -676,6 +693,10 @@ export class EditingRenderController extends Disposable {
         const editorUnitId = this._editorBridgeService.getCurrentEditorId();
         if (editorUnitId == null || !this._editorService.isSheetEditor(editorUnitId)) {
             return;
+        }
+        // Reset the width of the editor to the initial state after exiting the input.
+        if (editorUnitId === DOCS_NORMAL_EDITOR_UNIT_ID_KEY) {
+            this._getEditorSkeleton(DOCS_NORMAL_EDITOR_UNIT_ID_KEY)?.resetInitialWidth();
         }
         this._undoRedoService.clearUndoRedo(editorUnitId);
         this._undoRedoService.clearUndoRedo(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);

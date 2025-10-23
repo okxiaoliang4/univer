@@ -42,7 +42,7 @@ import {
     ThemeService,
 } from '@univerjs/core';
 import { ScrollTimer, ScrollTimerType, SHEET_VIEWPORT_KEY, Vector2 } from '@univerjs/engine-render';
-import { REF_SELECTIONS_ENABLED, SELECTIONS_ENABLED } from '@univerjs/sheets';
+import { convertPrimaryWithCoordToPrimary, REF_SELECTIONS_ENABLED, SELECTIONS_ENABLED } from '@univerjs/sheets';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { SHEET_COMPONENT_SELECTION_LAYER_INDEX } from '../../common/keys';
 import { genNormalSelectionStyle, RANGE_FILL_PERMISSION_CHECK, RANGE_MOVE_PERMISSION_CHECK } from './const';
@@ -344,13 +344,16 @@ export class BaseSelectionRenderService extends Disposable implements ISheetSele
      */
     getSelectionDataWithStyle(): ISelectionWithCoord[] {
         const selectionControls = this._selectionControls;
-        const [unitId, sheetId] = this._skeleton.getLocation();
-        return selectionControls.map((control) => {
-            const v = control.getValue();
-            v.rangeWithCoord.sheetId = sheetId;
-            v.rangeWithCoord.unitId = unitId;
-            return v;
-        });
+        if (this._skeleton.worksheet) {
+            const [unitId, sheetId] = this._skeleton.getLocation();
+            return selectionControls.map((control) => {
+                const v = control.getValue();
+                v.rangeWithCoord.sheetId = sheetId;
+                v.rangeWithCoord.unitId = unitId;
+                return v;
+            });
+        }
+        return [];
     }
 
     /**
@@ -902,7 +905,7 @@ export class BaseSelectionRenderService extends Disposable implements ISheetSele
         });
         const selectionWithStyle = {
             range,
-            primary: null,
+            primary: convertPrimaryWithCoordToPrimary(currentCell),
             style: null,
         };
         const selectionWithCoord = attachSelectionWithCoord(selectionWithStyle, skeleton);
