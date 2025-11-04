@@ -189,33 +189,33 @@ export const menuSchema: MenuSchemaType = {
         },
         [RibbonStartGroup.FORMAT]: {
             [SetRangeFontFamilyCommand.id]: {
-                order: 1,
+                order: 5,
                 menuItemFactory: FontFamilySelectorMenuItemFactory,
             },
             [SetRangeFontSizeCommand.id]: {
-                order: 2,
+                order: 6,
                 menuItemFactory: FontSizeSelectorMenuItemFactory,
             },
         // TODO: fontsize +
         // TODO: fontsize -
             [SetRangeBoldCommand.id]: {
-                order: 5,
+                order: 7,
                 menuItemFactory: BoldMenuItemFactory,
             },
             [SetRangeItalicCommand.id]: {
-                order: 6,
+                order: 8,
                 menuItemFactory: ItalicMenuItemFactory,
             },
             [SetRangeUnderlineCommand.id]: {
-                order: 7,
+                order: 9,
                 menuItemFactory: UnderlineMenuItemFactory,
             },
             [SetRangeStrickThroughCommand.id]: {
-                order: 8,
+                order: 10,
                 menuItemFactory: StrikeThroughMenuItemFactory,
             },
             [SetRangeTextColorCommand.id]: {
-                order: 9,
+                order: 11,
                 menuItemFactory: TextColorSelectorMenuItemFactory,
                 [ResetTextColorCommand.id]: {
                     order: 0,
@@ -223,7 +223,7 @@ export const menuSchema: MenuSchemaType = {
                 },
             },
             [SetBackgroundColorCommand.id]: {
-                order: 10,
+                order: 12,
                 menuItemFactory: BackgroundColorSelectorMenuItemFactory,
                 [ResetBackgroundColorCommand.id]: {
                     order: 0,
@@ -231,8 +231,28 @@ export const menuSchema: MenuSchemaType = {
                 },
             },
             [SetBorderBasicCommand.id]: {
-                order: 11,
+                order: 13,
                 menuItemFactory: CellBorderSelectorMenuItemFactory,
+            },
+            [AddWorksheetMergeCommand.id]: {
+                order: 14,
+                menuItemFactory: CellMergeMenuItemFactory,
+                [AddWorksheetMergeAllCommand.id]: {
+                    order: 0,
+                    menuItemFactory: CellMergeAllMenuItemFactory,
+                },
+                [AddWorksheetMergeVerticalCommand.id]: {
+                    order: 1,
+                    menuItemFactory: CellMergeVerticalMenuItemFactory,
+                },
+                [AddWorksheetMergeHorizontalCommand.id]: {
+                    order: 2,
+                    menuItemFactory: CellMergeHorizontalMenuItemFactory,
+                },
+                [RemoveWorksheetMergeCommand.id]: {
+                    order: 3,
+                    menuItemFactory: CellMergeCancelMenuItemFactory,
+                },
             },
         },
         [RibbonStartGroup.LAYOUT]: {
@@ -251,26 +271,6 @@ export const menuSchema: MenuSchemaType = {
             [SetTextRotationCommand.id]: {
                 order: 7,
                 menuItemFactory: TextRotateMenuItemFactory,
-            },
-            [AddWorksheetMergeCommand.id]: {
-                order: 8,
-                menuItemFactory: CellMergeMenuItemFactory,
-                [AddWorksheetMergeAllCommand.id]: {
-                    order: 0,
-                    menuItemFactory: CellMergeAllMenuItemFactory,
-                },
-                [AddWorksheetMergeVerticalCommand.id]: {
-                    order: 1,
-                    menuItemFactory: CellMergeVerticalMenuItemFactory,
-                },
-                [AddWorksheetMergeHorizontalCommand.id]: {
-                    order: 2,
-                    menuItemFactory: CellMergeHorizontalMenuItemFactory,
-                },
-                [RemoveWorksheetMergeCommand.id]: {
-                    order: 3,
-                    menuItemFactory: CellMergeCancelMenuItemFactory,
-                },
             },
         },
         [RibbonStartGroup.OTHERS]: {
