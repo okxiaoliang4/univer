@@ -108,6 +108,9 @@ const entryPoints = [
     './src/sheets/main.ts',
     './src/sheets/worker.ts',
 
+    './src/sheets-pivot-table/main.tsx',
+    './src/sheets-pivot-table/worker.ts',
+
     './src/sheets-no-worker/main.ts',
 
     // sheets-multi
