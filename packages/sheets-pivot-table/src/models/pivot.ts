@@ -15,206 +15,158 @@
  */
 
 import type { ICellData, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
-import type { Observable } from 'rxjs';
-import { Disposable, toDisposable } from '@univerjs/core';
-import { BehaviorSubject, combineLatest } from 'rxjs';
-import { debounceTime } from 'rxjs/operators';
+import type { IPivotField, IPivotFilterCriteria } from '../types/type';
+import { Disposable } from '@univerjs/core';
 import { createAggregator } from '../model/aggregation/functions';
 import { AggregationType } from '../types/enum';
 
 interface IPivotConfig {
-    valueFields: string[];
-    rowFields: string[];
-    columnFields: string[];
-    filterFields: string[];
+    valueFields: IPivotField[];
+    rowFields: IPivotField[];
+    columnFields: IPivotField[];
+    filterFields: IPivotField[];
     sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
 }
 
 interface IPivot {
-    valueFields$: Observable<string[]>;
-    rowFields$: Observable<string[]>;
-    filters$: Observable<string[]>;
-    columnFields$: Observable<string[]>;
-    sourceData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
-    calculatedData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
-
-    setValueFields: (valueFields: string[]) => void;
-    setRowFields: (rowFields: string[]) => void;
-    setColumnFields: (columnFields: string[]) => void;
-    setFilters: (filters: string[]) => void;
-    setSourceData: (sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>) => void;
+    valueFields: IPivotField[];
+    rowFields: IPivotField[];
+    columnFields: IPivotField[];
+    filterFields: IPivotField[];
+    sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
 }
 
 export class Pivot extends Disposable implements IPivot {
-    private _valueFields$: BehaviorSubject<string[]>;
-    public valueFields$: Observable<string[]>;
-    private _rowFields$: BehaviorSubject<string[]>;
-    public rowFields$: Observable<string[]>;
-    private _filters$: BehaviorSubject<string[]>;
-    public filters$: Observable<string[]>;
-    private _columnFields$: BehaviorSubject<string[]>;
-    public columnFields$: Observable<string[]>;
-    private _sourceData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
-    public sourceData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
-    private _calculatedData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
-    public calculatedData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
+    valueFields: IPivotField[];
+    rowFields: IPivotField[];
+    columnFields: IPivotField[];
+    filterFields: IPivotField[];
+    sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
+    private _calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>> | null;
 
-  // Dirty flag and cache management
+    // Dirty flag and cache management
     private _isDirty: boolean = true;
 
     constructor(config: IPivotConfig) {
         super();
 
-        this._valueFields$ = new BehaviorSubject<string[]>(config.valueFields);
-        this._rowFields$ = new BehaviorSubject<string[]>(config.rowFields);
-        this._columnFields$ = new BehaviorSubject<string[]>(config.columnFields);
-        this._filters$ = new BehaviorSubject<string[]>(config.filterFields);
-        this._sourceData$ = new BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>>>(config.sourceData);
-        this._calculatedData$ = new BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>(null);
+        this.valueFields = config.valueFields;
+        this.rowFields = config.rowFields;
+        this.columnFields = config.columnFields;
+        this.filterFields = config.filterFields;
+        this.sourceData = config.sourceData;
+        this._calculatedData = null;
+    }
 
-        this.valueFields$ = this._valueFields$.asObservable();
-        this.rowFields$ = this._rowFields$.asObservable();
-        this.filters$ = this._filters$.asObservable();
-        this.columnFields$ = this._columnFields$.asObservable();
-        this.sourceData$ = this._sourceData$.asObservable();
-        this.calculatedData$ = this._calculatedData$.asObservable();
+    /**
+     * Get the calculated data, if the pivot is dirty, it will recalculate the data
+     * @returns The calculated data
+     */
+    getCalculatedData(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
+        if (this._isDirty) {
+            this._calculatedData = this._calculate();
+            this._isDirty = false;
+        }
+        return this._calculatedData;
+    }
 
-    // Set up debounced calculation pipeline
-        this._setupDebouncedCalculation();
+    getValueFields(): IPivotField[] {
+        return this.valueFields;
+    }
 
-    // Initial calculation
+    getRowFields(): IPivotField[] {
+        return this.rowFields;
+    }
+
+    getColumnFields(): IPivotField[] {
+        return this.columnFields;
+    }
+
+    getFilterFields(): IPivotField[] {
+        return this.filterFields;
+    }
+
+    setValueFields(valueFields: IPivotField[]): void {
+        this.valueFields = valueFields;
         this._markDirty();
-
-        this.disposeWithMe(
-            toDisposable(() => {
-                this._valueFields$.complete();
-                this._rowFields$.complete();
-                this._filters$.complete();
-                this._columnFields$.complete();
-                this._sourceData$.complete();
-                this._calculatedData$.complete();
-            })
-        );
     }
 
-  /**
-   * Set up event-driven debounced calculation pipeline
-   */
-    private _setupDebouncedCalculation(): void {
-        this.disposeWithMe(
-            combineLatest([
-                this._valueFields$,
-                this._rowFields$,
-                this._columnFields$,
-                this._filters$,
-                this._sourceData$,
-            ])
-                .pipe(debounceTime(0))
-                .subscribe(() => {
-                    this.getCalculatedData();
-                })
-        );
-    }
-
-    getValueFields(): string[] {
-        return this._valueFields$.value;
-    }
-
-    getRowFields(): string[] {
-        return this._rowFields$.value;
-    }
-
-    getColumnFields(): string[] {
-        return this._columnFields$.value;
-    }
-
-    getFilterFields(): string[] {
-        return this._filters$.value;
-    }
-
-    setValueFields(valueFields: string[]): void {
+    setRowFields(rowFields: IPivotField[]): void {
+        this.rowFields = rowFields;
         this._markDirty();
-        this._valueFields$.next(valueFields);
     }
 
-    setRowFields(rowFields: string[]): void {
+    setColumnFields(columnFields: IPivotField[]): void {
+        this.columnFields = columnFields;
         this._markDirty();
-        this._rowFields$.next(rowFields);
     }
 
-    setColumnFields(columnFields: string[]): void {
+    setFilterFields(filterFields: IPivotField[]): void {
+        this.filterFields = filterFields;
         this._markDirty();
-        this._columnFields$.next(columnFields);
-    }
-
-    setFilters(filters: string[]): void {
-        this._markDirty();
-        this._filters$.next(filters);
     }
 
     setSourceData(sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
+        this.sourceData = sourceData;
         this._markDirty();
-        this._sourceData$.next(sourceData);
     }
 
-  /**
-   * Mark the pivot as dirty and schedule a debounced recalculation
-   */
+    /**
+     * Mark the pivot as dirty and schedule a debounced recalculation
+     */
     private _markDirty(): void {
         this._isDirty = true;
     }
 
-  /**
-   * Force immediate calculation without debounce
-   * Useful when you need the result immediately (e.g., before saving)
-   */
-    getCalculatedData(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
-        if (this._isDirty) {
-            const result = this._calculate();
-            this._calculatedData$.next(result);
-            this._isDirty = false;
-            return result;
-        }
-        return this._calculatedData$.value || null;
-    }
-
-  /**
-   * Check if the pivot is currently dirty
-   */
+    /**
+     * Check if the pivot is currently dirty
+     */
     isDirty(): boolean {
         return this._isDirty;
     }
 
+    /**
+     * Calculate the pivot data
+     * @returns The calculated data
+     */
     private _calculate(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
-        const sourceData = this._sourceData$.value;
-        const rowFields = this._rowFields$.value;
-        const columnFields = this._columnFields$.value;
-        const valueFields = this._valueFields$.value;
+        const sourceData = this.sourceData;
+        const rowFields = this.rowFields;
+        const columnFields = this.columnFields;
+        const valueFields = this.valueFields;
+        const filterFields = this.filterFields;
 
-    // Extract header row and data rows
-        const { headerRow, dataRows } = this._extractData(sourceData);
+        // Extract header row and data rows
+        let { dataRows } = this._extractData(sourceData);
 
         if (dataRows.length === 0 || valueFields.length === 0) {
             return null;
         }
 
-    // Get field indices from header
-        const getFieldIndex = (fieldName: string): number => {
-            const index = headerRow.findIndex((cell) => cell?.v?.toString() === fieldName);
-            return index >= 0 ? index : -1;
+        // Apply filters if any
+        if (filterFields && filterFields.length > 0) {
+            dataRows = this._applyFilters(dataRows, filterFields);
+            if (dataRows.length === 0) {
+                return null; // No data after filtering
+            }
+        }
+
+        // Get field indices from header
+        const getFieldIndex = (field: IPivotField): number => {
+            return field.sourceColumnIndex;
         };
 
         const rowFieldIndices = rowFields.map(getFieldIndex).filter((i) => i >= 0);
         const columnFieldIndices = columnFields.map(getFieldIndex).filter((i) => i >= 0);
         const valueFieldIndices = valueFields.map(getFieldIndex).filter((i) => i >= 0);
 
-    // Build result based on configuration
+        // Build result based on configuration
         if (columnFields.length === 0) {
-      // Simple row-based pivot (no column fields)
+            // Simple row-based pivot (no column fields)
             return this._calculateRowOnly(dataRows, rowFieldIndices, valueFieldIndices, rowFields, valueFields);
         } else {
-      // 2D pivot (with column fields)
-            return this._calculate2D(dataRows, rowFieldIndices, columnFieldIndices, valueFieldIndices, rowFields, columnFields, valueFields);
+            // 2D pivot (with column fields)
+            return this._calculate2D(dataRows, rowFieldIndices, columnFieldIndices, valueFieldIndices, valueFields);
         }
     }
 
@@ -227,7 +179,7 @@ export class Pivot extends Disposable implements IPivot {
             return { headerRow: [], dataRows: [] };
         }
 
-    // Find the maximum column index across all rows
+        // Find the maximum column index across all rows
         let maxCol = 0;
         for (const rowIndex of rows) {
             const rowData = sourceData[rowIndex];
@@ -241,7 +193,7 @@ export class Pivot extends Disposable implements IPivot {
             }
         }
 
-    // First row is header
+        // First row is header
         const headerRowIndex = rows[0];
         const headerRow: ICellData[] = [];
         const headerRowData = sourceData[headerRowIndex];
@@ -249,7 +201,7 @@ export class Pivot extends Disposable implements IPivot {
             headerRow.push(headerRowData?.[col] || {});
         }
 
-    // Rest are data rows - ensure all rows have the same number of columns
+        // Rest are data rows - ensure all rows have the same number of columns
         const dataRows: ICellData[][] = [];
         for (let i = 1; i < rows.length; i++) {
             const rowIndex = rows[i];
@@ -268,30 +220,30 @@ export class Pivot extends Disposable implements IPivot {
         dataRows: ICellData[][],
         rowFieldIndices: number[],
         valueFieldIndices: number[],
-        rowFields: string[],
-        valueFields: string[]
+        rowFields: IPivotField[],
+        valueFields: IPivotField[]
     ): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         const result: IObjectMatrixPrimitiveType<Nullable<ICellData>> = {};
 
         if (rowFieldIndices.length === 0) {
-      // No row fields: aggregate all data into one row
             let currentRow = 0;
 
-      // Add header row if there are multiple value fields
+              // Add header row if there are multiple value fields
             if (valueFields.length > 1) {
                 result[currentRow] = {};
                 for (let i = 0; i < valueFields.length; i++) {
-                    result[currentRow][i] = { v: `Sum of ${valueFields[i]}` };
+                    const aggregation = valueFields[i].aggregation || AggregationType.SUM;
+                    result[currentRow][i] = { v: this._getAggregationLabel(aggregation, valueFields[i].name) };
                 }
                 currentRow++;
             }
 
-      // Calculate aggregated values
+              // Calculate aggregated values
             result[currentRow] = {};
             for (let i = 0; i < valueFieldIndices.length; i++) {
                 const valueFieldIndex = valueFieldIndices[i];
-        // TODO: 根据配置选择聚合函数
-                const aggregator = createAggregator(AggregationType.SUM);
+                const aggregation = valueFields[i].aggregation || AggregationType.SUM;
+                const aggregator = createAggregator(aggregation);
                 aggregator.init();
 
                 for (const row of dataRows) {
@@ -307,46 +259,47 @@ export class Pivot extends Disposable implements IPivot {
             return result;
         }
 
-    // Group data by row fields
         const groups = this._groupByFields(dataRows, rowFieldIndices);
 
-    // Build result matrix
+        // Build result matrix
         let currentRow = 0;
 
-    // Add header row for multiple value fields
+        // Add header row for multiple value fields
         if (valueFields.length > 1) {
             result[currentRow] = {};
-      // Row field headers
+            // Row field headers
             for (let i = 0; i < rowFields.length; i++) {
-                result[currentRow][i] = { v: rowFields[i] };
+                result[currentRow][i] = { v: rowFields[i].name };
             }
-      // Value field headers
+            // Value field headers
             for (let i = 0; i < valueFields.length; i++) {
-                result[currentRow][rowFields.length + i] = { v: `Sum of ${valueFields[i]}` };
+                const aggregation = valueFields[i].aggregation || AggregationType.SUM;
+                result[currentRow][rowFields.length + i] = { v: this._getAggregationLabel(aggregation, valueFields[i].name) };
             }
             currentRow++;
         }
 
-    // Sort groups by key
+        // Sort groups by key
         const sortedGroupKeys = Array.from(groups.keys()).sort();
 
-    // Add data rows
+        // Add data rows
         for (const groupKey of sortedGroupKeys) {
             const groupRows = groups.get(groupKey);
             if (!groupRows) continue;
 
             result[currentRow] = {};
 
-      // Add row field values
+            // Add row field values
             const fieldValues = groupKey.split('|');
             for (let i = 0; i < fieldValues.length; i++) {
                 result[currentRow][i] = { v: fieldValues[i] === '(blank)' ? '' : fieldValues[i] };
             }
 
-      // Calculate aggregated values for each value field
+            // Calculate aggregated values for each value field
             for (let i = 0; i < valueFieldIndices.length; i++) {
                 const valueFieldIndex = valueFieldIndices[i];
-                const aggregator = createAggregator(AggregationType.SUM);
+                const aggregation = valueFields[i].aggregation || AggregationType.SUM;
+                const aggregator = createAggregator(aggregation);
                 aggregator.init();
 
                 for (const row of groupRows) {
@@ -370,26 +323,24 @@ export class Pivot extends Disposable implements IPivot {
         rowFieldIndices: number[],
         columnFieldIndices: number[],
         valueFieldIndices: number[],
-        _rowFields: string[],
-        _columnFields: string[],
-        _valueFields: string[]
+        valueFields: IPivotField[]
     ): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         const result: IObjectMatrixPrimitiveType<Nullable<ICellData>> = {};
 
-    // Get all unique column combinations
+        // Get all unique column combinations
         const columnCombos = this._getColumnCombinations(dataRows, columnFieldIndices);
 
-    // Group data by row fields
+        // Group data by row fields
         const rowGroups = rowFieldIndices.length > 0
             ? this._groupByFields(dataRows, rowFieldIndices)
             : new Map([['', dataRows]]);
 
         const sortedRowKeys = Array.from(rowGroups.keys()).sort();
 
-    // Build header row(s)
+        // Build header row(s)
         let currentRow = 0;
 
-    // For simplicity, create a single header row with column values
+        // For simplicity, create a single header row with column values
         result[currentRow] = {};
         result[currentRow][0] = { v: '' }; // Top-left corner
 
@@ -400,27 +351,28 @@ export class Pivot extends Disposable implements IPivot {
         }
         currentRow++;
 
-    // Build data rows
+        // Build data rows
         for (const rowKey of sortedRowKeys) {
             const groupRows = rowGroups.get(rowKey);
             if (!groupRows) continue;
 
             result[currentRow] = {};
 
-      // Add row field values
+            // Add row field values
             const fieldValues = rowKey ? rowKey.split('|') : [''];
             result[currentRow][0] = { v: fieldValues[0] === '(blank)' ? '' : fieldValues[0] };
 
-      // Calculate values for each column combination
+            // Calculate values for each column combination
             for (let colIdx = 0; colIdx < columnCombos.length; colIdx++) {
                 const columnCombo = columnCombos[colIdx];
 
-        // Filter rows that match this column combination
+              // Filter rows that match this column combination
                 const filteredRows = this._filterByColumnCombo(groupRows, columnFieldIndices, columnCombo);
 
-        // For now, use first value field
+              // For now, use first value field
                 const valueFieldIndex = valueFieldIndices[0];
-                const aggregator = createAggregator(AggregationType.SUM);
+                const aggregation = valueFields[0].aggregation || AggregationType.SUM;
+                const aggregator = createAggregator(aggregation);
                 aggregator.init();
 
                 for (const row of filteredRows) {
@@ -476,7 +428,7 @@ export class Pivot extends Disposable implements IPivot {
             combinations.add(combo.join('|'));
         }
 
-    // Convert to array and sort
+        // Convert to array and sort
         const result: string[][] = [];
         const sorted = Array.from(combinations).sort();
         for (const comboKey of sorted) {
@@ -499,5 +451,121 @@ export class Pivot extends Disposable implements IPivot {
             }
             return true;
         });
+    }
+
+    /**
+     * Apply filters to data rows
+     * @param dataRows The data rows to filter
+     * @param filterFields The filter fields configuration
+     * @returns Filtered data rows
+     */
+    private _applyFilters(dataRows: ICellData[][], filterFields: IPivotField[]): ICellData[][] {
+        return dataRows.filter((row) => {
+            // Apply all filters with AND logic
+            for (const filterField of filterFields) {
+                if (!filterField.filter) continue;
+
+                const fieldIndex = filterField.sourceColumnIndex;
+                const cell = row[fieldIndex];
+                const cellValue = cell?.v;
+
+                if (!this._matchesFilter(cellValue, filterField.filter)) {
+                    return false; // Row doesn't match this filter, exclude it
+                }
+            }
+            return true; // Row matches all filters
+        });
+    }
+
+    /**
+     * Check if a value matches the filter criteria
+     * @param value The value to check
+     * @param filter The filter criteria
+     * @returns True if value matches the filter
+     */
+    private _matchesFilter(value: any, filter: IPivotFilterCriteria): boolean {
+        if (filter.type === 'value') {
+            // Value filter: check if value is in the allowed values list
+            return this._matchesValueFilter(value, filter);
+        } else if (filter.type === 'condition') {
+            // Condition filter: check against operator and condition value
+            return this._matchesConditionFilter(value, filter);
+        }
+        return true;
+    }
+
+    /**
+     * Check value filter (include specific values)
+     * @param value The value to check
+     * @param filter The filter criteria
+     * @returns True if value is in the allowed list
+     */
+    private _matchesValueFilter(value: any, filter: IPivotFilterCriteria): boolean {
+        if (!filter.values || filter.values.length === 0) {
+            return true; // No values specified, allow all
+        }
+
+        const valueStr = value?.toString() || '';
+        return filter.values.includes(valueStr);
+    }
+
+    /**
+     * Check condition filter (comparison/text matching)
+     * @param value The value to check
+     * @param filter The filter criteria
+     * @returns True if value matches the condition
+     */
+    private _matchesConditionFilter(value: any, filter: IPivotFilterCriteria): boolean {
+        if (!filter.operator || filter.conditionValue === undefined) {
+            return true;
+        }
+
+        const { operator, conditionValue } = filter;
+
+        switch (operator) {
+            case 'equals':
+                return value?.toString() === conditionValue?.toString();
+
+            case 'notEquals':
+                return value?.toString() !== conditionValue?.toString();
+
+            case 'greaterThan': {
+                const numValue = typeof value === 'number' ? value : Number(value);
+                const numCondition = typeof conditionValue === 'number' ? conditionValue : Number(conditionValue);
+                return !Number.isNaN(numValue) && !Number.isNaN(numCondition) && numValue > numCondition;
+            }
+
+            case 'lessThan': {
+                const numValue = typeof value === 'number' ? value : Number(value);
+                const numCondition = typeof conditionValue === 'number' ? conditionValue : Number(conditionValue);
+                return !Number.isNaN(numValue) && !Number.isNaN(numCondition) && numValue < numCondition;
+            }
+
+            case 'contains': {
+                const valueStr = value?.toString() || '';
+                const conditionStr = conditionValue?.toString() || '';
+                return valueStr.includes(conditionStr);
+            }
+
+            default:
+                return true;
+        }
+    }
+
+    /**
+     * Get the label for aggregation type
+     * @param aggregation The aggregation type
+     * @param fieldName The field name
+     * @returns The formatted label
+     */
+    private _getAggregationLabel(aggregation: AggregationType, fieldName: string): string {
+        const labels: Record<AggregationType, string> = {
+            [AggregationType.SUM]: 'Sum',
+            [AggregationType.COUNT]: 'Count',
+            [AggregationType.AVERAGE]: 'Average',
+            [AggregationType.MIN]: 'Min',
+            [AggregationType.MAX]: 'Max',
+        };
+        return `${labels[aggregation]} of ${fieldName}`;
     }
 }
