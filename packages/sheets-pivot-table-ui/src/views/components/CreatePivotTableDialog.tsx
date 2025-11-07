@@ -106,7 +106,7 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                 )}
             </div>
 
-            <div>
+            {/* <div>
                 <div className="univer-mb-2 univer-text-sm univer-font-medium">
                     {localeService.t('pivotTable.dialog.targetRangeLabel')}
                 </div>
@@ -130,7 +130,7 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                         {targetRangeError}
                     </div>
                 )}
-            </div>
+            </div> */}
 
             <div className="univer-flex univer-justify-end univer-gap-2">
                 <Button onClick={onCancel}>
@@ -147,6 +147,7 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                             subUnitId,
                             sourceRange: selectedSourceRange,
                             targetRange: selectedTargetRange,
+                            targetRangeType: 'new',
                         });
                     }}
                     disabled={!!sourceRangeError || !!targetRangeError}

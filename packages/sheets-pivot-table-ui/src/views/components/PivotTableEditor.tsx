@@ -14,566 +14,721 @@
  * limitations under the License.
  */
 
-import type { closestCenter, DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, KeyboardSensor, PointerSensor, type UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core';
-import type { Workbook } from '@univerjs/core';
-import type { PivotTable } from '@univerjs/sheets-pivot-table';
-import { useDroppable } from '@dnd-kit/core';
+import type {
+    CancelDrop,
+    CollisionDetection,
+    DropAnimation,
+    KeyboardCoordinateGetter,
+    Modifiers,
+    UniqueIdentifier,
+} from '@dnd-kit/core';
+import type {
+    AnimateLayoutChanges,
+    SortingStrategy,
+} from '@dnd-kit/sortable';
+import type { IPivotField, PivotTable } from '@univerjs/sheets-pivot-table';
+import type React from 'react';
+import type { IFieldItemsContainerProps } from './FieldItemsContainer';
+import {
+    closestCenter,
+    defaultDropAnimationSideEffects,
+    DndContext,
+    DragOverlay,
+    getFirstCollision,
+    KeyboardSensor,
+    MeasuringStrategy,
+    MouseSensor,
+    pointerWithin,
+    rectIntersection,
+    TouchSensor,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
 import {
     arrayMove,
+    defaultAnimateLayoutChanges,
     SortableContext,
-    sortableKeyboardCoordinates,
     useSortable,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { IUniverInstanceService, LocaleService } from '@univerjs/core';
-import { Button } from '@univerjs/design';
-import { ConditionsDoubleIcon, GridIcon, MenuIcon, MoreDownIcon } from '@univerjs/icons';
-import { PivotFieldAreaType } from '@univerjs/sheets-pivot-table';
-import { useDependency } from '@univerjs/ui';
-import { useCallback, useEffect, useState } from 'react';
-import './PivotTableEditor.css';
+import { generateRandomId } from '@univerjs/core';
+import { useObservable } from '@univerjs/ui';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { coordinateGetter as multipleContainersCoordinateGetter } from '../../common/multipleContainersKeyboardCoordinates';
+import { FieldItem } from './FieldItem';
+import { FieldItemsContainer } from './FieldItemsContainer';
+
+const animateLayoutChanges: AnimateLayoutChanges = (args) =>
+    defaultAnimateLayoutChanges({ ...args, wasDragging: true });
+
+function DroppableContainer({
+    children,
+    columns = 1,
+    disabled,
+    id,
+    items,
+    style,
+    ...props
+}: IFieldItemsContainerProps & {
+    disabled?: boolean;
+    id: UniqueIdentifier;
+    items: UniqueIdentifier[];
+    style?: React.CSSProperties;
+}) {
+    const {
+        active,
+        attributes,
+        isDragging,
+        listeners,
+        over,
+        setNodeRef,
+        transition,
+        transform,
+    } = useSortable({
+        id,
+        data: {
+            type: 'container',
+            children: items,
+        },
+        animateLayoutChanges,
+    });
+    const isOverContainer = over
+        ? (id === over.id && active?.data.current?.type !== 'container') ||
+    items.includes(over.id)
+        : false;
+
+    return (
+        <FieldItemsContainer
+            className="flex-1"
+            ref={disabled ? undefined : setNodeRef}
+            style={{
+                ...style,
+                transition,
+                transform: CSS.Translate.toString(transform),
+                opacity: isDragging ? 0.5 : undefined,
+            }}
+            hover={isOverContainer}
+            handleProps={{
+                ...attributes,
+                ...listeners,
+            }}
+            columns={columns}
+            {...props}
+        >
+            {children}
+        </FieldItemsContainer>
+    );
+}
+
+const dropAnimation: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+        styles: {
+            active: {
+                opacity: '0.5',
+            },
+        },
+    }),
+};
+
+const defaultGetItemStyles = () => ({});
+const defaultWrapperStyle = () => ({});
 
 interface IPivotTableEditorProps {
     pivotTable: PivotTable;
+    adjustScale?: boolean;
+    cancelDrop?: CancelDrop;
+    columns?: number;
+    containerStyle?: React.CSSProperties;
+    coordinateGetter?: KeyboardCoordinateGetter;
+    getItemStyles?(args: {
+        value: UniqueIdentifier;
+        index: number;
+        overIndex: number;
+        isDragging: boolean;
+        containerId: UniqueIdentifier;
+        isSorting: boolean;
+        isDragOverlay: boolean;
+    }): React.CSSProperties;
+    wrapperStyle?(args: { index: number }): React.CSSProperties;
+    handle?: boolean;
+    renderItem?(): React.ReactElement;
+    strategy?: SortingStrategy;
+    modifiers?: Modifiers;
+    minimal?: boolean;
+    trashable?: boolean;
+    scrollable?: boolean;
+    vertical?: boolean;
 }
 
-interface IFieldItem {
-    id: string;
-    name: string;
-    columnIndex: number;
-}
-
-type FieldArea = PivotFieldAreaType | 'available';
-
-interface IDraggedField {
-    id: string;
-    area: FieldArea;
-}
-
-// Field Chip Component
-interface IFieldChipProps {
-    fieldId: string;
-    area: FieldArea;
-    getFieldName: (id: string) => string;
-    showRemove?: boolean;
-    showAggregation?: boolean;
-    disabled?: boolean;
-    onRemove?: (fieldId: string, area: PivotFieldAreaType) => void;
-    localeService: LocaleService;
-}
-
-const FieldChip: React.FC<IFieldChipProps> = ({
-    fieldId,
-    area,
-    getFieldName,
-    showRemove = false,
-    showAggregation = false,
-    disabled = false,
-    onRemove,
-    localeService,
-}) => {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({
-        id: fieldId,
-        disabled,
-        data: {
-            type: 'field',
-            area,
-            fieldId,
+export function PivotTableEditor({
+    pivotTable,
+    adjustScale = false,
+    cancelDrop,
+    columns,
+    handle = true,
+    containerStyle,
+    coordinateGetter = multipleContainersCoordinateGetter,
+    getItemStyles = defaultGetItemStyles,
+    wrapperStyle = defaultWrapperStyle,
+    minimal = false,
+    modifiers,
+    renderItem,
+    strategy = verticalListSortingStrategy,
+    scrollable,
+}: IPivotTableEditorProps) {
+    // Source fields - constant, never modified
+    const sourceFields: IPivotField[] = [
+        {
+            id: 'Product',
+            name: 'Product',
+            sourceColumnIndex: 0,
         },
-    });
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-    };
-
-    const className = [
-        'univer-pivot-table-field-chip',
-        isDragging ? 'dragging' : '',
-        disabled ? 'in-use' : '',
-    ].filter(Boolean).join(' ');
-
-    return (
-        <button
-            ref={setNodeRef}
-            style={style}
-            className={className}
-            type="button"
-            disabled={disabled}
-            {...attributes}
-            {...listeners}
-        >
-            <span className="univer-pivot-table-field-drag-handle" aria-hidden="true">⋮⋮</span>
-            <span>{getFieldName(fieldId)}</span>
-            {showAggregation && (
-                <span className="univer-pivot-table-aggregation-badge">SUM</span>
-            )}
-            {showRemove && onRemove && (
-                <button
-                    type="button"
-                    className="univer-pivot-table-field-remove-btn"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onRemove(fieldId, area as PivotFieldAreaType);
-                    }}
-                    title={localeService.t('pivotTable.editor.remove')}
-                    aria-label={localeService.t('pivotTable.editor.remove')}
-                >
-                    ×
-                </button>
-            )}
-        </button>
-    );
-};
-
-// Drop Zone Component
-interface IDropZoneProps {
-    id: string;
-    area: PivotFieldAreaType;
-    title: string;
-    icon: React.ReactNode;
-    fields: string[];
-    getFieldName: (id: string) => string;
-    showAggregation?: boolean;
-    onRemoveField: (fieldId: string, area: PivotFieldAreaType) => void;
-    localeService: LocaleService;
-}
-
-const DropZone: React.FC<IDropZoneProps> = ({
-    id,
-    area,
-    title,
-    icon,
-    fields,
-    getFieldName,
-    showAggregation = false,
-    onRemoveField,
-    localeService,
-}) => {
-    const { setNodeRef, isOver } = useDroppable({
-        id,
-        data: {
-            type: 'dropzone',
-            area,
+        {
+            id: 'East',
+            name: 'East',
+            sourceColumnIndex: 1,
         },
-    });
-
-    const className = [
-        'univer-pivot-table-drop-zone',
-        isOver ? 'drag-over' : '',
-    ].filter(Boolean).join(' ');
-
-    return (
-        <section
-            ref={setNodeRef}
-            className={className}
-            aria-label={title}
-        >
-            <div className="univer-pivot-table-drop-zone-header">
-                <span className="univer-pivot-table-drop-zone-icon" aria-hidden="true">{icon}</span>
-                <h4 className="univer-pivot-table-drop-zone-title">{title}</h4>
-            </div>
-            <div className="univer-pivot-table-drop-zone-content">
-                {fields.length === 0
-                    ? (
-                        <div className="univer-pivot-table-drop-zone-empty">
-                            {localeService.t('pivotTable.editor.dragFieldsHere')}
-                        </div>
-                    )
-                    : (
-                        <SortableContext items={fields} strategy={verticalListSortingStrategy}>
-                            {fields.map((fieldId) => (
-                                <FieldChip
-                                    key={fieldId}
-                                    fieldId={fieldId}
-                                    area={area}
-                                    getFieldName={getFieldName}
-                                    showRemove
-                                    showAggregation={showAggregation}
-                                    onRemove={onRemoveField}
-                                    localeService={localeService}
-                                />
-                            ))}
-                        </SortableContext>
-                    )}
-            </div>
-        </section>
-    );
-};
-
-// Available Fields List Component
-interface IAvailableFieldsListProps {
-    fields: IFieldItem[];
-    usedFields: Set<string>;
-    getFieldName: (id: string) => string;
-    localeService: LocaleService;
-    activeId: UniqueIdentifier | null;
-}
-
-const AvailableFieldsList: React.FC<IAvailableFieldsListProps> = ({
-    fields,
-    usedFields,
-    getFieldName,
-    localeService,
-    activeId,
-}) => {
-    const { setNodeRef, isOver } = useDroppable({
-        id: 'available-fields',
-        data: {
-            type: 'dropzone',
-            area: 'available',
+        {
+            id: 'West',
+            name: 'West',
+            sourceColumnIndex: 2,
         },
-    });
+    ];
 
-    const availableFieldIds = fields.map((f) => f.id);
-    const className = [
-        'univer-pivot-table-field-list',
-        isOver ? 'drag-over' : '',
-    ].filter(Boolean).join(' ');
+    // Get current fields from pivotTable observables
+    const valueFields = useObservable(pivotTable.valueFields$) || [];
+    const rowFields = useObservable(pivotTable.rowFields$) || [];
+    const columnFields = useObservable(pivotTable.columnFields$) || [];
+    const filterFields = useObservable(pivotTable.filterFields$) || [];
 
-    return (
-        <ul
-            ref={setNodeRef}
-            className={className}
-            aria-label={localeService.t('pivotTable.editor.availableFields')}
-        >
-            {fields.length === 0
-                ? (
-                    <li className="univer-pivot-table-field-list-empty">
-                        {localeService.t('pivotTable.editor.dragFieldsHere')}
-                    </li>
-                )
-                : (
-                    <SortableContext items={availableFieldIds} strategy={verticalListSortingStrategy}>
-                        {fields.map((field) => {
-                            const isInUse = usedFields.has(field.id) && activeId !== field.id;
-                            return (
-                                <li key={field.id} style={{ display: 'inline' }}>
-                                    <FieldChip
-                                        fieldId={field.id}
-                                        area="available"
-                                        getFieldName={getFieldName}
-                                        disabled={isInUse}
-                                        localeService={localeService}
-                                    />
-                                </li>
-                            );
-                        })}
-                    </SortableContext>
-                )}
-        </ul>
-    );
-};
+    // Memoized containers structure directly from pivotTable data
+    const items: Record<string, IPivotField[]> = useMemo(() => ({
+        sourceFields,
+        filterFields,
+        columnFields,
+        rowFields,
+        valueFields,
+    }), [filterFields, columnFields, rowFields, valueFields]);
 
-export const PivotTableEditor: React.FC<IPivotTableEditorProps> = ({ pivotTable }) => {
-    const localeService = useDependency(LocaleService);
-    const univerInstanceService = useDependency(IUniverInstanceService);
-
-    // Get available fields from source data
-    const [availableFields, setAvailableFields] = useState<IFieldItem[]>([]);
-    const [rowFields, setRowFields] = useState<string[]>([]);
-    const [columnFields, setColumnFields] = useState<string[]>([]);
-    const [valueFields, setValueFields] = useState<string[]>([]);
-    const [filterFields, setFilterFields] = useState<string[]>([]);
+    const containers = useMemo(() =>
+        Object.keys(items) as UniqueIdentifier[], [items]);
 
     const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
-    const [draggedField, setDraggedField] = useState<IDraggedField | null>(null);
+    const lastOverId = useRef<UniqueIdentifier | null>(null);
+    const recentlyMovedToNewContainer = useRef(false);
+    const isSortingContainer =
+        activeId != null ? containers.includes(activeId) : false;
 
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
+    // Track active container for drag operations
+    const activeContainerRef = useRef<UniqueIdentifier | null>(null);
 
-    // Load initial data
-    useEffect(() => {
-        const sourceRangeInfo = pivotTable.getSourceRangeInfo();
-        const workbook = univerInstanceService.getUnit(sourceRangeInfo.unitId) as Workbook;
+    // Helper: Get base field from sourceFields by ID
+    const getSourceField = useCallback((sourceColumnIndex: number): IPivotField | null => {
+        // Extract base ID (remove _suffix if exists)
+        return sourceFields.find((f) => f.sourceColumnIndex === sourceColumnIndex) || null;
+    }, []);
 
-        if (workbook) {
-            const worksheet = workbook.getActiveSheet();
-            if (worksheet) {
-                const range = worksheet.getRange(sourceRangeInfo.range);
-                const matrix = range.getMatrix();
+    // Helper: Check if a field (by base ID) exists in exclusive containers
+    const findFieldInExclusiveContainers = useCallback((sourceColumnIndex: number): {
+        container: 'filterFields' | 'columnFields' | 'rowFields' | null;
+        field: IPivotField | null;
+    } => {
+        // Check filterFields
+        const filterField = filterFields.find((f) => f.sourceColumnIndex === sourceColumnIndex);
+        if (filterField) {
+            return { container: 'filterFields', field: filterField };
+        }
 
-                // Get headers from first row
-                const headers: IFieldItem[] = [];
-                const startCol = sourceRangeInfo.range.startColumn;
-                const endCol = sourceRangeInfo.range.endColumn;
+        // Check columnFields
+        const columnField = columnFields.find((f) => f.sourceColumnIndex === sourceColumnIndex);
+        if (columnField) {
+            return { container: 'columnFields', field: columnField };
+        }
 
-                for (let col = startCol; col <= endCol; col++) {
-                    const cell = matrix.getValue(sourceRangeInfo.range.startRow, col);
-                    const headerText = cell?.v?.toString() || `Column ${col + 1}`;
-                    headers.push({
-                        id: `field_${col}`,
-                        name: headerText,
-                        columnIndex: col,
-                    });
+        // Check rowFields
+        const rowField = rowFields.find((f) => f.sourceColumnIndex === sourceColumnIndex);
+        if (rowField) {
+            return { container: 'rowFields', field: rowField };
+        }
+
+        return { container: null, field: null };
+    }, [filterFields, columnFields, rowFields]);
+
+  /**
+   * Custom collision detection strategy optimized for multiple containers
+   *
+   * - First, find any droppable containers intersecting with the pointer.
+   * - If there are none, find intersecting containers with the active draggable.
+   * - If there are no intersecting containers, return the last matched intersection
+   *
+   */
+    const collisionDetectionStrategy: CollisionDetection = useCallback(
+        (args) => {
+            if (activeId && activeId in items) {
+                return closestCenter({
+                    ...args,
+                    droppableContainers: args.droppableContainers.filter(
+                        (container) => container.id in items
+                    ),
+                });
+            }
+
+            // Start by finding any intersecting droppable
+            const pointerIntersections = pointerWithin(args);
+            const intersections =
+                pointerIntersections.length > 0
+                    ? // If there are droppables intersecting with the pointer, return those
+                    pointerIntersections
+                    : rectIntersection(args);
+            let overId = getFirstCollision(intersections, 'id');
+
+            if (overId != null) {
+                if (overId in items) {
+                    const containerItems = items[overId];
+
+                // If a container is matched and it contains items (columns 'A', 'B', 'C')
+                    if (containerItems.length > 0) {
+                  // Return the closest droppable within that container
+                        overId = closestCenter({
+                            ...args,
+                            droppableContainers: args.droppableContainers.filter(
+                                (container) =>
+                                    container.id !== overId &&
+                      containerItems.some((field) => field.id === container.id)
+                            ),
+                        })[0]?.id;
+                    }
                 }
 
-                setAvailableFields(headers);
+                lastOverId.current = overId;
+
+                return [{ id: overId }];
             }
+
+            // When a draggable item moves to a new container, the layout may shift
+            // and the `overId` may become `null`. We manually set the cached `lastOverId`
+            // to the id of the draggable item that was moved to the new container, otherwise
+            // the previous `overId` will be returned which can cause items to incorrectly shift positions
+            if (recentlyMovedToNewContainer.current) {
+                lastOverId.current = activeId;
+            }
+
+            // If no droppable is matched, return the last match
+            return lastOverId.current ? [{ id: lastOverId.current }] : [];
+        },
+        [activeId, items]
+    );
+    const sensors = useSensors(
+        useSensor(MouseSensor),
+        useSensor(TouchSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter,
+        })
+    );
+    const findContainer = (id: UniqueIdentifier) => {
+        if (id in items) {
+            return id;
         }
 
-        // Load current configuration
-        setRowFields(pivotTable.getRowFields());
-        setColumnFields(pivotTable.getColumnFields());
-        setValueFields(pivotTable.getValueFields());
-        setFilterFields(pivotTable.getFilterFields());
-    }, [pivotTable, univerInstanceService]);
+        // Check if it's in one of the droppable containers
+        return Object.keys(items).find((key) => items[key].some((field) => field.id === id));
+    };
 
-    // Get field name by ID
-    const getFieldName = useCallback((fieldId: string): string => {
-        const field = availableFields.find((f) => f.id === fieldId);
-        return field?.name || fieldId;
-    }, [availableFields]);
+    const getIndex = (id: UniqueIdentifier) => {
+        const container = findContainer(id);
 
-    // Get used fields
-    const usedFields = new Set([
-        ...rowFields,
-        ...columnFields,
-        ...valueFields,
-        ...filterFields,
-    ]);
-
-    // Get field list by area
-    const getFieldsByArea = useCallback((area: FieldArea): string[] => {
-        switch (area) {
-            case PivotFieldAreaType.ROW:
-                return rowFields;
-            case PivotFieldAreaType.COLUMN:
-                return columnFields;
-            case PivotFieldAreaType.VALUE:
-                return valueFields;
-            case PivotFieldAreaType.FILTER:
-                return filterFields;
-            case 'available':
-                return availableFields.map((f) => f.id);
-            default:
-                return [];
+        if (!container) {
+            return -1;
         }
-    }, [rowFields, columnFields, valueFields, filterFields, availableFields]);
 
-    // Set fields by area
-    const setFieldsByArea = useCallback((area: FieldArea, fields: string[]) => {
-        switch (area) {
-            case PivotFieldAreaType.ROW:
-                setRowFields(fields);
-                break;
-            case PivotFieldAreaType.COLUMN:
-                setColumnFields(fields);
-                break;
-            case PivotFieldAreaType.VALUE:
-                setValueFields(fields);
-                break;
-            case PivotFieldAreaType.FILTER:
-                setFilterFields(fields);
-                break;
-            case 'available':
-                // Available fields are read-only
-                break;
-        }
-    }, []);
+        const index = (items[container as keyof typeof items] as IPivotField[]).findIndex((field) => field.id === id);
 
-    // Handle drag start
-    const handleDragStart = useCallback((event: DragStartEvent) => {
-        const { active } = event;
-        setActiveId(active.id);
+        return index;
+    };
 
-        const activeData = active.data.current;
-        if (activeData?.type === 'field') {
-            setDraggedField({
-                id: active.id as string,
-                area: activeData.area as FieldArea,
-            });
-        }
-    }, []);
-
-    // Handle drag over - for visual feedback only, actual reordering happens in dragEnd
-    const handleDragOver = useCallback((_event: DragOverEvent) => {
-        // Visual feedback is handled by dnd-kit automatically
-    }, []);
-
-    // Handle drag end
-    const handleDragEnd = useCallback((event: DragEndEvent) => {
-        const { active, over } = event;
-
+    const onDragCancel = () => {
         setActiveId(null);
-        setDraggedField(null);
-
-        if (!over) return;
-
-        const activeData = active.data.current;
-        const overData = over.data.current;
-
-        if (!activeData || activeData.type !== 'field') return;
-
-        const activeArea = activeData.area as FieldArea;
-        const activeFieldId = active.id as string;
-
-        // Handle sorting within the same container (handled by SortableContext)
-        if (overData?.type === 'field' && activeArea === overData.area) {
-            const fields = getFieldsByArea(activeArea);
-            const oldIndex = fields.indexOf(activeFieldId);
-            const newIndex = fields.indexOf(over.id as string);
-
-            if (oldIndex !== newIndex && oldIndex !== -1 && newIndex !== -1) {
-                const newFields = arrayMove(fields, oldIndex, newIndex);
-                setFieldsByArea(activeArea, newFields);
-            }
-            return;
-        }
-
-        // Handle drop into dropzone (different area)
-        if (overData?.type === 'dropzone') {
-            const targetArea = overData.area as FieldArea;
-
-            // If dropped in the same area, do nothing (sorting already handled above)
-            if (activeArea === targetArea) {
-                return;
-            }
-
-            // Remove from source area
-            const sourceFields = getFieldsByArea(activeArea);
-            const newSourceFields = sourceFields.filter((id) => id !== activeFieldId);
-            setFieldsByArea(activeArea, newSourceFields);
-
-            // Add to target area
-            const targetFields = getFieldsByArea(targetArea);
-            if (!targetFields.includes(activeFieldId)) {
-                setFieldsByArea(targetArea, [...targetFields, activeFieldId]);
-            }
-        }
-    }, [getFieldsByArea, setFieldsByArea]);
-
-    const handleRemoveField = useCallback((
-        fieldId: string,
-        area: PivotFieldAreaType
-    ) => {
-        const fields = getFieldsByArea(area);
-        setFieldsByArea(area, fields.filter((id) => id !== fieldId));
-    }, [getFieldsByArea, setFieldsByArea]);
-
-    const handleApply = useCallback(() => {
-        // Update pivot table configuration
-        pivotTable.setRowFields(rowFields);
-        pivotTable.setColumnFields(columnFields);
-        pivotTable.setValueFields(valueFields);
-        pivotTable.setFilters(filterFields);
-
-        // Here you would typically dispatch a command to update the configuration
-        // commandService.executeCommand(UpdatePivotTableFieldsConfigCommand.id, { ... });
-    }, [pivotTable, rowFields, columnFields, valueFields, filterFields]);
-
-    // Render active drag overlay
-    const renderDragOverlay = () => {
-        if (!draggedField) return null;
-
-        return (
-            <DragOverlay>
-                <div className="univer-pivot-table-field-chip dragging">
-                    <span className="univer-pivot-table-field-drag-handle" aria-hidden="true">⋮⋮</span>
-                    <span>{getFieldName(draggedField.id)}</span>
-                </div>
-            </DragOverlay>
-        );
+        activeContainerRef.current = null;
     };
 
     return (
         <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
+            collisionDetection={collisionDetectionStrategy}
+            measuring={{
+                droppable: {
+                    strategy: MeasuringStrategy.Always,
+                },
+            }}
+            onDragStart={(params) => {
+                const { active } = params;
+                const container = findContainer(active.id);
+                setActiveId(active.id);
+                activeContainerRef.current = container || null;
+            }}
+            onDragOver={({ over }) => {
+                // Track the current over target for visual feedback
+                if (over?.id) {
+                    lastOverId.current = over.id;
+                }
+            }}
+            onDragEnd={({ active, over }) => {
+                const activeContainer = findContainer(active.id);
+
+                if (!activeContainer) {
+                    setActiveId(null);
+                    return;
+                }
+
+                const overId = over?.id;
+
+                if (overId == null) {
+                    setActiveId(null);
+                    return;
+                }
+
+                const overContainer = findContainer(overId);
+
+                // Don't allow dropping back to source
+                if (!overContainer || overContainer === 'sourceFields') {
+                    setActiveId(null);
+                    return;
+                }
+
+                const activeFieldId = String(active.id);
+
+                const activeSourceColumnIndex = sourceFields.find((f) => f.id === activeFieldId)?.sourceColumnIndex ?? -1;
+
+                // Handle dragging from source fields (copy operation)
+                if (activeContainer === 'sourceFields') {
+                    const sourceField = getSourceField(activeSourceColumnIndex);
+                    if (!sourceField) {
+                        setActiveId(null);
+                        return;
+                    }
+
+                    const newField: IPivotField = {
+                        ...sourceField,
+                        id: generateRandomId(6),
+                    };
+                    // Apply Excel pivot table rules
+                    if (overContainer === 'valueFields') {
+                        // valueFields can have duplicates - create new field with unique ID
+                        pivotTable.setValueFields([...valueFields, newField]);
+                    } else {
+                        // filterFields, columnFields, rowFields - exclusive rule
+                        const existingField = findFieldInExclusiveContainers(activeSourceColumnIndex);
+
+                        // Remove from other exclusive containers if exists
+                        if (existingField.container && existingField.container !== overContainer) {
+                            if (existingField.container === 'filterFields') {
+                                pivotTable.setFilterFields(filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
+                            } else if (existingField.container === 'columnFields') {
+                                pivotTable.setColumnFields(columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
+                            } else if (existingField.container === 'rowFields') {
+                                pivotTable.setRowFields(rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
+                            }
+                        }
+
+                        // Add to target container
+                        if (overContainer === 'filterFields' && !filterFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
+                            pivotTable.setFilterFields([...filterFields, existingField.field || newField]);
+                        } else if (overContainer === 'columnFields' && !columnFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
+                            pivotTable.setColumnFields([...columnFields, existingField.field || newField]);
+                        } else if (overContainer === 'rowFields' && !rowFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
+                            pivotTable.setRowFields([...rowFields, existingField.field || newField]);
+                        }
+                    }
+                } else {
+                    // Handle dragging between containers (not from source)
+                    const draggedField = [...valueFields, ...rowFields, ...columnFields, ...filterFields].find((f) => f.id === activeFieldId);
+
+                    if (!draggedField) {
+                        setActiveId(null);
+                        return;
+                    }
+
+                    if (activeContainer === overContainer) {
+                        // Reordering within same container
+                        const currentFields = activeContainer === 'valueFields'
+                            ? valueFields :
+                            activeContainer === 'rowFields'
+                                ? rowFields :
+                                activeContainer === 'columnFields'
+                                    ? columnFields :
+                                    filterFields;
+
+                        const activeIndex = currentFields.findIndex((f) => f.id === activeFieldId);
+                        const overIndex = currentFields.findIndex((f) => f.id === overId);
+
+                        if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+                            const reorderedFields = arrayMove(currentFields, activeIndex, overIndex);
+
+                            if (activeContainer === 'valueFields') {
+                                pivotTable.setValueFields(reorderedFields);
+                            } else if (activeContainer === 'rowFields') {
+                                pivotTable.setRowFields(reorderedFields);
+                            } else if (activeContainer === 'columnFields') {
+                                pivotTable.setColumnFields(reorderedFields);
+                            } else if (activeContainer === 'filterFields') {
+                                pivotTable.setFilterFields(reorderedFields);
+                            }
+                        }
+                    } else {
+                        // Moving between different containers
+                        const sourceField = getSourceField(draggedField.sourceColumnIndex);
+
+                        if (!sourceField) {
+                            setActiveId(null);
+                            return;
+                        }
+
+                        // Remove from source container first
+                        if (activeContainer === 'valueFields') {
+                            pivotTable.setValueFields(valueFields.filter((f) => f.id !== activeFieldId));
+                        } else if (activeContainer === 'rowFields') {
+                            pivotTable.setRowFields(rowFields.filter((f) => f.id !== activeFieldId));
+                        } else if (activeContainer === 'columnFields') {
+                            pivotTable.setColumnFields(columnFields.filter((f) => f.id !== activeFieldId));
+                        } else if (activeContainer === 'filterFields') {
+                            pivotTable.setFilterFields(filterFields.filter((f) => f.id !== activeFieldId));
+                        }
+
+                        const newField: IPivotField = {
+                            ...sourceField,
+                            id: generateRandomId(6),
+                        };
+                        // Add to target container
+                        if (overContainer === 'valueFields') {
+                            // Moving to valueFields - create new field with unique ID
+                            pivotTable.setValueFields([...valueFields, newField]);
+                        } else {
+                            // Moving to exclusive container - remove from others first
+                            if (overContainer !== 'filterFields') {
+                                pivotTable.setFilterFields(filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
+                            }
+                            if (overContainer !== 'columnFields') {
+                                pivotTable.setColumnFields(columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
+                            }
+                            if (overContainer !== 'rowFields') {
+                                pivotTable.setRowFields(rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
+                            }
+
+                            // Add to target
+                            if (overContainer === 'filterFields') {
+                                pivotTable.setFilterFields([...filterFields, newField]);
+                            } else if (overContainer === 'columnFields') {
+                                pivotTable.setColumnFields([...columnFields, newField]);
+                            } else if (overContainer === 'rowFields') {
+                                pivotTable.setRowFields([...rowFields, newField]);
+                            }
+                        }
+                    }
+                }
+
+                setActiveId(null);
+                activeContainerRef.current = null;
+            }}
+            cancelDrop={cancelDrop}
+            onDragCancel={onDragCancel}
+            modifiers={modifiers}
         >
-            <div className="univer-pivot-table-editor">
-                <div className="univer-pivot-table-editor-header">
-                    <h3 className="univer-pivot-table-editor-title">
-                        {localeService.t('pivotTable.editor.title')}
-                    </h3>
-                </div>
-
-                <div className="univer-pivot-table-editor-content">
-                    {/* Available Fields Section */}
-                    <div className="univer-pivot-table-editor-section">
-                        <h4 className="univer-pivot-table-editor-section-title">
-                            {localeService.t('pivotTable.editor.availableFields')}
-                        </h4>
-                        <AvailableFieldsList
-                            fields={availableFields}
-                            usedFields={usedFields}
-                            getFieldName={getFieldName}
-                            localeService={localeService}
-                            activeId={activeId}
-                        />
-                    </div>
-
-                    {/* Drop Zones */}
-                    <div className="univer-pivot-table-drop-zones-container">
-                        <DropZone
-                            id="filter-dropzone"
-                            area={PivotFieldAreaType.FILTER}
-                            title={localeService.t('pivotTable.editor.filters')}
-                            icon={<ConditionsDoubleIcon />}
-                            fields={filterFields}
-                            getFieldName={getFieldName}
-                            onRemoveField={handleRemoveField}
-                            localeService={localeService}
-                        />
-                        <DropZone
-                            id="column-dropzone"
-                            area={PivotFieldAreaType.COLUMN}
-                            title={localeService.t('pivotTable.editor.columns')}
-                            icon={<GridIcon />}
-                            fields={columnFields}
-                            getFieldName={getFieldName}
-                            onRemoveField={handleRemoveField}
-                            localeService={localeService}
-                        />
-                        <DropZone
-                            id="row-dropzone"
-                            area={PivotFieldAreaType.ROW}
-                            title={localeService.t('pivotTable.editor.rows')}
-                            icon={<MenuIcon />}
-                            fields={rowFields}
-                            getFieldName={getFieldName}
-                            onRemoveField={handleRemoveField}
-                            localeService={localeService}
-                        />
-                        <DropZone
-                            id="value-dropzone"
-                            area={PivotFieldAreaType.VALUE}
-                            title={localeService.t('pivotTable.editor.values')}
-                            icon={<MoreDownIcon />}
-                            fields={valueFields}
-                            getFieldName={getFieldName}
-                            showAggregation
-                            onRemoveField={handleRemoveField}
-                            localeService={localeService}
-                        />
-                    </div>
-                </div>
-
-                <div className="univer-pivot-table-editor-footer">
-                    <Button onClick={() => { /* Handle cancel */ }}>
-                        {localeService.t('pivotTable.dialog.cancel')}
-                    </Button>
-                    <Button variant="primary" onClick={handleApply}>
-                        {localeService.t('pivotTable.dialog.confirm')}
-                    </Button>
-                </div>
+            <div className="univer-grid univer-grid-cols-2 univer-gap-2">
+                {containers.map((containerId) => (
+                    <DroppableContainer
+                        key={containerId}
+                        id={containerId}
+                        label={minimal ? undefined : `${containerId}`}
+                        columns={columns}
+                        items={items[containerId].map((field) => field.id)}
+                        scrollable={scrollable}
+                        style={containerStyle}
+                        unstyled={minimal}
+                    >
+                        <SortableContext items={items[containerId].map((field) => field.id)} strategy={strategy}>
+                            {items[containerId]?.map((field: IPivotField, index: number) => {
+                                return (
+                                    <SortableItem
+                                        disabled={isSortingContainer}
+                                        key={field.id}
+                                        id={field.id}
+                                        index={index}
+                                        handle={handle}
+                                        style={getItemStyles}
+                                        wrapperStyle={wrapperStyle}
+                                        renderItem={renderItem}
+                                        containerId={containerId}
+                                        getIndex={getIndex}
+                                        value={field.name}
+                                    />
+                                );
+                            })}
+                        </SortableContext>
+                    </DroppableContainer>
+                ))}
             </div>
-            {renderDragOverlay()}
+            {createPortal(
+                <DragOverlay adjustScale={adjustScale} dropAnimation={dropAnimation}>
+                    {activeId
+                        ? containers.includes(activeId)
+                            ? renderContainerDragOverlay(activeId)
+                            : renderSortableItemDragOverlay(activeId)
+                        : null}
+                </DragOverlay>,
+                document.body
+            )}
         </DndContext>
     );
-};
+
+    function renderSortableItemDragOverlay(id: UniqueIdentifier) {
+        // Find the field to display its name
+        const container = findContainer(id);
+        const field = container
+            ? items[container]?.find((f: IPivotField) => f.id === id)
+            : null;
+
+        return (
+            <FieldItem
+                id={String(id)}
+                value={field?.name || id}
+                handle={handle}
+                style={getItemStyles({
+                    containerId: findContainer(id) as UniqueIdentifier,
+                    overIndex: -1,
+                    index: getIndex(id),
+                    value: id,
+                    isSorting: true,
+                    isDragging: true,
+                    isDragOverlay: true,
+                })}
+                wrapperStyle={wrapperStyle({ index: 0 })}
+                renderItem={renderItem}
+                dragOverlay
+            />
+        );
+    }
+
+    function renderContainerDragOverlay(containerId: UniqueIdentifier) {
+        return (
+            <FieldItemsContainer
+                label={`Column ${containerId}`}
+                columns={columns}
+                style={{
+                    height: '100%',
+                }}
+                shadow
+                unstyled={false}
+            >
+                {items[String(containerId)].map((item: IPivotField, index: number) => (
+                    <FieldItem
+                        id={item.id}
+                        key={item.id}
+                        value={item.name}
+                        handle={handle}
+                        style={getItemStyles({
+                            containerId,
+                            overIndex: -1,
+                            index: getIndex(item.id),
+                            value: item.id,
+                            isDragging: false,
+                            isSorting: false,
+                            isDragOverlay: false,
+                        })}
+                        wrapperStyle={wrapperStyle({ index })}
+                        renderItem={renderItem}
+                    />
+                ))}
+            </FieldItemsContainer>
+        );
+    }
+}
+
+interface ISortableItemProps {
+    containerId: UniqueIdentifier;
+    id: UniqueIdentifier;
+    index: number;
+    handle: boolean;
+    disabled?: boolean;
+    value: string;
+    style(args: {
+        value: UniqueIdentifier;
+        index: number;
+        overIndex: number;
+        isDragging: boolean;
+        containerId: UniqueIdentifier;
+        isSorting: boolean;
+    }): React.CSSProperties;
+    getIndex(id: UniqueIdentifier): number;
+    renderItem?(): React.ReactElement;
+    wrapperStyle({ index }: { index: number }): React.CSSProperties;
+}
+
+function SortableItem({
+    disabled,
+    id,
+    index,
+    handle,
+    renderItem,
+    style,
+    containerId,
+    getIndex,
+    wrapperStyle,
+    value,
+}: ISortableItemProps) {
+    const {
+        setNodeRef,
+        setActivatorNodeRef,
+        listeners,
+        isDragging,
+        isSorting,
+        over,
+        overIndex,
+        transform,
+        transition,
+    } = useSortable({
+        id,
+    });
+    const mounted = useMountStatus();
+    const mountedWhileDragging = isDragging && !mounted;
+
+    return (
+        <FieldItem
+            ref={disabled ? undefined : setNodeRef}
+            id={String(id)}
+            value={value}
+            dragging={isDragging}
+            sorting={isSorting}
+            handle={handle}
+            handleProps={handle ? { ref: setActivatorNodeRef } : undefined}
+            index={index}
+            wrapperStyle={wrapperStyle({ index })}
+            style={style({
+                index,
+                value: id,
+                isDragging,
+                isSorting,
+                overIndex: over ? getIndex(over.id) : overIndex,
+                containerId,
+            })}
+            transition={transition}
+            transform={transform}
+            fadeIn={mountedWhileDragging}
+            listeners={listeners}
+            renderItem={renderItem}
+        />
+    );
+}
+
+function useMountStatus() {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        const timeout = setTimeout(() => setIsMounted(true), 500);
+
+        return () => clearTimeout(timeout);
+    }, []);
+
+    return isMounted;
+}

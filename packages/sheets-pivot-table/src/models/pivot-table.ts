@@ -15,9 +15,11 @@
  */
 
 import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable, Workbook } from '@univerjs/core';
-import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
+import type { Observable } from 'rxjs';
+import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ObjectMatrix } from '@univerjs/core';
-import { Pivot } from './pivot';
+import { BehaviorSubject } from 'rxjs';
+import { PivotEngine } from './pivot-engine';
 
 /**
  * Simplified PivotTable implementation for MVP
@@ -28,9 +30,18 @@ export class PivotTable extends Disposable {
     private _name: string;
     private _sourceRangeInfo: ISourceRangeInfo;
     private _targetCellInfo: ITargetCellInfo;
-    private _fieldsConfig: IFieldsConfig;
 
-    private _pivot: Pivot;
+    private _pivotEngine: PivotEngine;
+
+    private _valueFields$: BehaviorSubject<IPivotField[]>;
+    private _rowFields$: BehaviorSubject<IPivotField[]>;
+    private _columnFields$: BehaviorSubject<IPivotField[]>;
+    private _filterFields$: BehaviorSubject<IPivotField[]>;
+
+    valueFields$: Observable<IPivotField[]>;
+    rowFields$: Observable<IPivotField[]>;
+    columnFields$: Observable<IPivotField[]>;
+    filterFields$: Observable<IPivotField[]>;
 
     constructor(
         id: string,
@@ -44,9 +55,8 @@ export class PivotTable extends Disposable {
         this._name = name;
         this._sourceRangeInfo = sourceRangeInfo;
         this._targetCellInfo = targetCellInfo;
-        this._fieldsConfig = fieldsConfig;
 
-        this._pivot = new Pivot({
+        this._pivotEngine = new PivotEngine({
             valueFields: fieldsConfig.valueFields,
             rowFields: fieldsConfig.rowFields,
             columnFields: fieldsConfig.columnFields,
@@ -54,7 +64,24 @@ export class PivotTable extends Disposable {
             sourceData: {},
         });
 
-        this.disposeWithMe(this._pivot);
+        this._valueFields$ = new BehaviorSubject(fieldsConfig.valueFields);
+        this._rowFields$ = new BehaviorSubject(fieldsConfig.rowFields);
+        this._columnFields$ = new BehaviorSubject(fieldsConfig.columnFields);
+        this._filterFields$ = new BehaviorSubject(fieldsConfig.filterFields);
+
+        this.valueFields$ = this._valueFields$.asObservable();
+        this.rowFields$ = this._rowFields$.asObservable();
+        this.columnFields$ = this._columnFields$.asObservable();
+        this.filterFields$ = this._filterFields$.asObservable();
+
+        this.disposeWithMe(this._pivotEngine);
+
+        this.disposeWithMe(() => {
+            this._valueFields$.complete();
+            this._rowFields$.complete();
+            this._columnFields$.complete();
+            this._filterFields$.complete();
+        });
     }
 
     getId(): string {
@@ -85,44 +112,44 @@ export class PivotTable extends Disposable {
         this._targetCellInfo = targetCellInfo;
     }
 
-    getFieldsConfig(): IFieldsConfig {
-        return this._fieldsConfig;
+    isDirty(): boolean {
+        return this._pivotEngine.isDirty();
     }
 
-    setFieldsConfig(fieldsConfig: IFieldsConfig): void {
-        this._fieldsConfig = fieldsConfig;
+    getValueFields(): IPivotField[] {
+        return this._pivotEngine.getValueFields();
     }
 
-    getValueFields(): string[] {
-        return this._pivot.getValueFields();
+    getRowFields(): IPivotField[] {
+        return this._pivotEngine.getRowFields();
     }
 
-    getRowFields(): string[] {
-        return this._pivot.getRowFields();
+    getColumnFields(): IPivotField[] {
+        return this._pivotEngine.getColumnFields();
     }
 
-    getColumnFields(): string[] {
-        return this._pivot.getColumnFields();
+    getFilterFields(): IPivotField[] {
+        return this._pivotEngine.getFilterFields();
     }
 
-    getFilterFields(): string[] {
-        return this._pivot.getFilterFields();
+    setValueFields(valueFields: IPivotField[]): void {
+        this._pivotEngine.setValueFields(valueFields);
+        this._valueFields$.next(valueFields);
     }
 
-    setValueFields(valueFields: string[]): void {
-        this._pivot.setValueFields(valueFields);
+    setRowFields(rowFields: IPivotField[]): void {
+        this._pivotEngine.setRowFields(rowFields);
+        this._rowFields$.next(rowFields);
     }
 
-    setRowFields(rowFields: string[]): void {
-        this._pivot.setRowFields(rowFields);
+    setColumnFields(columnFields: IPivotField[]): void {
+        this._pivotEngine.setColumnFields(columnFields);
+        this._columnFields$.next(columnFields);
     }
 
-    setColumnFields(columnFields: string[]): void {
-        this._pivot.setColumnFields(columnFields);
-    }
-
-    setFilters(filters: string[]): void {
-        this._pivot.setFilters(filters);
+    setFilterFields(filterFields: IPivotField[]): void {
+        this._pivotEngine.setFilterFields(filterFields);
+        this._filterFields$.next(filterFields);
     }
 
     private _moveMatrix(matrix: IObjectMatrixPrimitiveType<Nullable<ICellData>>, targetCellInfo: ITargetCellInfo): ObjectMatrix<Nullable<ICellData>> {
@@ -139,7 +166,7 @@ export class PivotTable extends Disposable {
      * @returns Output range or null if not calculated yet
      */
     getOutputRange(): IRange | null {
-        const calculatedData = this._pivot.getCalculatedData();
+        const calculatedData = this._pivotEngine.getCalculatedData();
         if (!calculatedData) {
             return null;
         }
@@ -152,7 +179,7 @@ export class PivotTable extends Disposable {
      * @returns ObjectMatrix with all cell values positioned relative to target cell, or null if not calculated
      */
     getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
-        const targetMatrix = this._pivot.getCalculatedData();
+        const targetMatrix = this._pivotEngine.getCalculatedData();
         if (!targetMatrix) {
             return null;
         }
@@ -173,20 +200,25 @@ export class PivotTable extends Disposable {
         const range = worksheet.getRange(this._sourceRangeInfo.range);
         const matrix = range.getMatrix().getMatrix();
 
-        this._pivot.setSourceData(matrix);
+        this._pivotEngine.setSourceData(matrix);
         return this.getOutputCellMatrix();
     }
 
     /**
      * Serialize to JSON
      */
-    toJSON() {
+    toJSON(): IPivotTableConfig {
         return {
             id: this._id,
             name: this._name,
             sourceRangeInfo: this._sourceRangeInfo,
             targetCellInfo: this._targetCellInfo,
-            fieldsConfig: this._fieldsConfig,
+            fieldsConfig: {
+                valueFields: this.getValueFields(),
+                rowFields: this.getRowFields(),
+                columnFields: this.getColumnFields(),
+                filterFields: this.getFilterFields(),
+            },
         };
     }
 

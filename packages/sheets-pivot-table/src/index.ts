@@ -42,7 +42,6 @@ export {
 
 // Config
 export type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
-export { PivotField } from './model/pivot-field';
 
 // Models
 export { PivotTable } from './models/pivot-table';

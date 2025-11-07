@@ -15,7 +15,7 @@
  */
 
 import type { IRange } from '@univerjs/core';
-import type { AggregationType, PivotFieldAreaType } from './enum';
+import type { AggregationType } from './enum';
 
 /**
  * Source range information for pivot table data
@@ -54,7 +54,7 @@ export interface IPivotField {
     /** Field display name */
     name: string;
     /** Field area (row, column, value, filter) */
-    area: PivotFieldAreaType;
+    // area?: PivotFieldAreaType;
     /** Aggregation function (for value fields) */
     aggregation?: AggregationType;
     /** Filter criteria (for filter fields) */
@@ -79,14 +79,10 @@ export interface IPivotFilterCriteria {
  * Fields configuration for pivot table
  */
 export interface IFieldsConfig {
-    /** Row field IDs */
-    rowFields: string[];
-    /** Column field IDs */
-    columnFields: string[];
-    /** Value field IDs */
-    valueFields: string[];
-    /** Filter field IDs */
-    filterFields: string[];
+    valueFields: IPivotField[];
+    rowFields: IPivotField[];
+    columnFields: IPivotField[];
+    filterFields: IPivotField[];
 }
 
 /**

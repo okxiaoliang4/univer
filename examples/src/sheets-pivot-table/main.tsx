@@ -91,9 +91,7 @@ univer.registerPlugin(UniverSheetsPivotTableUIPlugin);
 
 univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
     id: 'H1p5SR',
-    sheetOrder: [
-        'ZCGh3uiogN11CwYQlPhHo',
-    ],
+    sheetOrder: ['ZCGh3uiogN11CwYQlPhHo', 'LGnYVqvZkPfvO9afrbswO'],
     name: '',
     appVersion: '0.10.12',
     locale: 'zhCN',
@@ -296,6 +294,39 @@ univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
             },
             rightToLeft: 0,
         },
+        LGnYVqvZkPfvO9afrbswO: {
+            name: '工作表1',
+            id: 'LGnYVqvZkPfvO9afrbswO',
+            tabColor: '',
+            hidden: 0,
+            rowCount: 1000,
+            columnCount: 20,
+            zoomRatio: 1,
+            freeze: {
+                xSplit: 0,
+                ySplit: 0,
+                startRow: -1,
+                startColumn: -1,
+            },
+            scrollTop: 0,
+            scrollLeft: 0,
+            defaultColumnWidth: 88,
+            defaultRowHeight: 24,
+            mergeData: [],
+            cellData: {},
+            rowData: {},
+            columnData: {},
+            showGridlines: 1,
+            rowHeader: {
+                width: 46,
+                hidden: 0,
+            },
+            columnHeader: {
+                height: 20,
+                hidden: 0,
+            },
+            rightToLeft: 0,
+        },
     },
     resources: [
         {
@@ -316,7 +347,7 @@ univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
         },
         {
             name: 'SHEET_DEFINED_NAME_PLUGIN',
-            data: '',
+            data: '{}',
         },
         {
             name: 'SHEET_RANGE_THEME_MODEL_PLUGIN',
@@ -324,7 +355,7 @@ univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
         },
         {
             name: 'SHEET_PIVOT_TABLE_PLUGIN',
-            data: '{"pivotTableConfigs":{"H1p5SR":{"ZCGh3uiogN11CwYQlPhHo":{"JzeRdFgNWuU2aPXNeM765":{"name":"New Pivot Table","sourceRangeInfo":{"range":{"startRow":0,"startColumn":0,"endRow":5,"endColumn":2,"startAbsoluteRefType":0,"endAbsoluteRefType":0,"rangeType":0},"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"targetCellInfo":{"row":12,"col":0,"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"fieldsConfig":{"rowFields":["Product"],"columnFields":[],"valueFields":["East","West"],"filterFields":[]},"id":"JzeRdFgNWuU2aPXNeM765"}}}}}',
+            data: '{"pivotTableConfigs":{"H1p5SR":{"ZCGh3uiogN11CwYQlPhHo":{"VJi4_iUlImYgeWw7Cw0sh":{"id":"VJi4_iUlImYgeWw7Cw0sh","name":"New Pivot Table","sourceRangeInfo":{"range":{"startRow":0,"startColumn":0,"endRow":5,"endColumn":2,"startAbsoluteRefType":0,"endAbsoluteRefType":0,"rangeType":0},"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"targetCellInfo":{"row":0,"col":0,"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"fieldsConfig":{"rowFields":[],"columnFields":[],"valueFields":[],"filterFields":[]}}}}}}',
         },
     ],
 });

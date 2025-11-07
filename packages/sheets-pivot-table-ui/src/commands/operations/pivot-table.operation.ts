@@ -17,7 +17,7 @@
 import type { IAccessor, IOperation, IRange } from '@univerjs/core';
 import type { ICreatePivotTableCommandParams } from '@univerjs/sheets-pivot-table';
 import { CommandType, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
-import { expandToContinuousRange, getSheetCommandTarget, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
+import { expandToContinuousRange, getSheetCommandTarget, InsertSheetCommand, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
 import { CreatePivotTableCommand } from '@univerjs/sheets-pivot-table';
 import { IDialogService, ISidebarService } from '@univerjs/ui';
 import { CREATE_PIVOT_TABLE_DIALOG } from '../../const/const';
@@ -28,7 +28,8 @@ export interface IPivotTableSelectionInfo {
     unitId: string;
     subUnitId: string;
     sourceRange: IRange;
-    targetRange: IRange;
+    targetRangeType: 'new' | 'existing';
+    targetRange?: IRange;
 }
 
 /**
@@ -60,7 +61,25 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
             return false;
         }
 
-        commandService.executeCommand(CreatePivotTableCommand.id, {
+        let targetRange = pivotInfo.targetRange;
+        if (pivotInfo.targetRangeType === 'new') {
+            await commandService.executeCommand(InsertSheetCommand.id, {
+                unitId,
+                subUnitId,
+            });
+            targetRange = {
+                startRow: 0,
+                endRow: 0,
+                startColumn: 0,
+                endColumn: 0,
+            };
+        }
+
+        if (!targetRange) {
+            throw new Error('Target range is required');
+        }
+
+        await commandService.executeCommand(CreatePivotTableCommand.id, {
             unitId,
             subUnitId,
             name: 'New Pivot Table',
@@ -70,8 +89,8 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
                 unitId,
             },
             targetCellInfo: {
-                row: pivotInfo.targetRange.startRow,
-                col: pivotInfo.targetRange.startColumn,
+                row: targetRange.startRow,
+                col: targetRange.startColumn,
                 subUnitId,
                 unitId,
             },

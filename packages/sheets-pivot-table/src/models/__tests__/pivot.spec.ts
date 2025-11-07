@@ -18,7 +18,7 @@ import type { ICellData, IObjectMatrixPrimitiveType } from '@univerjs/core';
 import type { IPivotField, IPivotFilterCriteria } from '../../types/type';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AggregationType, PivotFieldAreaType } from '../../types/enum';
-import { Pivot } from '../pivot';
+import { PivotEngine } from '../pivot-engine';
 
 // Helper functions to create IPivotField objects
 function createValueField(name: string, sourceColumnIndex: number, aggregation: AggregationType = AggregationType.SUM): IPivotField {
@@ -60,7 +60,7 @@ function createFilterField(name: string, sourceColumnIndex: number, filter: IPiv
 }
 
 describe('Pivot', () => {
-    let pivot: Pivot;
+    let pivot: PivotEngine;
 
     afterEach(() => {
         pivot?.dispose();
@@ -92,7 +92,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -151,7 +151,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2)],
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
@@ -211,7 +211,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2)],
                 rowFields: [createRowField('Region', 0), createRowField('Product', 1)],
                 columnFields: [],
@@ -266,7 +266,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 1), createValueField('Quantity', 2)],
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
@@ -322,7 +322,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -347,7 +347,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -381,7 +381,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -421,7 +421,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -459,7 +459,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -500,7 +500,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -527,7 +527,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -554,7 +554,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -606,7 +606,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Items', 1, AggregationType.COUNT)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -659,7 +659,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2, AggregationType.COUNT)],
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
@@ -710,7 +710,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Values', 1, AggregationType.COUNT)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -762,7 +762,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.AVERAGE)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -801,7 +801,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.AVERAGE)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -841,7 +841,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.AVERAGE)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -885,7 +885,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2, AggregationType.AVERAGE)],
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
@@ -941,7 +941,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.MIN)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -994,7 +994,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.MAX)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -1033,7 +1033,7 @@ describe('Pivot', () => {
                 },
             };
 
-            const pivotMin = new Pivot({
+            const pivotMin = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.MIN)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -1046,7 +1046,7 @@ describe('Pivot', () => {
 
             pivotMin.dispose();
 
-            const pivotMax = new Pivot({
+            const pivotMax = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.MAX)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -1089,7 +1089,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2, AggregationType.MAX)],
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
@@ -1139,7 +1139,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [
                     createValueField('Sales', 1, AggregationType.SUM),
                     createValueField('Sales', 1, AggregationType.COUNT),
@@ -1206,7 +1206,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [
                     createValueField('Sales', 1, AggregationType.SUM),
                     createValueField('Quantity', 2, AggregationType.AVERAGE),
@@ -1293,7 +1293,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 3, AggregationType.SUM)],
                 rowFields: [createRowField('Region', 0), createRowField('Product', 1)],
                 columnFields: [createColumnField('Quarter', 2)],
@@ -1359,7 +1359,7 @@ describe('Pivot', () => {
                 },
             };
 
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [
                     createValueField('Sales', 2, AggregationType.SUM),
                     createValueField('Sales', 2, AggregationType.COUNT),
@@ -1419,7 +1419,7 @@ describe('Pivot', () => {
             };
 
             // Filter: only show "East" region
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2)],
                 rowFields: [createRowField('Product', 1)],
                 columnFields: [],
@@ -1466,7 +1466,7 @@ describe('Pivot', () => {
             };
 
             // Filter: only show "East" and "West"
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 1)],
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [],
@@ -1509,7 +1509,7 @@ describe('Pivot', () => {
             };
 
             // Filter: only show "A"
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -1550,7 +1550,7 @@ describe('Pivot', () => {
             };
 
             // Filter: Sales > 1000
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 1)],
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
@@ -1587,7 +1587,7 @@ describe('Pivot', () => {
             };
 
             // Filter: Sales < 1000
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 1)],
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
@@ -1632,7 +1632,7 @@ describe('Pivot', () => {
             };
 
             // Filter: Status equals "Active"
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2)],
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
@@ -1672,7 +1672,7 @@ describe('Pivot', () => {
             };
 
             // Filter: Status not equals "Active"
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2)],
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
@@ -1709,7 +1709,7 @@ describe('Pivot', () => {
             };
 
             // Filter: Product contains "Apple"
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 1)],
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
@@ -1767,7 +1767,7 @@ describe('Pivot', () => {
             };
 
             // Filter: Region = "East" AND Sales > 1000
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2)],
                 rowFields: [createRowField('Category', 1)],
                 columnFields: [],
@@ -1811,7 +1811,7 @@ describe('Pivot', () => {
             };
 
             // Filter: Region in ["East", "West"] AND Product contains "Apple"
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 2)],
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [],
@@ -1862,7 +1862,7 @@ describe('Pivot', () => {
 
             // Filter: Sales >= 100 (excludes 50)
             // Expected SUM for A: 100 + 200 = 300 (not 350)
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Sales', 1, AggregationType.SUM)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -1903,7 +1903,7 @@ describe('Pivot', () => {
 
             // Filter: Amount > 75, then COUNT
             // Expected: A should have count of 2 (100, 200), not 3
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Amount', 1, AggregationType.COUNT)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
@@ -1941,7 +1941,7 @@ describe('Pivot', () => {
 
             // Filter: Score > 60, then AVERAGE
             // Expected: A average = (100 + 80) / 2 = 90, not (100 + 50 + 80) / 3 = 76.67
-            pivot = new Pivot({
+            pivot = new PivotEngine({
                 valueFields: [createValueField('Score', 1, AggregationType.AVERAGE)],
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],

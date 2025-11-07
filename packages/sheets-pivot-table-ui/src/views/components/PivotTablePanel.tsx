@@ -15,19 +15,40 @@
  */
 
 import type { IShowPivotTablePanelOperationParams } from '../../commands/operations/pivot-table.operation';
-import { ISheetsPivotTableService } from '@univerjs/sheets-pivot-table';
+import { ISheetsPivotTableService, PivotTable } from '@univerjs/sheets-pivot-table';
 import { useDependency } from '@univerjs/ui';
 import { PivotTableEditor } from './PivotTableEditor';
 
 export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
     const { unitId, subUnitId, pivotTableId } = props;
     const pivotTableService = useDependency(ISheetsPivotTableService);
-    const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
+    const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId) || new PivotTable(crypto.randomUUID(), 'Pivot Table', {
+        unitId: 'H1p5SR',
+        subUnitId: 'ZCGh3uiogN11CwYQlPhHo',
+        range: {
+            startRow: 0,
+            startColumn: 0,
+            endRow: 5,
+            endColumn: 2,
+        },
+    }, {
+        row: 0,
+        col: 0,
+        subUnitId: 'ZCGh3uiogN11CwYQlPhHo',
+        unitId: 'H1p5SR',
+    }, {
+        rowFields: [],
+        columnFields: [],
+        valueFields: [],
+        filterFields: [],
+    });
     if (!pivotTable) {
         return null;
     }
 
-    return <PivotTableEditor pivotTable={pivotTable} />;
+    return (
+        <PivotTableEditor pivotTable={pivotTable} />
+    );
 };
 
 PivotTablePanel.componentKey = 'PivotTablePanel';
