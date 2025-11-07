@@ -15,9 +15,8 @@
  */
 
 import type { Workbook } from '@univerjs/core';
-import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
 import { Disposable, ICommandService, Inject, IUniverInstanceService } from '@univerjs/core';
-import { IExclusiveRangeService, SetRangeValuesMutation } from '@univerjs/sheets';
+import { IExclusiveRangeService } from '@univerjs/sheets';
 import { FEATURE_PIVOT_TABLE_ID } from '../const';
 import { SheetsPivotDataSourceModel } from '../models/sheets-pivot-data-source-model';
 
@@ -51,22 +50,9 @@ export class SheetPviotTableRangeController extends Disposable {
                     return;
                 }
 
-        // Calculate pivot table data first
+                // Calculate pivot table data first
                 const workbook = this._univerInstanceService.getUnit(unitId) as Workbook;
-                pivotTable.calculate(workbook);
-
-        // Get full cell matrix including headers, values, and totals
-                const cellValue = pivotTable.getOutputCellMatrix();
-                if (!cellValue) {
-                    return;
-                }
-
-        // Apply the cell matrix to the worksheet
-                this._commandService.executeCommand(SetRangeValuesMutation.id, {
-                    unitId,
-                    subUnitId,
-                    cellValue,
-                } satisfies ISetRangeValuesMutationParams);
+                pivotTable.setSourceDataFromWorkbook(workbook);
             })
         );
         this.disposeWithMe(
@@ -76,7 +62,8 @@ export class SheetPviotTableRangeController extends Disposable {
                 if (!pivotTable) {
                     return;
                 }
-                pivotTable.calculate(this._univerInstanceService.getUnit(unitId) as Workbook);
+                const workbook = this._univerInstanceService.getUnit(unitId) as Workbook;
+                pivotTable.setSourceDataFromWorkbook(workbook);
 
                 this._pivotTableManager.notifyRangeChanged(unitId, subUnitId, pivotTableId);
 
@@ -106,8 +93,8 @@ export class SheetPviotTableRangeController extends Disposable {
         this.disposeWithMe(
             this._pivotTableManager.pivotTableRemoved$.subscribe((event) => {
                 const { pivotTableId, unitId, subUnitId } = event;
-        // Simply clear the exclusive range by group ID
-        // No need to check pivot table instance as it may already be disposed
+                // Simply clear the exclusive range by group ID
+                // No need to check pivot table instance as it may already be disposed
                 this._exclusiveRangeService.clearExclusiveRangesByGroupId(unitId, subUnitId, FEATURE_PIVOT_TABLE_ID, pivotTableId);
             })
         );

@@ -35,9 +35,6 @@ export class SheetsPivotDataSourceModel extends Disposable {
     private _pivotTableRemoved$ = new Subject<{ unitId: string; subUnitId: string; pivotTableId: string }>();
     public readonly pivotTableRemoved$ = this._pivotTableRemoved$.asObservable();
 
-    private _pivotTableUpdated$ = new Subject<{ unitId: string; subUnitId: string; pivotTableId: string }>();
-    public readonly pivotTableUpdated$ = this._pivotTableUpdated$.asObservable();
-
     private _tableRangeChanged$ = new Subject<IPivotTableRangeChangedEvent>();
     public readonly tableRangeChanged$ = this._tableRangeChanged$.asObservable();
 
@@ -102,7 +99,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
                     const workbook = this._univerInstanceService.getUnit(unitId) as Workbook;
                   // 获取当前的输出单元格矩阵
                     const outputCellMatrix = pivotTable.getOutputCellMatrix();
-                    pivotTable.calculate(workbook);
+                    pivotTable.setSourceDataFromWorkbook(workbook);
 
                   // Get full cell matrix including headers, values, and totals
                     const cellValue = pivotTable.getOutputCellMatrix();
@@ -110,7 +107,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
                     const updateCellData = new ObjectMatrix<Nullable<ICellData>>({});
 
                     if (outputCellMatrix) {
-                    // 将原来的值设置为null
+                        // 将原来的值设置为null
                         new ObjectMatrix(outputCellMatrix).forValue((row, col, value) => {
                             updateCellData.setValue(row, col, {
                                 ...value,
@@ -120,13 +117,13 @@ export class SheetsPivotDataSourceModel extends Disposable {
                     }
 
                     if (cellValue) {
-                    // 将新的值覆盖到原来的值
+                        // 将新的值覆盖到原来的值
                         new ObjectMatrix(cellValue).forValue((row, col, value) => {
                             updateCellData.setValue(row, col, value);
                         });
                     }
 
-                  // Apply the cell matrix to the worksheet
+                    // Apply the cell matrix to the worksheet
                     this._commandService.executeCommand(SetRangeValuesMutation.id, {
                         unitId,
                         subUnitId,
@@ -222,8 +219,6 @@ export class SheetsPivotDataSourceModel extends Disposable {
                 range: outputRange,
             });
         }
-
-        this._pivotTableUpdated$.next({ unitId, subUnitId, pivotTableId });
     }
 
     /**
@@ -261,8 +256,6 @@ export class SheetsPivotDataSourceModel extends Disposable {
                 range: outputRange,
             });
         }
-
-        this._pivotTableUpdated$.next({ unitId, subUnitId, pivotTableId });
     }
 
     /**
@@ -280,7 +273,10 @@ export class SheetsPivotDataSourceModel extends Disposable {
         }
 
         // Update pivot table instance
-        pivotTable.setFieldsConfig(fieldsConfig);
+        pivotTable.setValueFields(fieldsConfig.valueFields);
+        pivotTable.setRowFields(fieldsConfig.rowFields);
+        pivotTable.setColumnFields(fieldsConfig.columnFields);
+        pivotTable.setFilterFields(fieldsConfig.filterFields);
 
         // Emit event
         this._fieldsConfigChanged$.next({
@@ -289,8 +285,6 @@ export class SheetsPivotDataSourceModel extends Disposable {
             tableId: pivotTableId,
             fieldsConfig,
         });
-
-        this._pivotTableUpdated$.next({ unitId, subUnitId, pivotTableId });
     }
 
     /**

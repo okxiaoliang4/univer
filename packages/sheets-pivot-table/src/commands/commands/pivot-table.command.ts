@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import type { ICommand, Workbook } from '@univerjs/core';
-import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
-import { CommandType, ICommandService, IUniverInstanceService } from '@univerjs/core';
+import type { ICommand, IMutationInfo } from '@univerjs/core';
+import type { IFieldsConfig, IPivotTableConfig } from '../../types/type';
+import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams } from '../mutations/pivot-table.mutation';
+import { CommandType, generateRandomId, ICommandService, IUndoRedoService, sequenceExecute } from '@univerjs/core';
 import { ISheetsPivotTableService } from '../../services/pivot-table.service';
-import { AddPivotTableMutation, SetPivotTableFieldsConfigMutation } from '../mutations/pivot-table.mutation';
+import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation } from '../mutations/pivot-table.mutation';
 
 /**
  * Command to create a new pivot table
@@ -26,10 +27,8 @@ import { AddPivotTableMutation, SetPivotTableFieldsConfigMutation } from '../mut
 export interface ICreatePivotTableCommandParams {
     unitId: string;
     subUnitId: string;
-    name: string;
-    sourceRangeInfo: ISourceRangeInfo;
-    targetCellInfo: ITargetCellInfo;
-    fieldsConfig: IFieldsConfig;
+    pivotTableId?: string;
+    config: IPivotTableConfig;
 }
 
 export const CreatePivotTableCommand: ICommand<ICreatePivotTableCommandParams> = {
@@ -41,31 +40,27 @@ export const CreatePivotTableCommand: ICommand<ICreatePivotTableCommandParams> =
             return false;
         }
 
-        const pivotTableService = accessor.get(ISheetsPivotTableService);
         const commandService = accessor.get(ICommandService);
+        const undoRedoService = accessor.get(IUndoRedoService);
 
-        const { unitId, subUnitId, name, sourceRangeInfo, targetCellInfo, fieldsConfig } = params;
+        const { unitId, subUnitId, pivotTableId = generateRandomId() } = params;
 
-        // Create pivot table ID
-        const pivotTableId = pivotTableService.createPivotTable(unitId, subUnitId, {
-            name,
-            sourceRangeInfo,
-            targetCellInfo,
-            fieldsConfig,
-        });
+        const redos: IMutationInfo[] = [];
+        const undos: IMutationInfo[] = [];
 
-        const config = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
-        if (!config) {
-            return false;
+        redos.push({ id: AddPivotTableMutation.id, params: { ...params, pivotTableId } satisfies IAddPivotTableMutationParams });
+        undos.push({ id: RemovePivotTableMutation.id, params: { unitId, subUnitId, pivotTableId } satisfies IRemovePivotTableMutationParams });
+
+        const res = sequenceExecute(redos, commandService);
+
+        if (res) {
+            undoRedoService.pushUndoRedo({
+                unitID: params.unitId,
+                undoMutations: undos,
+                redoMutations: redos,
+            });
         }
-
-        // Execute mutation for undo/redo support
-        return commandService.executeCommand(AddPivotTableMutation.id, {
-            unitId,
-            subUnitId,
-            pivotTableId,
-            config,
-        });
+        return true;
     },
 };
 
@@ -90,40 +85,47 @@ export const UpdatePivotTableFieldsCommand: ICommand<IUpdatePivotTableFieldsComm
 
         const pivotTableService = accessor.get(ISheetsPivotTableService);
         const commandService = accessor.get(ICommandService);
+        const undoRedoService = accessor.get(IUndoRedoService);
 
-        const { unitId, subUnitId, pivotTableId, fieldsConfig } = params;
+        const { unitId, subUnitId, pivotTableId } = params;
 
-        // Check if pivot table exists
-        const existingConfig = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
-        if (!existingConfig) {
-            return false;
+        const currentConfig = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
+
+        const redos: IMutationInfo[] = [];
+        const undos: IMutationInfo[] = [];
+        redos.push({ id: SetPivotTableFieldsConfigMutation.id, params: { ...params } satisfies ISetPivotTableFieldsConfigMutationParams });
+        undos.push({ id: SetPivotTableFieldsConfigMutation.id, params: { unitId, subUnitId, pivotTableId, fieldsConfig: currentConfig?.fieldsConfig || {
+            valueFields: [],
+            rowFields: [],
+            columnFields: [],
+            filterFields: [],
+        } } satisfies ISetPivotTableFieldsConfigMutationParams });
+
+        const res = sequenceExecute(redos, commandService);
+
+        if (res) {
+            undoRedoService.pushUndoRedo({
+                unitID: params.unitId,
+                undoMutations: undos,
+                redoMutations: redos,
+            });
         }
-
-        // Update fields config using fine-grained update
-        pivotTableService.updateFieldsConfig(unitId, subUnitId, pivotTableId, fieldsConfig);
-
-        // Execute mutation for undo/redo
-        return commandService.executeCommand(SetPivotTableFieldsConfigMutation.id, {
-            unitId,
-            subUnitId,
-            pivotTableId,
-            fieldsConfig,
-        });
+        return true;
     },
 };
 
 /**
- * Command to delete a pivot table
+ * Command to remove a pivot table
  */
-export interface IDeletePivotTableCommandParams {
+export interface IRemovePivotTableCommandParams {
     unitId: string;
     subUnitId: string;
     pivotTableId: string;
 }
 
-export const DeletePivotTableCommand: ICommand<IDeletePivotTableCommandParams> = {
+export const RemovePivotTableCommand: ICommand<IRemovePivotTableCommandParams> = {
     type: CommandType.COMMAND,
-    id: 'sheet.command.delete-pivot-table',
+    id: 'sheet.command.remove-pivot-table',
 
     handler: async (accessor, params) => {
         if (!params) {
@@ -132,68 +134,31 @@ export const DeletePivotTableCommand: ICommand<IDeletePivotTableCommandParams> =
 
         const pivotTableService = accessor.get(ISheetsPivotTableService);
         const commandService = accessor.get(ICommandService);
+        const undoRedoService = accessor.get(IUndoRedoService);
 
-        const { unitId, subUnitId, pivotTableId } = params;
+        const { unitId, subUnitId, pivotTableId = generateRandomId() } = params;
 
-        // Check if pivot table exists
         const config = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
+
         if (!config) {
-            return false;
+            throw new Error('[PivotTableService]: Pivot table not found');
         }
 
-        // Delete pivot table
-        pivotTableService.deletePivotTable(unitId, subUnitId, pivotTableId);
+        const redos: IMutationInfo[] = [];
+        const undos: IMutationInfo[] = [];
 
-        // Execute remove mutation for undo/redo
-        const { RemovePivotTableMutation } = await import('../mutations/pivot-table.mutation');
-        return commandService.executeCommand(RemovePivotTableMutation.id, {
-            unitId,
-            subUnitId,
-            pivotTableId,
-        });
-    },
-};
+        redos.push({ id: RemovePivotTableMutation.id, params: { unitId, subUnitId, pivotTableId } satisfies IRemovePivotTableMutationParams });
+        undos.push({ id: AddPivotTableMutation.id, params: { ...params, pivotTableId, config } satisfies IAddPivotTableMutationParams });
 
-/**
- * Command to refresh (recalculate) a pivot table
- */
-export interface IRefreshPivotTableCommandParams {
-    unitId: string;
-    subUnitId: string;
-    pivotTableId: string;
-}
+        const res = sequenceExecute(redos, commandService);
 
-export const RefreshPivotTableCommand: ICommand<IRefreshPivotTableCommandParams> = {
-    type: CommandType.COMMAND,
-    id: 'sheet.command.refresh-pivot-table',
-
-    handler: async (accessor, params) => {
-        if (!params) {
-            return false;
+        if (res) {
+            undoRedoService.pushUndoRedo({
+                unitID: params.unitId,
+                undoMutations: undos,
+                redoMutations: redos,
+            });
         }
-
-        const pivotTableService = accessor.get(ISheetsPivotTableService);
-        const univerInstanceService = accessor.get(IUniverInstanceService);
-
-        const { unitId, subUnitId, pivotTableId } = params;
-
-        // Mark as dirty to force recalculation
-        // pivotTableService.markDirty(unitId, subUnitId, pivotTableId);
-
-        // Get workbook and trigger recalculation
-        const workbook = univerInstanceService.getUnit(unitId);
-        if (!workbook) {
-            return false;
-        }
-
-        const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
-        if (!pivotTable) {
-            return false;
-        }
-
-        // Trigger recalculation (actual rendering will be done by render controller)
-        pivotTable.calculate(workbook as Workbook);
-
         return true;
     },
 };

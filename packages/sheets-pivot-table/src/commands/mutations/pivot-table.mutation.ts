@@ -48,14 +48,6 @@ export const AddPivotTableMutation: IMutation<IAddPivotTableMutationParams> = {
 
         const { unitId, subUnitId, pivotTableId, config } = params;
 
-        // Check if pivot table already exists
-        const existingPivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
-
-        if (existingPivotTable) {
-            // Pivot table already exists, cannot add again
-            return false;
-        }
-
         // Create new pivot table
         const pivotTable = new PivotTable(
             config.id,
@@ -122,12 +114,6 @@ export const SetPivotTableSourceRangeMutation: IMutation<ISetPivotTableSourceRan
         const pivotTableService = accessor.get(ISheetsPivotTableService);
         const { unitId, subUnitId, pivotTableId, sourceRangeInfo } = params;
 
-        // Store old source range for undo
-        const currentConfig = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
-        if (!currentConfig) {
-            return false;
-        }
-
         // Update source range
         pivotTableService.updateSourceRange(unitId, subUnitId, pivotTableId, sourceRangeInfo);
 
@@ -157,12 +143,6 @@ export const SetPivotTableTargetCellMutation: IMutation<ISetPivotTableTargetCell
         const pivotTableService = accessor.get(ISheetsPivotTableService);
         const { unitId, subUnitId, pivotTableId, targetCellInfo } = params;
 
-        // Store old target cell for undo
-        const currentConfig = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
-        if (!currentConfig) {
-            return false;
-        }
-
         // Update target cell
         pivotTableService.updateTargetCell(unitId, subUnitId, pivotTableId, targetCellInfo);
         return true;
@@ -190,12 +170,6 @@ export const SetPivotTableFieldsConfigMutation: IMutation<ISetPivotTableFieldsCo
 
         const pivotTableService = accessor.get(ISheetsPivotTableService);
         const { unitId, subUnitId, pivotTableId, fieldsConfig } = params;
-
-        // Store old fields config for undo
-        const currentConfig = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
-        if (!currentConfig) {
-            return false;
-        }
 
         // Update fields config
         pivotTableService.updateFieldsConfig(unitId, subUnitId, pivotTableId, fieldsConfig);

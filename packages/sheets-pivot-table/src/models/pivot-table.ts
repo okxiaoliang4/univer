@@ -18,8 +18,19 @@ import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable, Workbook 
 import type { Observable } from 'rxjs';
 import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ObjectMatrix } from '@univerjs/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged } from 'rxjs';
 import { PivotEngine } from './pivot-engine';
+
+const defaultPlaceholderMatrix: IObjectMatrixPrimitiveType<Nullable<ICellData>> = {
+    0: {
+        0: {
+            v: 'Filter...',
+        },
+    },
+    2: {
+
+    },
+};
 
 /**
  * Simplified PivotTable implementation for MVP
@@ -38,10 +49,16 @@ export class PivotTable extends Disposable {
     private _columnFields$: BehaviorSubject<IPivotField[]>;
     private _filterFields$: BehaviorSubject<IPivotField[]>;
 
+    private _sourceData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
+    private _calculatedData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
+
     valueFields$: Observable<IPivotField[]>;
     rowFields$: Observable<IPivotField[]>;
     columnFields$: Observable<IPivotField[]>;
     filterFields$: Observable<IPivotField[]>;
+
+    sourceData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
+    calculatedData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
 
     constructor(
         id: string,
@@ -57,10 +74,10 @@ export class PivotTable extends Disposable {
         this._targetCellInfo = targetCellInfo;
 
         this._pivotEngine = new PivotEngine({
-            valueFields: fieldsConfig.valueFields,
-            rowFields: fieldsConfig.rowFields,
-            columnFields: fieldsConfig.columnFields,
-            filterFields: fieldsConfig.filterFields,
+            valueFields: fieldsConfig.valueFields || [],
+            rowFields: fieldsConfig.rowFields || [],
+            columnFields: fieldsConfig.columnFields || [],
+            filterFields: fieldsConfig.filterFields || [],
             sourceData: {},
         });
 
@@ -68,11 +85,17 @@ export class PivotTable extends Disposable {
         this._rowFields$ = new BehaviorSubject(fieldsConfig.rowFields);
         this._columnFields$ = new BehaviorSubject(fieldsConfig.columnFields);
         this._filterFields$ = new BehaviorSubject(fieldsConfig.filterFields);
+        this._sourceData$ = new BehaviorSubject({});
+        this._calculatedData$ = new BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>(null);
 
         this.valueFields$ = this._valueFields$.asObservable();
         this.rowFields$ = this._rowFields$.asObservable();
         this.columnFields$ = this._columnFields$.asObservable();
         this.filterFields$ = this._filterFields$.asObservable();
+        this.sourceData$ = this._sourceData$.asObservable();
+        this.calculatedData$ = this._calculatedData$.asObservable();
+
+        this._initListeners();
 
         this.disposeWithMe(this._pivotEngine);
 
@@ -81,7 +104,30 @@ export class PivotTable extends Disposable {
             this._rowFields$.complete();
             this._columnFields$.complete();
             this._filterFields$.complete();
+            this._sourceData$.complete();
+            this._calculatedData$.complete();
         });
+    }
+
+    private _initListeners(): void {
+        this.disposeWithMe(
+            combineLatest([
+                this.valueFields$,
+                this.rowFields$,
+                this.columnFields$,
+                this.filterFields$,
+                this.sourceData$,
+            ])
+                .pipe(
+                    distinctUntilChanged(),
+                    debounceTime(0)
+                )
+                .subscribe(() => {
+                    // Get output cell matrix
+                    const cellValue = this.getOutputCellMatrix();
+                    this._calculatedData$.next(cellValue);
+                })
+        );
     }
 
     getId(): string {
@@ -160,52 +206,54 @@ export class PivotTable extends Disposable {
         return targetObjectMatrix;
     }
 
-    /**
-     * Get the output range of the pivot table based on calculated data
-     * Returns the range from target cell to the end of calculated output (including grand totals)
-     * @returns Output range or null if not calculated yet
-     */
+  /**
+   * Get the output range of the pivot table based on calculated data
+   * Returns the range from target cell to the end of calculated output (including grand totals)
+   * @returns Output range or null if not calculated yet
+   */
     getOutputRange(): IRange {
         const outputCellMatrix = this.getOutputCellMatrix();
         const outputRange = new ObjectMatrix(outputCellMatrix).getDataRange();
         return outputRange;
     }
 
-    /**
-     * Generate full cell matrix for pivot table output
-     * Includes headers, values, and totals in the correct layout
-     * @returns ObjectMatrix with all cell values positioned relative to target cell, or null if not calculated
-     */
+  /**
+   * Generate full cell matrix for pivot table output
+   * Includes headers, values, and totals in the correct layout
+   * @returns ObjectMatrix with all cell values positioned relative to target cell, or null if not calculated
+   */
     getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         const targetMatrix = this._pivotEngine.getCalculatedData();
         if (!targetMatrix) {
             // TODO: 做一个placeholder matrix, 也一样需要moveMatrix
-            return {};
+            return this._moveMatrix(defaultPlaceholderMatrix, this._targetCellInfo).getMatrix();
         }
         return this._moveMatrix(targetMatrix, this._targetCellInfo).getMatrix();
     }
 
-    /**
-     * Calculate pivot table data from source worksheet
-     * @param workbook - The workbook containing source data
-     * @returns Calculated pivot table data
-     */
-    calculate(workbook: Workbook) {
+    setSourceData(sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
+        this._pivotEngine.setSourceData(sourceData);
+        this._sourceData$.next(sourceData);
+    }
+
+  /**
+   * Calculate pivot table data
+   * @param workbook - The workbook containing source data
+   * @returns Calculated pivot table data
+   */
+    setSourceDataFromWorkbook(workbook: Workbook) {
         const worksheet = workbook.getSheetBySheetId(this._sourceRangeInfo.subUnitId);
         if (!worksheet) {
             return null;
         }
-
         const range = worksheet.getRange(this._sourceRangeInfo.range);
         const matrix = range.getMatrix().getMatrix();
-
-        this._pivotEngine.setSourceData(matrix);
-        return this.getOutputCellMatrix();
+        this.setSourceData(matrix);
     }
 
-    /**
-     * Serialize to JSON
-     */
+  /**
+   * Serialize to JSON
+   */
     toJSON(): IPivotTableConfig {
         return {
             id: this._id,

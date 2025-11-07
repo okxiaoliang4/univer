@@ -17,6 +17,7 @@
 import type {
     CancelDrop,
     CollisionDetection,
+    DragEndEvent,
     DropAnimation,
     KeyboardCoordinateGetter,
     Modifiers,
@@ -26,7 +27,7 @@ import type {
     AnimateLayoutChanges,
     SortingStrategy,
 } from '@dnd-kit/sortable';
-import type { IPivotField, PivotTable } from '@univerjs/sheets-pivot-table';
+import type { IPivotField, IUpdatePivotTableFieldsCommandParams, PivotTable } from '@univerjs/sheets-pivot-table';
 import type React from 'react';
 import type { IFieldItemsContainerProps } from './FieldItemsContainer';
 import {
@@ -52,8 +53,9 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { generateRandomId } from '@univerjs/core';
-import { useObservable } from '@univerjs/ui';
+import { generateRandomId, ICommandService } from '@univerjs/core';
+import { UpdatePivotTableFieldsCommand } from '@univerjs/sheets-pivot-table';
+import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { coordinateGetter as multipleContainersCoordinateGetter } from '../../common/multiple-containers-keyboard-coordinates';
@@ -198,10 +200,12 @@ export function PivotTableEditor({
     ];
 
     // Get current fields from pivotTable observables
-    const valueFields = useObservable(pivotTable.valueFields$) || [];
-    const rowFields = useObservable(pivotTable.rowFields$) || [];
-    const columnFields = useObservable(pivotTable.columnFields$) || [];
-    const filterFields = useObservable(pivotTable.filterFields$) || [];
+    const valueFields = useObservable(pivotTable.valueFields$, pivotTable.getValueFields());
+    const rowFields = useObservable(pivotTable.rowFields$, pivotTable.getRowFields());
+    const columnFields = useObservable(pivotTable.columnFields$, pivotTable.getColumnFields());
+    const filterFields = useObservable(pivotTable.filterFields$, pivotTable.getFilterFields());
+
+    const commandService = useDependency(ICommandService);
 
     // Memoized containers structure directly from pivotTable data
     const items: Record<string, IPivotField[]> = useMemo(() => ({
@@ -353,6 +357,183 @@ export function PivotTableEditor({
         activeContainerRef.current = null;
     };
 
+    const handleDragEnd = ({ active, over }: DragEndEvent) => {
+        const activeContainer = findContainer(active.id);
+
+        if (!activeContainer) {
+            setActiveId(null);
+            return;
+        }
+
+        const overId = over?.id;
+
+        if (overId == null) {
+            setActiveId(null);
+            return;
+        }
+
+        const overContainer = findContainer(overId);
+
+        // Don't allow dropping back to source
+        if (!overContainer || overContainer === 'sourceFields') {
+            setActiveId(null);
+            return;
+        }
+
+        const activeFieldId = String(active.id);
+
+        const activeSourceColumnIndex = sourceFields.find((f) => f.id === activeFieldId)?.sourceColumnIndex ?? -1;
+
+        let valueFields = pivotTable.getValueFields();
+        let rowFields = pivotTable.getRowFields();
+        let columnFields = pivotTable.getColumnFields();
+        let filterFields = pivotTable.getFilterFields();
+
+        // Handle dragging from source fields (copy operation)
+        if (activeContainer === 'sourceFields') {
+            const sourceField = getSourceField(activeSourceColumnIndex);
+            if (!sourceField) {
+                setActiveId(null);
+                return;
+            }
+
+            const newField: IPivotField = {
+                ...sourceField,
+                id: generateRandomId(6),
+            };
+            // Apply Excel pivot table rules
+            if (overContainer === 'valueFields') {
+                // valueFields can have duplicates - create new field with unique ID
+                valueFields = [...valueFields, newField];
+            } else {
+                // filterFields, columnFields, rowFields - exclusive rule
+                const existingField = findFieldInExclusiveContainers(activeSourceColumnIndex);
+
+                // Remove from other exclusive containers if exists
+                if (existingField.container && existingField.container !== overContainer) {
+                    if (existingField.container === 'filterFields') {
+                        filterFields = filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
+                    } else if (existingField.container === 'columnFields') {
+                        columnFields = columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
+                    } else if (existingField.container === 'rowFields') {
+                        rowFields = rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
+                    }
+                }
+
+                // Add to target container
+                if (overContainer === 'filterFields' && !filterFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
+                    filterFields = [...filterFields, existingField.field || newField];
+                } else if (overContainer === 'columnFields' && !columnFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
+                    columnFields = [...columnFields, existingField.field || newField];
+                } else if (overContainer === 'rowFields' && !rowFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
+                    rowFields = [...rowFields, existingField.field || newField];
+                }
+            }
+        } else {
+            // Handle dragging between containers (not from source)
+            const draggedField = [...valueFields, ...rowFields, ...columnFields, ...filterFields].find((f) => f.id === activeFieldId);
+
+            if (!draggedField) {
+                setActiveId(null);
+                return;
+            }
+
+            if (activeContainer === overContainer) {
+                // Reordering within same container
+                const currentFields = activeContainer === 'valueFields'
+                    ? valueFields :
+                    activeContainer === 'rowFields'
+                        ? rowFields :
+                        activeContainer === 'columnFields'
+                            ? columnFields :
+                            filterFields;
+
+                const activeIndex = currentFields.findIndex((f) => f.id === activeFieldId);
+                const overIndex = currentFields.findIndex((f) => f.id === overId);
+
+                if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+                    const reorderedFields = arrayMove(currentFields, activeIndex, overIndex);
+
+                    if (activeContainer === 'valueFields') {
+                        valueFields = reorderedFields;
+                    } else if (activeContainer === 'rowFields') {
+                        rowFields = reorderedFields;
+                    } else if (activeContainer === 'columnFields') {
+                        columnFields = reorderedFields;
+                    } else if (activeContainer === 'filterFields') {
+                        filterFields = reorderedFields;
+                    }
+                }
+            } else {
+                // Moving between different containers
+                const sourceField = getSourceField(draggedField.sourceColumnIndex);
+
+                if (!sourceField) {
+                    setActiveId(null);
+                    return;
+                }
+
+                // Remove from source container first
+                if (activeContainer === 'valueFields') {
+                    valueFields = valueFields.filter((f) => f.id !== activeFieldId);
+                } else if (activeContainer === 'rowFields') {
+                    rowFields = rowFields.filter((f) => f.id !== activeFieldId);
+                } else if (activeContainer === 'columnFields') {
+                    columnFields = columnFields.filter((f) => f.id !== activeFieldId);
+                } else if (activeContainer === 'filterFields') {
+                    filterFields = filterFields.filter((f) => f.id !== activeFieldId);
+                }
+
+                const newField: IPivotField = {
+                    ...sourceField,
+                    id: generateRandomId(6),
+                };
+                // Add to target container
+                if (overContainer === 'valueFields') {
+                    // Moving to valueFields - create new field with unique ID
+                    valueFields = [...valueFields, newField];
+                } else {
+                    // Moving to exclusive container - remove from others first
+                    if (overContainer !== 'filterFields') {
+                        filterFields = filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
+                    }
+                    if (overContainer !== 'columnFields') {
+                        columnFields = columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
+                    }
+                    if (overContainer !== 'rowFields') {
+                        rowFields = rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
+                    }
+
+                    // Add to target
+                    if (overContainer === 'filterFields') {
+                        filterFields = [...filterFields, newField];
+                    } else if (overContainer === 'columnFields') {
+                        columnFields = [...columnFields, newField];
+                    } else if (overContainer === 'rowFields') {
+                        rowFields = [...rowFields, newField];
+                    }
+                }
+            }
+        }
+
+        const targetCellInfo = pivotTable.getTargetCellInfo();
+
+        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+            unitId: targetCellInfo.unitId,
+            subUnitId: targetCellInfo.subUnitId,
+            pivotTableId: pivotTable.getId(),
+            fieldsConfig: {
+                valueFields,
+                rowFields,
+                columnFields,
+                filterFields,
+            },
+        } satisfies IUpdatePivotTableFieldsCommandParams);
+
+        setActiveId(null);
+        activeContainerRef.current = null;
+    };
+
     return (
         <DndContext
             sensors={sensors}
@@ -374,163 +555,7 @@ export function PivotTableEditor({
                     lastOverId.current = over.id;
                 }
             }}
-            onDragEnd={({ active, over }) => {
-                const activeContainer = findContainer(active.id);
-
-                if (!activeContainer) {
-                    setActiveId(null);
-                    return;
-                }
-
-                const overId = over?.id;
-
-                if (overId == null) {
-                    setActiveId(null);
-                    return;
-                }
-
-                const overContainer = findContainer(overId);
-
-                // Don't allow dropping back to source
-                if (!overContainer || overContainer === 'sourceFields') {
-                    setActiveId(null);
-                    return;
-                }
-
-                const activeFieldId = String(active.id);
-
-                const activeSourceColumnIndex = sourceFields.find((f) => f.id === activeFieldId)?.sourceColumnIndex ?? -1;
-
-                // Handle dragging from source fields (copy operation)
-                if (activeContainer === 'sourceFields') {
-                    const sourceField = getSourceField(activeSourceColumnIndex);
-                    if (!sourceField) {
-                        setActiveId(null);
-                        return;
-                    }
-
-                    const newField: IPivotField = {
-                        ...sourceField,
-                        id: generateRandomId(6),
-                    };
-                    // Apply Excel pivot table rules
-                    if (overContainer === 'valueFields') {
-                        // valueFields can have duplicates - create new field with unique ID
-                        pivotTable.setValueFields([...valueFields, newField]);
-                    } else {
-                        // filterFields, columnFields, rowFields - exclusive rule
-                        const existingField = findFieldInExclusiveContainers(activeSourceColumnIndex);
-
-                        // Remove from other exclusive containers if exists
-                        if (existingField.container && existingField.container !== overContainer) {
-                            if (existingField.container === 'filterFields') {
-                                pivotTable.setFilterFields(filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
-                            } else if (existingField.container === 'columnFields') {
-                                pivotTable.setColumnFields(columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
-                            } else if (existingField.container === 'rowFields') {
-                                pivotTable.setRowFields(rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
-                            }
-                        }
-
-                        // Add to target container
-                        if (overContainer === 'filterFields' && !filterFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
-                            pivotTable.setFilterFields([...filterFields, existingField.field || newField]);
-                        } else if (overContainer === 'columnFields' && !columnFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
-                            pivotTable.setColumnFields([...columnFields, existingField.field || newField]);
-                        } else if (overContainer === 'rowFields' && !rowFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
-                            pivotTable.setRowFields([...rowFields, existingField.field || newField]);
-                        }
-                    }
-                } else {
-                    // Handle dragging between containers (not from source)
-                    const draggedField = [...valueFields, ...rowFields, ...columnFields, ...filterFields].find((f) => f.id === activeFieldId);
-
-                    if (!draggedField) {
-                        setActiveId(null);
-                        return;
-                    }
-
-                    if (activeContainer === overContainer) {
-                        // Reordering within same container
-                        const currentFields = activeContainer === 'valueFields'
-                            ? valueFields :
-                            activeContainer === 'rowFields'
-                                ? rowFields :
-                                activeContainer === 'columnFields'
-                                    ? columnFields :
-                                    filterFields;
-
-                        const activeIndex = currentFields.findIndex((f) => f.id === activeFieldId);
-                        const overIndex = currentFields.findIndex((f) => f.id === overId);
-
-                        if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
-                            const reorderedFields = arrayMove(currentFields, activeIndex, overIndex);
-
-                            if (activeContainer === 'valueFields') {
-                                pivotTable.setValueFields(reorderedFields);
-                            } else if (activeContainer === 'rowFields') {
-                                pivotTable.setRowFields(reorderedFields);
-                            } else if (activeContainer === 'columnFields') {
-                                pivotTable.setColumnFields(reorderedFields);
-                            } else if (activeContainer === 'filterFields') {
-                                pivotTable.setFilterFields(reorderedFields);
-                            }
-                        }
-                    } else {
-                        // Moving between different containers
-                        const sourceField = getSourceField(draggedField.sourceColumnIndex);
-
-                        if (!sourceField) {
-                            setActiveId(null);
-                            return;
-                        }
-
-                        // Remove from source container first
-                        if (activeContainer === 'valueFields') {
-                            pivotTable.setValueFields(valueFields.filter((f) => f.id !== activeFieldId));
-                        } else if (activeContainer === 'rowFields') {
-                            pivotTable.setRowFields(rowFields.filter((f) => f.id !== activeFieldId));
-                        } else if (activeContainer === 'columnFields') {
-                            pivotTable.setColumnFields(columnFields.filter((f) => f.id !== activeFieldId));
-                        } else if (activeContainer === 'filterFields') {
-                            pivotTable.setFilterFields(filterFields.filter((f) => f.id !== activeFieldId));
-                        }
-
-                        const newField: IPivotField = {
-                            ...sourceField,
-                            id: generateRandomId(6),
-                        };
-                        // Add to target container
-                        if (overContainer === 'valueFields') {
-                            // Moving to valueFields - create new field with unique ID
-                            pivotTable.setValueFields([...valueFields, newField]);
-                        } else {
-                            // Moving to exclusive container - remove from others first
-                            if (overContainer !== 'filterFields') {
-                                pivotTable.setFilterFields(filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
-                            }
-                            if (overContainer !== 'columnFields') {
-                                pivotTable.setColumnFields(columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
-                            }
-                            if (overContainer !== 'rowFields') {
-                                pivotTable.setRowFields(rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex));
-                            }
-
-                            // Add to target
-                            if (overContainer === 'filterFields') {
-                                pivotTable.setFilterFields([...filterFields, newField]);
-                            } else if (overContainer === 'columnFields') {
-                                pivotTable.setColumnFields([...columnFields, newField]);
-                            } else if (overContainer === 'rowFields') {
-                                pivotTable.setRowFields([...rowFields, newField]);
-                            }
-                        }
-                    }
-                }
-
-                setActiveId(null);
-                activeContainerRef.current = null;
-            }}
+            onDragEnd={handleDragEnd}
             cancelDrop={cancelDrop}
             onDragCancel={onDragCancel}
             modifiers={modifiers}

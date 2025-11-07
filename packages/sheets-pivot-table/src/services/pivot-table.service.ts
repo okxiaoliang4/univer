@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-import type { IRange } from '@univerjs/core';
+import type { ICellData, IRange, Nullable } from '@univerjs/core';
+import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
 import type { IFieldsConfig, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
-import { createIdentifier, Disposable, generateRandomId, Inject } from '@univerjs/core';
+import { createIdentifier, Disposable, generateRandomId, ICommandService, Inject, ObjectMatrix } from '@univerjs/core';
+import { SetRangeValuesMutation } from '@univerjs/sheets';
+import { pairwise } from 'rxjs';
 import { PivotTable } from '../models/pivot-table';
 import { SheetsPivotDataSourceModel } from '../models/sheets-pivot-data-source-model';
 
@@ -107,9 +110,52 @@ export const ISheetsPivotTableService = createIdentifier<ISheetsPivotTableServic
  */
 export class SheetsPivotTableService extends Disposable implements ISheetsPivotTableService {
     constructor(
-        @Inject(SheetsPivotDataSourceModel) private readonly _dataSourceModel: SheetsPivotDataSourceModel
+        @Inject(SheetsPivotDataSourceModel) private readonly _dataSourceModel: SheetsPivotDataSourceModel,
+        @Inject(ICommandService) private readonly _commandService: ICommandService
     ) {
         super();
+
+        this._initListeners();
+    }
+
+    private _initListeners(): void {
+        this.disposeWithMe(this._dataSourceModel.pivotTableAdded$.subscribe((event) => {
+            const { unitId, subUnitId, pivotTableId } = event;
+            const pivotTable = this.getPivotTable(unitId, subUnitId, pivotTableId);
+            if (!pivotTable) {
+                return;
+            }
+
+            // 监听output变动，更新数据
+            this.disposeWithMe(pivotTable.calculatedData$.pipe(pairwise()).subscribe(([prev, next]) => {
+                const updateCellData = new ObjectMatrix<Nullable<ICellData>>({});
+                if (prev) {
+                    // 将原来的值设置为null
+                    new ObjectMatrix(prev).forValue((row, col, value) => {
+                        updateCellData.setValue(row, col, {
+                            ...value,
+                            v: null,
+                        });
+                    });
+                }
+
+                if (next) {
+                    // 将新的值覆盖到原来的值
+                    new ObjectMatrix(next).forValue((row, col, value) => {
+                        updateCellData.setValue(row, col, value);
+                    });
+                }
+
+                // Apply the cell matrix to the worksheet
+                this._commandService.executeCommand(SetRangeValuesMutation.id, {
+                    unitId,
+                    subUnitId,
+                    cellValue: updateCellData.getMatrix(),
+                } satisfies ISetRangeValuesMutationParams, {
+                    onlyLocal: true, // NOTE: 不记录到协同中，每个用户自己本地计算，如果放开的话会出现undo，redo记录上这个操作
+                });
+            }));
+        }));
     }
 
     createPivotTable(
