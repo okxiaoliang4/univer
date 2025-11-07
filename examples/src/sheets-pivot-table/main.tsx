@@ -91,7 +91,7 @@ univer.registerPlugin(UniverSheetsPivotTableUIPlugin);
 
 univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
     id: 'H1p5SR',
-    sheetOrder: ['ZCGh3uiogN11CwYQlPhHo', 'LGnYVqvZkPfvO9afrbswO'],
+    sheetOrder: ['ZCGh3uiogN11CwYQlPhHo'],
     name: '',
     appVersion: '0.10.12',
     locale: 'zhCN',
@@ -355,7 +355,7 @@ univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
         },
         {
             name: 'SHEET_PIVOT_TABLE_PLUGIN',
-            data: '{"pivotTableConfigs":{"H1p5SR":{"ZCGh3uiogN11CwYQlPhHo":{"VJi4_iUlImYgeWw7Cw0sh":{"id":"VJi4_iUlImYgeWw7Cw0sh","name":"New Pivot Table","sourceRangeInfo":{"range":{"startRow":0,"startColumn":0,"endRow":5,"endColumn":2,"startAbsoluteRefType":0,"endAbsoluteRefType":0,"rangeType":0},"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"targetCellInfo":{"row":0,"col":0,"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"fieldsConfig":{"rowFields":[],"columnFields":[],"valueFields":[],"filterFields":[]}}}}}}',
+            data: '{}',
         },
     ],
 });

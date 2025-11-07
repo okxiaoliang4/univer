@@ -165,12 +165,10 @@ export class PivotTable extends Disposable {
      * Returns the range from target cell to the end of calculated output (including grand totals)
      * @returns Output range or null if not calculated yet
      */
-    getOutputRange(): IRange | null {
-        const calculatedData = this._pivotEngine.getCalculatedData();
-        if (!calculatedData) {
-            return null;
-        }
-        return this._moveMatrix(calculatedData, this._targetCellInfo).getDataRange();
+    getOutputRange(): IRange {
+        const outputCellMatrix = this.getOutputCellMatrix();
+        const outputRange = new ObjectMatrix(outputCellMatrix).getDataRange();
+        return outputRange;
     }
 
     /**
@@ -178,10 +176,11 @@ export class PivotTable extends Disposable {
      * Includes headers, values, and totals in the correct layout
      * @returns ObjectMatrix with all cell values positioned relative to target cell, or null if not calculated
      */
-    getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
+    getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         const targetMatrix = this._pivotEngine.getCalculatedData();
         if (!targetMatrix) {
-            return null;
+            // TODO: 做一个placeholder matrix, 也一样需要moveMatrix
+            return {};
         }
         return this._moveMatrix(targetMatrix, this._targetCellInfo).getMatrix();
     }

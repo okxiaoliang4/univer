@@ -15,8 +15,9 @@
  */
 
 import type { IAccessor, IOperation, IRange } from '@univerjs/core';
+import type { IInsertSheetCommandParams } from '@univerjs/sheets';
 import type { ICreatePivotTableCommandParams } from '@univerjs/sheets-pivot-table';
-import { CommandType, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
+import { CommandType, generateRandomId, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
 import { expandToContinuousRange, getSheetCommandTarget, InsertSheetCommand, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
 import { CreatePivotTableCommand } from '@univerjs/sheets-pivot-table';
 import { IDialogService, ISidebarService } from '@univerjs/ui';
@@ -62,11 +63,18 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
         }
 
         let targetRange = pivotInfo.targetRange;
+        let targetSheetId = pivotInfo.subUnitId;
         if (pivotInfo.targetRangeType === 'new') {
-            await commandService.executeCommand(InsertSheetCommand.id, {
+            targetSheetId = generateRandomId();
+            const success = await commandService.executeCommand(InsertSheetCommand.id, {
                 unitId,
-                subUnitId,
-            });
+                sheet: {
+                    id: targetSheetId,
+                },
+            } satisfies IInsertSheetCommandParams);
+            if (!success) {
+                return false;
+            }
             targetRange = {
                 startRow: 0,
                 endRow: 0,
@@ -76,12 +84,12 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
         }
 
         if (!targetRange) {
-            throw new Error('Target range is required');
+            return false;
         }
 
         await commandService.executeCommand(CreatePivotTableCommand.id, {
             unitId,
-            subUnitId,
+            subUnitId: targetSheetId,
             name: 'New Pivot Table',
             sourceRangeInfo: {
                 range: pivotInfo.sourceRange,
@@ -91,7 +99,7 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
             targetCellInfo: {
                 row: targetRange.startRow,
                 col: targetRange.startColumn,
-                subUnitId,
+                subUnitId: targetSheetId,
                 unitId,
             },
             fieldsConfig: {

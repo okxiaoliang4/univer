@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { ICellData, Nullable, Workbook } from '@univerjs/core';
+import type { ICellData, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
 import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ICommandService, IResourceManagerService, IUniverInstanceService, ObjectMatrix, Rectangle, toDisposable } from '@univerjs/core';
@@ -317,6 +317,24 @@ export class SheetsPivotDataSourceModel extends Disposable {
      */
     getSubUnitPivotTables(unitId: string, subUnitId: string): Map<string, PivotTable> | undefined {
         return this._pivotTableMap.get(unitId)?.get(subUnitId);
+    }
+
+    /**
+     * Get pivot table by target range
+     */
+    getPivotTableByTargetRange(unitId: string, subUnitId: string, targetRange: IRange): PivotTable | undefined {
+        const pivotTables = this.getSubUnitPivotTables(unitId, subUnitId);
+        if (!pivotTables) {
+            return undefined;
+        }
+
+        return Array.from(pivotTables.values()).find((pivotTable) => {
+            const outputRange = pivotTable.getOutputRange();
+            if (!outputRange) {
+                return false;
+            }
+            return Rectangle.intersects(outputRange, targetRange);
+        });
     }
 
     /**

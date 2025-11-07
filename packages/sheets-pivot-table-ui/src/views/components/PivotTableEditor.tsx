@@ -56,7 +56,7 @@ import { generateRandomId } from '@univerjs/core';
 import { useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { coordinateGetter as multipleContainersCoordinateGetter } from '../../common/multipleContainersKeyboardCoordinates';
+import { coordinateGetter as multipleContainersCoordinateGetter } from '../../common/multiple-containers-keyboard-coordinates';
 import { FieldItem } from './FieldItem';
 import { FieldItemsContainer } from './FieldItemsContainer';
 

@@ -80,10 +80,10 @@ export class SheetPviotTableRangeController extends Disposable {
 
                 this._pivotTableManager.notifyRangeChanged(unitId, subUnitId, pivotTableId);
 
-        // Get output range (may be null if not calculated yet)
+                // Get output range (may be null if not calculated yet)
                 const range = pivotTable.getOutputRange();
                 if (!range) {
-          // If no calculated range yet, use a single cell at target position as placeholder
+                // If no calculated range yet, use a single cell at target position as placeholder
                     const targetInfo = pivotTable.getTargetCellInfo();
                     const placeholderRange = {
                         startRow: targetInfo.row,

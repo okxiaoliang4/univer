@@ -18,6 +18,7 @@ import type { ISetSelectionsOperationParams } from '@univerjs/sheets';
 import type { IShowPivotTablePanelOperationParams } from '../commands/operations/pivot-table.operation';
 import { Disposable, ICommandService, Inject, Injector } from '@univerjs/core';
 import { SetSelectionsOperation } from '@univerjs/sheets';
+import { ISheetsPivotTableService } from '@univerjs/sheets-pivot-table';
 import { ComponentManager, IMenuManagerService, IShortcutService } from '@univerjs/ui';
 import { HidePivotTablePanelOperation, OpenCreatePivotTableDialogOperation, ShowPivotTablePanelOperation } from '../commands/operations/pivot-table.operation';
 import { PivotTablePanel } from '../views/components/PivotTablePanel';
@@ -83,11 +84,19 @@ export class PivotTableUIDesktopController extends Disposable {
             this._commandService.onCommandExecuted((command) => {
                 if (command.id === SetSelectionsOperation.id) {
                     const params = command.params as ISetSelectionsOperationParams;
-                // TODO: 找到targetRange匹配的tableId
+                    const pivotTableService = this._injector.get(ISheetsPivotTableService);
+                    const primarySelection = params.selections.find((selection) => selection.primary);
+                    if (!primarySelection) {
+                        return;
+                    }
+                    const pivotTable = pivotTableService.getPivotTableByTargetRange(params.unitId, params.subUnitId, primarySelection.range);
+                    if (!pivotTable) {
+                        return;
+                    }
                     this._commandService.executeCommand(ShowPivotTablePanelOperation.id, {
                         unitId: params.unitId,
                         subUnitId: params.subUnitId,
-                        pivotTableId: 'JzeRdFgNWuU2aPXNeM765',
+                        pivotTableId: pivotTable.getId(),
                     } satisfies IShowPivotTablePanelOperationParams);
                 }
             })

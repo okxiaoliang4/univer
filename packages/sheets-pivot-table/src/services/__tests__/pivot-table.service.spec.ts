@@ -467,9 +467,6 @@ describe('SheetsPivotTableService', () => {
             const id = service.createPivotTable(unitId, subUnitId, config);
             const pivotTable = service.getPivotTable(unitId, subUnitId, id);
 
-            // Mark as dirty
-            service.markDirty(unitId, subUnitId, id);
-
             // Verify the pivot table exists (we can't directly check _isDirty as it's private)
             expect(pivotTable).toBeDefined();
         });

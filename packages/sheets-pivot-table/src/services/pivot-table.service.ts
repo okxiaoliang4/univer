@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { IRange } from '@univerjs/core';
 import type { IFieldsConfig, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { createIdentifier, Disposable, generateRandomId, Inject } from '@univerjs/core';
 import { PivotTable } from '../models/pivot-table';
@@ -88,9 +89,9 @@ export interface ISheetsPivotTableService {
     getWorksheetPivotTables(unitId: string, subUnitId: string): Map<string, PivotTable> | undefined;
 
     /**
-     * Mark pivot table as dirty (needs recalculation)
+     * Get pivot table by target range
      */
-    markDirty(unitId: string, subUnitId: string, pivotTableId: string): void;
+    getPivotTableByTargetRange(unitId: string, subUnitId: string, targetRange: IRange): PivotTable | undefined;
 
     /**
      * Get the data source model
@@ -184,11 +185,8 @@ export class SheetsPivotTableService extends Disposable implements ISheetsPivotT
         return this._dataSourceModel.getSubUnitPivotTables(unitId, subUnitId);
     }
 
-    markDirty(unitId: string, subUnitId: string, pivotTableId: string): void {
-        const pivotTable = this.getPivotTable(unitId, subUnitId, pivotTableId);
-        // if (pivotTable) {
-        //     pivotTable.markDirty();
-        // }
+    getPivotTableByTargetRange(unitId: string, subUnitId: string, targetRange: IRange): PivotTable | undefined {
+        return this._dataSourceModel.getPivotTableByTargetRange(unitId, subUnitId, targetRange);
     }
 
     getDataSourceModel(): SheetsPivotDataSourceModel {

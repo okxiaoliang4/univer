@@ -178,7 +178,7 @@ export const RefreshPivotTableCommand: ICommand<IRefreshPivotTableCommandParams>
         const { unitId, subUnitId, pivotTableId } = params;
 
         // Mark as dirty to force recalculation
-        pivotTableService.markDirty(unitId, subUnitId, pivotTableId);
+        // pivotTableService.markDirty(unitId, subUnitId, pivotTableId);
 
         // Get workbook and trigger recalculation
         const workbook = univerInstanceService.getUnit(unitId);

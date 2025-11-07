@@ -32,7 +32,7 @@ import { getSheetCommandTargetWorkbook } from './utils/target-util';
 export interface IInsertSheetCommandParams {
     unitId?: string;
     index?: number;
-    sheet?: IWorksheetData;
+    sheet?: Partial<IWorksheetData>;
 }
 
 /**
