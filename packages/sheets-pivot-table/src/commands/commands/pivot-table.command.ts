@@ -15,11 +15,11 @@
  */
 
 import type { ICommand, IMutationInfo } from '@univerjs/core';
-import type { IFieldsConfig, IPivotTableConfig } from '../../types/type';
-import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams } from '../mutations/pivot-table.mutation';
-import { CommandType, generateRandomId, ICommandService, IUndoRedoService, sequenceExecute } from '@univerjs/core';
+import type { IFieldsConfig, IPivotTableConfig, ISourceRangeInfo } from '../../types/type';
+import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams } from '../mutations/pivot-table.mutation';
+import { CommandType, generateRandomId, ICommandService, IUndoRedoService, Rectangle, sequenceExecute } from '@univerjs/core';
 import { ISheetsPivotTableService } from '../../services/pivot-table.service';
-import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation } from '../mutations/pivot-table.mutation';
+import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation } from '../mutations/pivot-table.mutation';
 
 /**
  * Command to create a new pivot table
@@ -161,4 +161,60 @@ export const RemovePivotTableCommand: ICommand<IRemovePivotTableCommandParams> =
         }
         return true;
     },
+};
+
+export interface ISetPivotTableSourceRangeCommandParams {
+    unitId: string;
+    subUnitId: string;
+    pivotTableId: string;
+    sourceRangeInfo: ISourceRangeInfo;
+}
+
+export const SetPivotTableSourceRangeCommand: ICommand<ISetPivotTableSourceRangeCommandParams> = {
+    type: CommandType.COMMAND,
+    id: 'sheet.command.set-pivot-table-source-range',
+
+    handler: async (accessor, params) => {
+        if (!params) {
+            return false;
+        }
+
+        const pivotTableService = accessor.get(ISheetsPivotTableService);
+        const commandService = accessor.get(ICommandService);
+        const undoRedoService = accessor.get(IUndoRedoService);
+
+        const { unitId, subUnitId, pivotTableId, sourceRangeInfo } = params;
+
+        const currentPivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
+        if (!currentPivotTable) {
+            throw new Error('[PivotTableService]: Pivot table not found');
+        }
+
+        const currentSourceRangeInfo = currentPivotTable.getSourceRangeInfo();
+
+        if (
+            currentSourceRangeInfo.unitId === sourceRangeInfo.unitId
+          && currentSourceRangeInfo.subUnitId === sourceRangeInfo.subUnitId
+          && Rectangle.equals(currentSourceRangeInfo.range, sourceRangeInfo.range)
+        ) {
+            return true;
+        }
+
+        const redos: IMutationInfo[] = [];
+        const undos: IMutationInfo[] = [];
+
+        redos.push({ id: SetPivotTableSourceRangeMutation.id, params: { unitId, subUnitId, pivotTableId, sourceRangeInfo } satisfies ISetPivotTableSourceRangeMutationParams });
+        undos.push({ id: SetPivotTableSourceRangeMutation.id, params: { unitId, subUnitId, pivotTableId, sourceRangeInfo: currentSourceRangeInfo } satisfies ISetPivotTableSourceRangeMutationParams });
+
+        const res = sequenceExecute(redos, commandService);
+        if (res) {
+            undoRedoService.pushUndoRedo({
+                unitID: params.unitId,
+                undoMutations: undos,
+                redoMutations: redos,
+            });
+        }
+        return true;
+    },
+
 };

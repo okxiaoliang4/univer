@@ -78,6 +78,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
         this._pivotTableAdded$.next({ unitId, subUnitId, pivotTableId });
         this.disposeWithMe(this._commandService.onCommandExecuted((commandInfo) => {
             if (commandInfo.id === SetRangeValuesMutation.id) {
+                // source range data changed
                 const params = commandInfo.params as ISetRangeValuesMutationParams;
                 const sourceRangeInfo = pivotTable.getSourceRangeInfo();
                 if (
@@ -123,10 +124,11 @@ export class SheetsPivotDataSourceModel extends Disposable {
                         });
                     }
 
+                    const targetCellInfo = pivotTable.getTargetCellInfo();
                     // Apply the cell matrix to the worksheet
                     this._commandService.executeCommand(SetRangeValuesMutation.id, {
-                        unitId,
-                        subUnitId,
+                        unitId: targetCellInfo.unitId,
+                        subUnitId: targetCellInfo.subUnitId,
                         cellValue: updateCellData.getMatrix(),
                     } satisfies ISetRangeValuesMutationParams, {
                         onlyLocal: true, // NOTE: 不记录到协同中，每个用户自己本地计算，如果放开的话会出现undo，redo记录上这个操作

@@ -16,7 +16,7 @@
 
 import type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 import { ICommandService, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
-import { CreatePivotTableCommand, RemovePivotTableCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
+import { CreatePivotTableCommand, RemovePivotTableCommand, SetPivotTableSourceRangeCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
 import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation, SetPivotTableTargetCellMutation } from './commands/mutations/pivot-table.mutation';
 import { defaultPluginConfig, SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
 import { SheetPviotTableRangeController } from './controllers/pivot-table-range.controller';
@@ -63,6 +63,7 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
             CreatePivotTableCommand,
             UpdatePivotTableFieldsCommand,
             RemovePivotTableCommand,
+            SetPivotTableSourceRangeCommand,
         ].forEach((command) => {
             this._commandService.registerCommand(command);
         });
@@ -72,8 +73,8 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
             AddPivotTableMutation,
             RemovePivotTableMutation,
             SetPivotTableSourceRangeMutation,
-            SetPivotTableTargetCellMutation,
             SetPivotTableFieldsConfigMutation,
+            SetPivotTableTargetCellMutation,
         ].forEach((mutation) => {
             this._commandService.registerCommand(mutation);
         });

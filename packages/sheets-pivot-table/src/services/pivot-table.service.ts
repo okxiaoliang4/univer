@@ -146,10 +146,12 @@ export class SheetsPivotTableService extends Disposable implements ISheetsPivotT
                     });
                 }
 
+                const targetCellInfo = pivotTable.getTargetCellInfo();
+
                 // Apply the cell matrix to the worksheet
                 this._commandService.executeCommand(SetRangeValuesMutation.id, {
-                    unitId,
-                    subUnitId,
+                    unitId: targetCellInfo.unitId,
+                    subUnitId: targetCellInfo.subUnitId,
                     cellValue: updateCellData.getMatrix(),
                 } satisfies ISetRangeValuesMutationParams, {
                     onlyLocal: true, // NOTE: 不记录到协同中，每个用户自己本地计算，如果放开的话会出现undo，redo记录上这个操作

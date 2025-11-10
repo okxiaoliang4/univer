@@ -39,7 +39,7 @@ const defaultPlaceholderMatrix: IObjectMatrixPrimitiveType<Nullable<ICellData>> 
 export class PivotTable extends Disposable {
     private _id: string;
     private _name: string;
-    private _sourceRangeInfo: ISourceRangeInfo;
+    private _sourceRangeInfo$: BehaviorSubject<ISourceRangeInfo>;
     private _targetCellInfo: ITargetCellInfo;
 
     private _pivotEngine: PivotEngine;
@@ -52,6 +52,7 @@ export class PivotTable extends Disposable {
     private _sourceData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
     private _calculatedData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
 
+    sourceRangeInfo$: Observable<ISourceRangeInfo>;
     valueFields$: Observable<IPivotField[]>;
     rowFields$: Observable<IPivotField[]>;
     columnFields$: Observable<IPivotField[]>;
@@ -70,7 +71,7 @@ export class PivotTable extends Disposable {
         super();
         this._id = id;
         this._name = name;
-        this._sourceRangeInfo = sourceRangeInfo;
+        this._sourceRangeInfo$ = new BehaviorSubject(sourceRangeInfo);
         this._targetCellInfo = targetCellInfo;
 
         this._pivotEngine = new PivotEngine({
@@ -88,6 +89,7 @@ export class PivotTable extends Disposable {
         this._sourceData$ = new BehaviorSubject({});
         this._calculatedData$ = new BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>(null);
 
+        this.sourceRangeInfo$ = this._sourceRangeInfo$.asObservable();
         this.valueFields$ = this._valueFields$.asObservable();
         this.rowFields$ = this._rowFields$.asObservable();
         this.columnFields$ = this._columnFields$.asObservable();
@@ -100,6 +102,7 @@ export class PivotTable extends Disposable {
         this.disposeWithMe(this._pivotEngine);
 
         this.disposeWithMe(() => {
+            this._sourceRangeInfo$.complete();
             this._valueFields$.complete();
             this._rowFields$.complete();
             this._columnFields$.complete();
@@ -143,11 +146,11 @@ export class PivotTable extends Disposable {
     }
 
     getSourceRangeInfo(): ISourceRangeInfo {
-        return this._sourceRangeInfo;
+        return this._sourceRangeInfo$.value;
     }
 
     setSourceRangeInfo(sourceRangeInfo: ISourceRangeInfo): void {
-        this._sourceRangeInfo = sourceRangeInfo;
+        this._sourceRangeInfo$.next(sourceRangeInfo);
     }
 
     getTargetCellInfo(): ITargetCellInfo {
@@ -242,11 +245,11 @@ export class PivotTable extends Disposable {
    * @returns Calculated pivot table data
    */
     setSourceDataFromWorkbook(workbook: Workbook) {
-        const worksheet = workbook.getSheetBySheetId(this._sourceRangeInfo.subUnitId);
+        const worksheet = workbook.getSheetBySheetId(this.getSourceRangeInfo().subUnitId);
         if (!worksheet) {
             return null;
         }
-        const range = worksheet.getRange(this._sourceRangeInfo.range);
+        const range = worksheet.getRange(this.getSourceRangeInfo().range);
         const matrix = range.getMatrix().getMatrix();
         this.setSourceData(matrix);
     }
@@ -258,7 +261,7 @@ export class PivotTable extends Disposable {
         return {
             id: this._id,
             name: this._name,
-            sourceRangeInfo: this._sourceRangeInfo,
+            sourceRangeInfo: this.getSourceRangeInfo(),
             targetCellInfo: this._targetCellInfo,
             fieldsConfig: {
                 valueFields: this.getValueFields(),

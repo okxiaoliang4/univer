@@ -14,40 +14,108 @@
  * limitations under the License.
  */
 
+import type { IDocumentData, Workbook } from '@univerjs/core';
+import type { IRangeSelectorInstance } from '@univerjs/sheets-formula-ui';
+import type { ISetPivotTableSourceRangeCommandParams } from '@univerjs/sheets-pivot-table';
 import type { IShowPivotTablePanelOperationParams } from '../../commands/operations/pivot-table.operation';
-import { ISheetsPivotTableService, PivotTable } from '@univerjs/sheets-pivot-table';
-import { useDependency } from '@univerjs/ui';
+import { ICommandService, IUniverInstanceService, RichTextBuilder, UniverInstanceType } from '@univerjs/core';
+import { deserializeRangeWithSheet, isReferenceString, serializeRangeToRefString, serializeRangeWithSheet } from '@univerjs/engine-formula';
+import { RangeSelector } from '@univerjs/sheets-formula-ui';
+import { ISheetsPivotTableService, SetPivotTableSourceRangeCommand } from '@univerjs/sheets-pivot-table';
+import { useDependency, useObservable } from '@univerjs/ui';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { PivotTableEditor } from './PivotTableEditor';
 
 export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
     const { unitId, subUnitId, pivotTableId } = props;
+    const rangeSelectorInstance = useRef<IRangeSelectorInstance>(null);
     const pivotTableService = useDependency(ISheetsPivotTableService);
-    const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId) || new PivotTable(crypto.randomUUID(), 'Pivot Table', {
-        unitId: 'H1p5SR',
-        subUnitId: 'ZCGh3uiogN11CwYQlPhHo',
-        range: {
-            startRow: 0,
-            startColumn: 0,
-            endRow: 5,
-            endColumn: 2,
-        },
-    }, {
-        row: 0,
-        col: 0,
-        subUnitId: 'ZCGh3uiogN11CwYQlPhHo',
-        unitId: 'H1p5SR',
-    }, {
-        rowFields: [],
-        columnFields: [],
-        valueFields: [],
-        filterFields: [],
-    });
-    if (!pivotTable) {
-        return null;
-    }
+    const univerInstanceService = useDependency(IUniverInstanceService);
+    const commandService = useDependency(ICommandService);
+    const workbook = univerInstanceService.getUnit<Workbook>(unitId, UniverInstanceType.UNIVER_SHEET);
+
+    const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
+    const sourceRangeInfo = useObservable(pivotTable?.sourceRangeInfo$);
+    const sourceSheet = sourceRangeInfo ? workbook?.getSheetBySheetId(sourceRangeInfo.subUnitId) : undefined;
+
+    const initialValue = useMemo(() => {
+        if (!sourceSheet || !sourceRangeInfo) return undefined;
+
+        return sourceRangeInfo?.unitId === unitId
+            ? serializeRangeWithSheet(sourceSheet.getName(), sourceRangeInfo.range)
+            : serializeRangeToRefString({ unitId: sourceRangeInfo.unitId, sheetName: sourceRangeInfo.subUnitId, range: sourceRangeInfo.range });
+    }, [sourceSheet, sourceRangeInfo, unitId]);
+
+    const setRangeSelectorValue = useCallback((value: string | undefined) => {
+        const editor = rangeSelectorInstance.current?.editor;
+        if (editor) {
+            const empty = RichTextBuilder.newEmptyData();
+            if (typeof value === 'string') {
+                editor.replaceText(value, false);
+            } else {
+                editor.setDocumentData(empty);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        // 当rangeSelector的值发生变化时更新editor的值
+        setRangeSelectorValue(initialValue);
+    }, [initialValue, setRangeSelectorValue]);
+
+    const handleRangeChange = (_: IDocumentData, text: string) => {
+        if (!text.trim() || !isReferenceString(text)) {
+            setRangeSelectorValue(initialValue);
+            return;
+        }
+        const result = deserializeRangeWithSheet(text);
+
+        const newSourceSheet = workbook?.getSheetBySheetName(result.sheetName);
+        const newRange = result.range;
+
+        const newSourceRangeInfo = {
+            range: newRange,
+            subUnitId: newSourceSheet?.getSheetId() || sourceSheet?.getSheetId() || subUnitId,
+            unitId: result.unitId || unitId,
+        };
+
+        commandService.executeCommand(SetPivotTableSourceRangeCommand.id, {
+            unitId,
+            subUnitId,
+            pivotTableId,
+            sourceRangeInfo: newSourceRangeInfo,
+        } satisfies ISetPivotTableSourceRangeCommandParams);
+    };
+
+    const handleFocusChange = (isFocus: boolean) => {
+        if (!sourceRangeInfo) return;
+        if (isFocus) {
+            rangeSelectorInstance.current?.showDialog([{
+                sheetName: sourceSheet?.getName() || '',
+                range: sourceRangeInfo.range,
+                unitId: sourceRangeInfo.unitId,
+            }]);
+        }
+    };
 
     return (
-        <PivotTableEditor pivotTable={pivotTable} />
+        <div className="univer-space-y-4">
+            <RangeSelector
+                selectorRef={rangeSelectorInstance}
+                unitId={unitId}
+                subUnitId={subUnitId}
+                initialValue={initialValue}
+                supportAcrossSheet
+                maxRangeCount={1}
+                isSingle
+                autoFocus={false}
+                onChange={handleRangeChange}
+                onFocusChange={handleFocusChange}
+            />
+            {pivotTable && (
+                <PivotTableEditor pivotTable={pivotTable} />
+            )}
+        </div>
     );
 };
 

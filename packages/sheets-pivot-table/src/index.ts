@@ -19,8 +19,10 @@ export {
     CreatePivotTableCommand,
     RemovePivotTableCommand as DeletePivotTableCommand,
     type ICreatePivotTableCommandParams,
-    type IRemovePivotTableCommandParams as IDeletePivotTableCommandParams,
+    type IRemovePivotTableCommandParams,
+    type ISetPivotTableSourceRangeCommandParams,
     type IUpdatePivotTableFieldsCommandParams,
+    SetPivotTableSourceRangeCommand,
     UpdatePivotTableFieldsCommand,
 } from './commands/commands/pivot-table.command';
 

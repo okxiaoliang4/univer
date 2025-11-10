@@ -86,6 +86,7 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                 </div>
                 <RangeSelector
                     maxRangeCount={1}
+                    isSingle
                     unitId={unitId}
                     subUnitId={subUnitId}
                     initialValue={serializeRange(sourceRange)}
