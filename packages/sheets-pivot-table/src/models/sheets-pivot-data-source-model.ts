@@ -17,7 +17,7 @@
 import type { ICellData, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
 import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
-import { Disposable, ICommandService, IResourceManagerService, IUniverInstanceService, ObjectMatrix, Rectangle, toDisposable } from '@univerjs/core';
+import { Disposable, ICommandService, IUniverInstanceService, ObjectMatrix, Rectangle, toDisposable } from '@univerjs/core';
 import { SetRangeValuesMutation } from '@univerjs/sheets';
 import { Subject } from 'rxjs';
 import { PivotTable } from './pivot-table';
@@ -49,7 +49,6 @@ export class SheetsPivotDataSourceModel extends Disposable {
 
     constructor(
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
-        @IResourceManagerService private readonly _resourceManagerService: IResourceManagerService,
         @ICommandService private readonly _commandService: ICommandService
     ) {
         super();
@@ -68,8 +67,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
         unitId: string,
         subUnitId: string,
         pivotTableId: string,
-        pivotTable: PivotTable,
-        config: IPivotTableConfig
+        pivotTable: PivotTable
     ): void {
         this._ensureMaps(unitId, subUnitId);
 
@@ -279,6 +277,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
         pivotTable.setRowFields(fieldsConfig.rowFields);
         pivotTable.setColumnFields(fieldsConfig.columnFields);
         pivotTable.setFilterFields(fieldsConfig.filterFields);
+        pivotTable.setValuePosition(fieldsConfig.valuePosition);
 
         // Emit event
         this._fieldsConfigChanged$.next({

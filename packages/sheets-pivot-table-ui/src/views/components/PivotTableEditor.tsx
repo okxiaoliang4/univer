@@ -18,6 +18,7 @@ import type {
     CancelDrop,
     CollisionDetection,
     DragEndEvent,
+    DraggableSyntheticListeners,
     DropAnimation,
     KeyboardCoordinateGetter,
     Modifiers,
@@ -27,7 +28,8 @@ import type {
     AnimateLayoutChanges,
     SortingStrategy,
 } from '@dnd-kit/sortable';
-import type { IPivotField, IUpdatePivotTableFieldsCommandParams, PivotTable } from '@univerjs/sheets-pivot-table';
+import type { Transform } from '@dnd-kit/utilities';
+import type { IFieldsConfig, IPivotField, IUpdatePivotTableFieldsCommandParams, PivotTable } from '@univerjs/sheets-pivot-table';
 import type React from 'react';
 import type { IFieldItemsContainerProps } from './FieldItemsContainer';
 import {
@@ -54,13 +56,15 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { generateRandomId, ICommandService } from '@univerjs/core';
-import { UpdatePivotTableFieldsCommand } from '@univerjs/sheets-pivot-table';
+import { Select } from '@univerjs/design';
+import { AggregationType, UpdatePivotTableFieldsCommand } from '@univerjs/sheets-pivot-table';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { coordinateGetter as multipleContainersCoordinateGetter } from '../../common/multiple-containers-keyboard-coordinates';
 import { FieldItem } from './FieldItem';
 import { FieldItemsContainer } from './FieldItemsContainer';
+import { FieldRender } from './FieldRender';
 
 const animateLayoutChanges: AnimateLayoutChanges = (args) =>
     defaultAnimateLayoutChanges({ ...args, wasDragging: true });
@@ -216,6 +220,204 @@ export function PivotTableEditor({
         valueFields,
     }), [filterFields, columnFields, rowFields, valueFields]);
 
+    const config = {
+        sourceFields: {
+            renderItem: (props) => <FieldRender {...props} />,
+        },
+        filterFields: {
+            renderItem: (props) => (
+                <FieldRender
+                    {...props}
+                    // renderFooter={() => (
+                    //     <div>
+                    //         <div className="univer-flex univer-flex-col univer-gap-2">
+                    //             <label
+                    //                 className={`
+                    //                   univer-text-xs univer-font-medium univer-text-gray-900
+                    //                   dark:!univer-text-white
+                    //                 `}
+                    //             >
+                    //                 状态
+                    //             </label>
+                    //             <SelectList
+                    //                 value={['A', 'B', 'C']}
+                    //                 options={[
+                    //                     { label: 'A', value: 'A' },
+                    //                     { label: 'B', value: 'B' },
+                    //                     { label: 'C', value: 'C' },
+                    //                 ]}
+                    //                 onChange={() => {}}
+                    //             />
+                    //         </div>
+                    //     </div>
+                    // )}
+                    onRemove={() => {
+                        const targetCellInfo = pivotTable.getTargetCellInfo();
+                        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+                            unitId: targetCellInfo.unitId,
+                            subUnitId: targetCellInfo.subUnitId,
+                            pivotTableId: pivotTable.getId(),
+                            fieldsConfig: {
+                                valueFields,
+                                rowFields,
+                                columnFields,
+                                filterFields: filterFields.filter((f) => f.id !== props.field.id),
+                                valuePosition: pivotTable.getValuePosition(),
+                            } satisfies IFieldsConfig,
+                        } satisfies IUpdatePivotTableFieldsCommandParams);
+                    }}
+                />
+            ),
+        },
+        columnFields: {
+            renderItem: (props) => (
+                <FieldRender
+                    {...props}
+                    // renderFooter={() => (
+                    //     <div>
+                    //         <div className="univer-flex">
+                    //             <Checkbox checked />
+                    //             <label
+                    //                 className={`
+                    //                   univer-text-xs univer-font-medium univer-text-gray-900
+                    //                   dark:!univer-text-white
+                    //                 `}
+                    //             >
+                    //                 显示总计
+                    //             </label>
+                    //         </div>
+                    //     </div>
+                    // )}
+                    onRemove={() => {
+                        const targetCellInfo = pivotTable.getTargetCellInfo();
+                        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+                            unitId: targetCellInfo.unitId,
+                            subUnitId: targetCellInfo.subUnitId,
+                            pivotTableId: pivotTable.getId(),
+                            fieldsConfig: {
+                                valueFields,
+                                rowFields,
+                                columnFields: columnFields.filter((f) => f.id !== props.field.id),
+                                filterFields,
+                                valuePosition: pivotTable.getValuePosition(),
+                            } satisfies IFieldsConfig,
+                        } satisfies IUpdatePivotTableFieldsCommandParams);
+                    }}
+                />
+            ),
+        },
+        rowFields: {
+            renderItem: (props) => (
+                <FieldRender
+                    {...props}
+                    // renderFooter={() => (
+                    //     <div>
+                    //         <div className="univer-flex">
+                    //             <Checkbox checked />
+                    //             <label
+                    //                 className={`
+                    //                   univer-text-xs univer-font-medium univer-text-gray-900
+                    //                   dark:!univer-text-white
+                    //                 `}
+                    //             >
+                    //                 显示总计
+                    //             </label>
+                    //         </div>
+                    //     </div>
+                    // )}
+                    onRemove={() => {
+                        const targetCellInfo = pivotTable.getTargetCellInfo();
+                        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+                            unitId: targetCellInfo.unitId,
+                            subUnitId: targetCellInfo.subUnitId,
+                            pivotTableId: pivotTable.getId(),
+                            fieldsConfig: {
+                                valueFields,
+                                rowFields: rowFields.filter((f) => f.id !== props.field.id),
+                                columnFields,
+                                filterFields,
+                                valuePosition: pivotTable.getValuePosition(),
+                            } satisfies IFieldsConfig,
+                        } satisfies IUpdatePivotTableFieldsCommandParams);
+                    }}
+                />
+            ),
+        },
+        valueFields: {
+            renderItem: (props) => (
+                <FieldRender
+                    {...props}
+                    renderFooter={() => (
+                        <div>
+                            <div className="univer-flex univer-flex-col univer-gap-2">
+                                <label
+                                    className={`
+                                      univer-text-xs univer-font-medium univer-text-gray-900
+                                      dark:!univer-text-white
+                                    `}
+                                >
+                                    汇总方式
+                                </label>
+                                <Select
+                                    value={props.field.aggregation ?? AggregationType.SUM}
+                                    options={Object.values(AggregationType).map((aggregation) => ({
+                                        label: aggregation.toUpperCase(),
+                                        value: aggregation,
+                                    }))}
+                                    onChange={(value) => {
+                                        const targetCellInfo = pivotTable.getTargetCellInfo();
+                                        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+                                            unitId: targetCellInfo.unitId,
+                                            subUnitId: targetCellInfo.subUnitId,
+                                            pivotTableId: pivotTable.getId(),
+                                            fieldsConfig: {
+                                                valueFields: valueFields.map((f) => f.id === props.field.id ? { ...f, aggregation: value as AggregationType } : f),
+                                                rowFields,
+                                                columnFields,
+                                                filterFields,
+                                                valuePosition: pivotTable.getValuePosition(),
+                                            } satisfies IFieldsConfig,
+                                        } satisfies IUpdatePivotTableFieldsCommandParams);
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    onRemove={() => {
+                        const targetCellInfo = pivotTable.getTargetCellInfo();
+                        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+                            unitId: targetCellInfo.unitId,
+                            subUnitId: targetCellInfo.subUnitId,
+                            pivotTableId: pivotTable.getId(),
+                            fieldsConfig: {
+                                valueFields: valueFields.filter((f) => f.id !== props.field.id),
+                                rowFields,
+                                columnFields,
+                                filterFields,
+                                valuePosition: pivotTable.getValuePosition(),
+                            } satisfies IFieldsConfig,
+                        } satisfies IUpdatePivotTableFieldsCommandParams);
+                    }}
+                />
+            ),
+        },
+    } satisfies Record<string, {
+        renderItem: (props: {
+            field: IPivotField;
+            dragOverlay: boolean;
+            dragging: boolean;
+            sorting: boolean;
+            index: number | undefined;
+            fadeIn: boolean;
+            listeners: DraggableSyntheticListeners;
+            ref: React.Ref<HTMLElement>;
+            style: React.CSSProperties | undefined;
+            transform: Transform | null;
+            transition: string | null;
+            value: string;
+        }) => React.ReactElement;
+    }>;
+
     const containers = useMemo(() =>
         Object.keys(items) as UniqueIdentifier[], [items]);
 
@@ -236,15 +438,9 @@ export function PivotTableEditor({
 
     // Helper: Check if a field (by base ID) exists in exclusive containers
     const findFieldInExclusiveContainers = useCallback((sourceColumnIndex: number): {
-        container: 'filterFields' | 'columnFields' | 'rowFields' | null;
+        container: 'columnFields' | 'rowFields' | null;
         field: IPivotField | null;
     } => {
-        // Check filterFields
-        const filterField = filterFields.find((f) => f.sourceColumnIndex === sourceColumnIndex);
-        if (filterField) {
-            return { container: 'filterFields', field: filterField };
-        }
-
         // Check columnFields
         const columnField = columnFields.find((f) => f.sourceColumnIndex === sourceColumnIndex);
         if (columnField) {
@@ -258,7 +454,7 @@ export function PivotTableEditor({
         }
 
         return { container: null, field: null };
-    }, [filterFields, columnFields, rowFields]);
+    }, [columnFields, rowFields]);
 
   /**
    * Custom collision detection strategy optimized for multiple containers
@@ -405,15 +601,19 @@ export function PivotTableEditor({
             if (overContainer === 'valueFields') {
                 // valueFields can have duplicates - create new field with unique ID
                 valueFields = [...valueFields, newField];
+            } else if (overContainer === 'filterFields') {
+                // filterFields can only have one field per column
+                const existingFilterFields = new Set(filterFields.map((f) => f.id));
+                if (!existingFilterFields.has(newField.id)) {
+                    filterFields = [...filterFields, newField];
+                }
             } else {
-                // filterFields, columnFields, rowFields - exclusive rule
+                // columnFields, rowFields - exclusive rule
                 const existingField = findFieldInExclusiveContainers(activeSourceColumnIndex);
 
                 // Remove from other exclusive containers if exists
                 if (existingField.container && existingField.container !== overContainer) {
-                    if (existingField.container === 'filterFields') {
-                        filterFields = filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
-                    } else if (existingField.container === 'columnFields') {
+                    if (existingField.container === 'columnFields') {
                         columnFields = columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
                     } else if (existingField.container === 'rowFields') {
                         rowFields = rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
@@ -421,9 +621,7 @@ export function PivotTableEditor({
                 }
 
                 // Add to target container
-                if (overContainer === 'filterFields' && !filterFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
-                    filterFields = [...filterFields, existingField.field || newField];
-                } else if (overContainer === 'columnFields' && !columnFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
+                if (overContainer === 'columnFields' && !columnFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
                     columnFields = [...columnFields, existingField.field || newField];
                 } else if (overContainer === 'rowFields' && !rowFields.some((f) => f.sourceColumnIndex === sourceField.sourceColumnIndex)) {
                     rowFields = [...rowFields, existingField.field || newField];
@@ -488,26 +686,27 @@ export function PivotTableEditor({
                     ...sourceField,
                     id: generateRandomId(6),
                 };
+
                 // Add to target container
                 if (overContainer === 'valueFields') {
                     // Moving to valueFields - create new field with unique ID
                     valueFields = [...valueFields, newField];
+                } else if (overContainer === 'filterFields') {
+                    // filterFields can only have one field per column
+                    const existingFilterFields = new Set(filterFields.map((f) => f.id));
+                    if (!existingFilterFields.has(newField.id)) {
+                        filterFields = [...filterFields, newField];
+                    }
                 } else {
                     // Moving to exclusive container - remove from others first
-                    if (overContainer !== 'filterFields') {
-                        filterFields = filterFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
-                    }
-                    if (overContainer !== 'columnFields') {
+                    if (overContainer === 'rowFields') {
                         columnFields = columnFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
-                    }
-                    if (overContainer !== 'rowFields') {
+                    } else if (overContainer === 'columnFields') {
                         rowFields = rowFields.filter((f) => f.sourceColumnIndex !== sourceField.sourceColumnIndex);
                     }
 
                     // Add to target
-                    if (overContainer === 'filterFields') {
-                        filterFields = [...filterFields, newField];
-                    } else if (overContainer === 'columnFields') {
+                    if (overContainer === 'columnFields') {
                         columnFields = [...columnFields, newField];
                     } else if (overContainer === 'rowFields') {
                         rowFields = [...rowFields, newField];
@@ -527,6 +726,7 @@ export function PivotTableEditor({
                 rowFields,
                 columnFields,
                 filterFields,
+                valuePosition: pivotTable.getValuePosition(),
             },
         } satisfies IUpdatePivotTableFieldsCommandParams);
 
@@ -560,7 +760,7 @@ export function PivotTableEditor({
             onDragCancel={onDragCancel}
             modifiers={modifiers}
         >
-            <div className="univer-grid univer-grid-cols-2 univer-gap-2">
+            <div className="univer-flex univer-flex-col univer-gap-2">
                 {containers.map((containerId) => (
                     <DroppableContainer
                         key={containerId}
@@ -583,7 +783,10 @@ export function PivotTableEditor({
                                         handle={handle}
                                         style={getItemStyles}
                                         wrapperStyle={wrapperStyle}
-                                        renderItem={renderItem}
+                                        renderItem={(props) => config[containerId as keyof typeof config].renderItem({
+                                            ...props,
+                                            field,
+                                        })}
                                         containerId={containerId}
                                         getIndex={getIndex}
                                         value={field.name}
@@ -686,7 +889,19 @@ interface ISortableItemProps {
         isSorting: boolean;
     }): React.CSSProperties;
     getIndex(id: UniqueIdentifier): number;
-    renderItem?(): React.ReactElement;
+    renderItem?(props: {
+        dragOverlay: boolean;
+        dragging: boolean;
+        sorting: boolean;
+        index: number | undefined;
+        fadeIn: boolean;
+        listeners: DraggableSyntheticListeners;
+        ref: React.Ref<HTMLElement>;
+        style: React.CSSProperties | undefined;
+        transform: Transform | null;
+        transition: string | null;
+        value: string;
+    }): React.ReactElement;
     wrapperStyle({ index }: { index: number }): React.CSSProperties;
 }
 

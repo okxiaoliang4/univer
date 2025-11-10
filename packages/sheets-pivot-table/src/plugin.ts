@@ -16,8 +16,8 @@
 
 import type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 import { ICommandService, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
-import { CreatePivotTableCommand, RemovePivotTableCommand, SetPivotTableSourceRangeCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
-import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation, SetPivotTableTargetCellMutation } from './commands/mutations/pivot-table.mutation';
+import { CreatePivotTableCommand, RemovePivotTableCommand, SetPivotTableSourceRangeCommand, SetPivotTableValuePositionCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
+import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation, SetPivotTableTargetCellMutation, SetPivotTableValuePositionMutation } from './commands/mutations/pivot-table.mutation';
 import { defaultPluginConfig, SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
 import { SheetPviotTableRangeController } from './controllers/pivot-table-range.controller';
 import { SheetPivotTableController } from './controllers/pivot-table.controller';
@@ -64,6 +64,7 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
             UpdatePivotTableFieldsCommand,
             RemovePivotTableCommand,
             SetPivotTableSourceRangeCommand,
+            SetPivotTableValuePositionCommand,
         ].forEach((command) => {
             this._commandService.registerCommand(command);
         });
@@ -75,6 +76,7 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
             SetPivotTableSourceRangeMutation,
             SetPivotTableFieldsConfigMutation,
             SetPivotTableTargetCellMutation,
+            SetPivotTableValuePositionMutation,
         ].forEach((mutation) => {
             this._commandService.registerCommand(mutation);
         });

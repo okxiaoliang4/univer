@@ -15,11 +15,12 @@
  */
 
 import type { ICommand, IMutationInfo } from '@univerjs/core';
-import type { IFieldsConfig, IPivotTableConfig, ISourceRangeInfo } from '../../types/type';
-import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams } from '../mutations/pivot-table.mutation';
+import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
+import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams, ISetPivotTableValuePositionMutationParams } from '../mutations/pivot-table.mutation';
 import { CommandType, generateRandomId, ICommandService, IUndoRedoService, Rectangle, sequenceExecute } from '@univerjs/core';
+import { PivotValuePosition } from '../../models/pivot-engine';
 import { ISheetsPivotTableService } from '../../services/pivot-table.service';
-import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation } from '../mutations/pivot-table.mutation';
+import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation, SetPivotTableValuePositionMutation } from '../mutations/pivot-table.mutation';
 
 /**
  * Command to create a new pivot table
@@ -28,7 +29,16 @@ export interface ICreatePivotTableCommandParams {
     unitId: string;
     subUnitId: string;
     pivotTableId?: string;
-    config: IPivotTableConfig;
+    config: {
+        /** Pivot table name */
+        name: string;
+        /** Source range information */
+        sourceRangeInfo: ISourceRangeInfo;
+        /** Target cell information */
+        targetCellInfo: ITargetCellInfo;
+        /** Fields configuration */
+        fieldsConfig: IFieldsConfig;
+    };
 }
 
 export const CreatePivotTableCommand: ICommand<ICreatePivotTableCommandParams> = {
@@ -99,6 +109,7 @@ export const UpdatePivotTableFieldsCommand: ICommand<IUpdatePivotTableFieldsComm
             rowFields: [],
             columnFields: [],
             filterFields: [],
+            valuePosition: PivotValuePosition.Column,
         } } satisfies ISetPivotTableFieldsConfigMutationParams });
 
         const res = sequenceExecute(redos, commandService);
@@ -217,4 +228,58 @@ export const SetPivotTableSourceRangeCommand: ICommand<ISetPivotTableSourceRange
         return true;
     },
 
+};
+
+/**
+ * Command to set pivot table value position
+ */
+export interface ISetPivotTableValuePositionCommandParams {
+    unitId: string;
+    subUnitId: string;
+    pivotTableId: string;
+    valuePosition: PivotValuePosition;
+}
+
+export const SetPivotTableValuePositionCommand: ICommand<ISetPivotTableValuePositionCommandParams> = {
+    type: CommandType.COMMAND,
+    id: 'sheet.command.set-pivot-table-value-position',
+
+    handler: async (accessor, params) => {
+        if (!params) {
+            return false;
+        }
+
+        const pivotTableService = accessor.get(ISheetsPivotTableService);
+        const commandService = accessor.get(ICommandService);
+        const undoRedoService = accessor.get(IUndoRedoService);
+
+        const { unitId, subUnitId, pivotTableId, valuePosition } = params;
+
+        const currentPivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
+        if (!currentPivotTable) {
+            throw new Error('[PivotTableService]: Pivot table not found');
+        }
+
+        const currentValuePosition = currentPivotTable.getValuePosition();
+
+        if (currentValuePosition === valuePosition) {
+            return true;
+        }
+
+        const redos: IMutationInfo[] = [];
+        const undos: IMutationInfo[] = [];
+
+        redos.push({ id: SetPivotTableValuePositionMutation.id, params: { unitId, subUnitId, pivotTableId, valuePosition } satisfies ISetPivotTableValuePositionMutationParams });
+        undos.push({ id: SetPivotTableValuePositionMutation.id, params: { unitId, subUnitId, pivotTableId, valuePosition: currentValuePosition } satisfies ISetPivotTableValuePositionMutationParams });
+
+        const res = sequenceExecute(redos, commandService);
+        if (res) {
+            undoRedoService.pushUndoRedo({
+                unitID: params.unitId,
+                undoMutations: undos,
+                redoMutations: redos,
+            });
+        }
+        return true;
+    },
 };

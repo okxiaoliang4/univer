@@ -93,44 +93,60 @@ export const FieldItem = React.memo(
                 };
             }, [dragOverlay]);
 
-            return (
-                <div
-                    style={{
-                        ...wrapperStyle,
-                        transform: transform ? CSS.Translate.toString(transform) : undefined,
-                    } as React.CSSProperties}
-                    ref={ref}
-                >
+            return renderItem
+                ? (
+                    renderItem({
+                        dragOverlay: Boolean(dragOverlay),
+                        dragging: Boolean(dragging),
+                        sorting: Boolean(sorting),
+                        index,
+                        fadeIn: Boolean(fadeIn),
+                        listeners,
+                        ref,
+                        style,
+                        transform,
+                        transition,
+                        value,
+                    })
+                )
+                : (
                     <div
-                        className={clsx(`
-                          univer-flex univer-items-center univer-justify-between univer-gap-2 univer-rounded-md
-                          univer-border univer-border-solid univer-border-gray-200 univer-bg-white univer-p-2
-                          univer-transition-all
-                        `, [
-                            dragging && 'univer-border-blue-500',
-                          // sorting && 'univer-border-green-500',
-                            fadeIn && 'univer-border-yellow-500',
-                            dragOverlay && 'univer-border-red-500',
-                            disabled && 'univer-border-gray-200',
-                        ])}
-                        style={style}
-                        data-cypress="draggable-item"
-                        {...(!handle ? listeners : undefined)}
-                        {...props}
-                        tabIndex={!handle ? 0 : undefined}
+                        style={{
+                            ...wrapperStyle,
+                            transform: transform ? CSS.Translate.toString(transform) : undefined,
+                        } as React.CSSProperties}
+                        ref={ref}
                     >
-                        <span className="univer-flex univer-items-center univer-gap-2">
-                            {handle ? <SequenceIcon {...handleProps} {...listeners} /> : null}
-                            {value}
-                        </span>
-                        {onRemove
-                            ? (
-                                <CloseIcon onClick={onRemove} />
-                            )
-                            : null}
+                        <div
+                            className={clsx(`
+                              univer-flex univer-items-center univer-justify-between univer-gap-2 univer-rounded-md
+                              univer-border univer-border-solid univer-border-gray-200 univer-bg-white univer-p-2
+                              univer-transition-all
+                            `, [
+                                dragging && 'univer-border-blue-500',
+                                sorting && 'univer-border-green-500',
+                                fadeIn && 'univer-border-yellow-500',
+                                dragOverlay && 'univer-border-red-500',
+                                disabled && 'univer-border-gray-200',
+                            ])}
+                            style={style}
+                            data-cypress="draggable-item"
+                            {...(!handle ? listeners : undefined)}
+                            {...props}
+                            tabIndex={!handle ? 0 : undefined}
+                        >
+                            <span className="univer-flex univer-items-center univer-gap-2">
+                                {handle ? <SequenceIcon {...handleProps} {...listeners} /> : null}
+                                {value}
+                            </span>
+                            {onRemove
+                                ? (
+                                    <CloseIcon onClick={onRemove} />
+                                )
+                                : null}
+                        </div>
                     </div>
-                </div>
-            );
+                );
         }
     )
 );

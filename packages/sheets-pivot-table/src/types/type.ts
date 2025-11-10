@@ -15,6 +15,7 @@
  */
 
 import type { IRange } from '@univerjs/core';
+import type { PivotValuePosition } from '../models/pivot-engine';
 import type { AggregationType } from './enum';
 
 /**
@@ -83,6 +84,8 @@ export interface IFieldsConfig {
     rowFields: IPivotField[];
     columnFields: IPivotField[];
     filterFields: IPivotField[];
+    /** Value position (Column or Row) */
+    valuePosition: PivotValuePosition;
 }
 
 /**

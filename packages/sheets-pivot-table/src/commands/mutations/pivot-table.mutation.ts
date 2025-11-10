@@ -15,23 +15,29 @@
  */
 
 import type { IMutation } from '@univerjs/core';
-import type { IFieldsConfig, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
+import type { PivotValuePosition } from '../../models/pivot-engine';
+import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
 import { CommandType } from '@univerjs/core';
 import { PivotTable } from '../../models/pivot-table';
 import { ISheetsPivotTableService } from '../../services/pivot-table.service';
 
 /**
- * Mutation to add a new pivot table (create only)
- * For updates, use the fine-grained mutations:
- * - SetPivotTableSourceRangeMutation
- * - SetPivotTableTargetCellMutation
- * - SetPivotTableFieldsConfigMutation
+ * Mutation to add a new pivot table
  */
 export interface IAddPivotTableMutationParams {
     unitId: string;
     subUnitId: string;
     pivotTableId: string;
-    config: IPivotTableConfig;
+    config: {
+        /** Pivot table name */
+        name: string;
+        /** Source range information */
+        sourceRangeInfo: ISourceRangeInfo;
+        /** Target cell information */
+        targetCellInfo: ITargetCellInfo;
+        /** Fields configuration */
+        fieldsConfig: IFieldsConfig;
+    };
 }
 
 export const AddPivotTableMutation: IMutation<IAddPivotTableMutationParams> = {
@@ -50,14 +56,14 @@ export const AddPivotTableMutation: IMutation<IAddPivotTableMutationParams> = {
 
         // Create new pivot table
         const pivotTable = new PivotTable(
-            config.id,
+            pivotTableId,
             config.name,
             config.sourceRangeInfo,
             config.targetCellInfo,
             config.fieldsConfig
         );
 
-        dataSourceModel.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable, config);
+        dataSourceModel.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable);
 
         return true;
     },
@@ -173,6 +179,49 @@ export const SetPivotTableFieldsConfigMutation: IMutation<ISetPivotTableFieldsCo
 
         // Update fields config
         pivotTableService.updateFieldsConfig(unitId, subUnitId, pivotTableId, fieldsConfig);
+
+        return true;
+    },
+};
+
+/**
+ * Mutation to update pivot table value position (atomic operation)
+ */
+export interface ISetPivotTableValuePositionMutationParams {
+    unitId: string;
+    subUnitId: string;
+    pivotTableId: string;
+    valuePosition: PivotValuePosition;
+}
+
+export const SetPivotTableValuePositionMutation: IMutation<ISetPivotTableValuePositionMutationParams> = {
+    type: CommandType.MUTATION,
+    id: 'sheet.mutation.set-pivot-table-value-position',
+
+    handler: (accessor, params) => {
+        if (!params) {
+            return false;
+        }
+
+        const pivotTableService = accessor.get(ISheetsPivotTableService);
+        const { unitId, subUnitId, pivotTableId, valuePosition } = params;
+
+        const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
+        if (!pivotTable) {
+            return false;
+        }
+
+        // Update value position
+        pivotTable.setValuePosition(valuePosition);
+
+        // Update fields config to persist the change
+        const currentFieldsConfig = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId)?.fieldsConfig;
+        if (currentFieldsConfig) {
+            pivotTableService.updateFieldsConfig(unitId, subUnitId, pivotTableId, {
+                ...currentFieldsConfig,
+                valuePosition,
+            });
+        }
 
         return true;
     },

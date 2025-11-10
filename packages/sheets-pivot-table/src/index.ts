@@ -21,8 +21,10 @@ export {
     type ICreatePivotTableCommandParams,
     type IRemovePivotTableCommandParams,
     type ISetPivotTableSourceRangeCommandParams,
+    type ISetPivotTableValuePositionCommandParams,
     type IUpdatePivotTableFieldsCommandParams,
     SetPivotTableSourceRangeCommand,
+    SetPivotTableValuePositionCommand,
     UpdatePivotTableFieldsCommand,
 } from './commands/commands/pivot-table.command';
 
@@ -34,16 +36,19 @@ export {
     type ISetPivotTableFieldsConfigMutationParams,
     type ISetPivotTableSourceRangeMutationParams,
     type ISetPivotTableTargetCellMutationParams,
+    type ISetPivotTableValuePositionMutationParams,
     RemovePivotTableMutation,
     SetPivotTableFieldsConfigMutation,
     SetPivotTableSourceRangeMutation,
     SetPivotTableTargetCellMutation,
+    SetPivotTableValuePositionMutation,
 } from './commands/mutations/pivot-table.mutation';
 
 // Config
 export type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 
 // Models
+export { PivotValuePosition } from './models/pivot-engine';
 export { PivotTable } from './models/pivot-table';
 
 // Plugin

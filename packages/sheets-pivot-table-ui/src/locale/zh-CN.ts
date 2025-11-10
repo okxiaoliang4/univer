@@ -23,6 +23,8 @@ const locale = {
             createTitle: '创建数据透视表',
             sourceRangeLabel: '选择源数据范围',
             targetRangeLabel: '选择数据透视表放置位置',
+            targetRangeTypeNew: '新建工作表',
+            targetRangeTypeExisting: '现有工作表',
             sourceRangeSingleCellError: '源范围必须包含多个单元格',
             sourceRangeSingleRowError: '源范围必须至少包含两行(标题和数据)',
             sourceRangeWithMergeError: '源范围不能与合并单元格重叠',

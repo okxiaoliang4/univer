@@ -358,7 +358,7 @@ univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
         },
         {
             name: 'SHEET_PIVOT_TABLE_PLUGIN',
-            data: '{"pivotTableConfigs":{"H1p5SR":{"L_3zPqk5AbeQDuxJiDgPs":{"kEYwhDe-hKd_D0m5g4QTu":{"id":"kEYwhDe-hKd_D0m5g4QTu","name":"New Pivot Table","sourceRangeInfo":{"range":{"startRow":0,"startColumn":0,"endRow":5,"endColumn":2,"startAbsoluteRefType":0,"endAbsoluteRefType":0,"rangeType":0},"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"targetCellInfo":{"row":0,"col":0,"subUnitId":"L_3zPqk5AbeQDuxJiDgPs","unitId":"H1p5SR"},"fieldsConfig":{"valueFields":[{"id":"3l3fUg","name":"West","sourceColumnIndex":2},{"id":"VP4Uq8","name":"East","sourceColumnIndex":1}],"rowFields":[{"id":"efNOgW","name":"Product","sourceColumnIndex":0}],"columnFields":[],"filterFields":[]}}}}}}',
+            data: '{"pivotTableConfigs":{"H1p5SR":{"L_3zPqk5AbeQDuxJiDgPs":{"kEYwhDe-hKd_D0m5g4QTu":{"id":"kEYwhDe-hKd_D0m5g4QTu","name":"New Pivot Table","sourceRangeInfo":{"range":{"startRow":0,"startColumn":0,"endRow":5,"endColumn":2,"startAbsoluteRefType":0,"endAbsoluteRefType":0,"rangeType":0},"subUnitId":"ZCGh3uiogN11CwYQlPhHo","unitId":"H1p5SR"},"targetCellInfo":{"row":0,"col":0,"subUnitId":"L_3zPqk5AbeQDuxJiDgPs","unitId":"H1p5SR"},"fieldsConfig":{"valueFields":[{"id":"3l3fUg","name":"West","sourceColumnIndex":2},{"id":"VP4Uq8","name":"East","sourceColumnIndex":1}],"rowFields":[{"id":"efNOgW","name":"Product","sourceColumnIndex":0}],"columnFields":[],"filterFields":[],"valuePosition":1}}}}}}',
         },
     ],
 });

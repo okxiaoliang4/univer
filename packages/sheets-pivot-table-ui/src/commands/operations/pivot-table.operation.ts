@@ -19,7 +19,7 @@ import type { IInsertSheetCommandParams } from '@univerjs/sheets';
 import type { ICreatePivotTableCommandParams } from '@univerjs/sheets-pivot-table';
 import { CommandType, generateRandomId, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
 import { expandToContinuousRange, getSheetCommandTarget, InsertSheetCommand, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
-import { CreatePivotTableCommand } from '@univerjs/sheets-pivot-table';
+import { CreatePivotTableCommand, PivotValuePosition } from '@univerjs/sheets-pivot-table';
 import { IDialogService, ISidebarService } from '@univerjs/ui';
 import { CREATE_PIVOT_TABLE_DIALOG } from '../../const/const';
 import { ISheetsPivotTablePanelService } from '../../services/pivot-table-panel.service';
@@ -90,23 +90,26 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
         await commandService.executeCommand(CreatePivotTableCommand.id, {
             unitId,
             subUnitId: targetSheetId,
-            name: 'New Pivot Table',
-            sourceRangeInfo: {
-                range: pivotInfo.sourceRange,
-                subUnitId,
-                unitId,
-            },
-            targetCellInfo: {
-                row: targetRange.startRow,
-                col: targetRange.startColumn,
-                subUnitId: targetSheetId,
-                unitId,
-            },
-            fieldsConfig: {
-                rowFields: [],
-                columnFields: [],
-                valueFields: [],
-                filterFields: [],
+            config: {
+                name: 'New Pivot Table',
+                sourceRangeInfo: {
+                    range: pivotInfo.sourceRange,
+                    subUnitId,
+                    unitId,
+                },
+                targetCellInfo: {
+                    row: targetRange.startRow,
+                    col: targetRange.startColumn,
+                    subUnitId: targetSheetId,
+                    unitId,
+                },
+                fieldsConfig: {
+                    rowFields: [],
+                    columnFields: [],
+                    valueFields: [],
+                    filterFields: [],
+                    valuePosition: PivotValuePosition.Column,
+                },
             },
         } satisfies ICreatePivotTableCommandParams);
 
@@ -129,6 +132,7 @@ export async function openPivotTableDialog(
             subUnitId,
             sourceRange,
             targetRange: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 },
+            targetRangeType: 'new' as const,
             onConfirm: (info: IPivotTableSelectionInfo) => {
                 resolve(info);
                 dialogService.close(CREATE_PIVOT_TABLE_DIALOG);

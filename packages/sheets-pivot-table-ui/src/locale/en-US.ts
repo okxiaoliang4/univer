@@ -23,6 +23,8 @@ const locale = {
             createTitle: 'Create Pivot Table',
             sourceRangeLabel: 'Select source data range',
             targetRangeLabel: 'Choose where to place pivot table',
+            targetRangeTypeNew: 'New sheet',
+            targetRangeTypeExisting: 'Existing sheet',
             sourceRangeSingleCellError: 'Source range must contain more than one cell',
             sourceRangeSingleRowError: 'Source range must contain at least two rows (header and data)',
             sourceRangeWithMergeError: 'Source range cannot overlap with merged cells',

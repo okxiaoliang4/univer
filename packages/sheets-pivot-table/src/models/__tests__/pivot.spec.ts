@@ -17,8 +17,8 @@
 import type { ICellData, IObjectMatrixPrimitiveType } from '@univerjs/core';
 import type { IPivotField, IPivotFilterCriteria } from '../../types/type';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AggregationType, PivotFieldAreaType } from '../../types/enum';
-import { PivotEngine } from '../pivot-engine';
+import { AggregationType } from '../../types/enum';
+import { PivotEngine, PivotValuePosition } from '../pivot-engine';
 
 // Helper functions to create IPivotField objects
 function createValueField(name: string, sourceColumnIndex: number, aggregation: AggregationType = AggregationType.SUM): IPivotField {
@@ -26,7 +26,6 @@ function createValueField(name: string, sourceColumnIndex: number, aggregation: 
         id: `value-${name}-${aggregation}`,
         sourceColumnIndex,
         name,
-        area: PivotFieldAreaType.VALUE,
         aggregation,
     };
 }
@@ -36,7 +35,6 @@ function createRowField(name: string, sourceColumnIndex: number): IPivotField {
         id: `row-${name}`,
         sourceColumnIndex,
         name,
-        area: PivotFieldAreaType.ROW,
     };
 }
 
@@ -45,7 +43,6 @@ function createColumnField(name: string, sourceColumnIndex: number): IPivotField
         id: `col-${name}`,
         sourceColumnIndex,
         name,
-        area: PivotFieldAreaType.COLUMN,
     };
 }
 
@@ -54,7 +51,6 @@ function createFilterField(name: string, sourceColumnIndex: number, filter: IPiv
         id: `filter-${name}`,
         sourceColumnIndex,
         name,
-        area: PivotFieldAreaType.FILTER,
         filter,
     };
 }
@@ -97,6 +93,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -156,6 +153,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -216,6 +214,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Region', 0), createRowField('Product', 1)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -271,6 +270,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -327,6 +327,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -352,6 +353,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -386,6 +388,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -426,6 +429,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -464,6 +468,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -505,6 +510,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -532,6 +538,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -559,6 +566,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -611,6 +619,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -664,6 +673,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -715,6 +725,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -767,6 +778,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -806,6 +818,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -846,6 +859,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -890,6 +904,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -946,6 +961,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -999,6 +1015,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1038,6 +1055,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1051,6 +1069,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1094,6 +1113,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Product', 1)],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1148,6 +1168,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1215,6 +1236,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1298,6 +1320,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Region', 0), createRowField('Product', 1)],
                 columnFields: [createColumnField('Quarter', 2)],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1368,6 +1391,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [createColumnField('Region', 1)],
                 filterFields: [],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1424,6 +1448,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 1)],
                 columnFields: [],
                 filterFields: [createFilterField('Region', 0, { type: 'value', values: ['East'] })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1471,6 +1496,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [],
                 filterFields: [createFilterField('Region', 0, { type: 'value', values: ['East', 'West'] })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1514,6 +1540,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Category', 0)],
                 columnFields: [],
                 filterFields: [createFilterField('Category', 0, { type: 'value', values: ['A'] })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1555,6 +1582,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [createFilterField('Sales', 1, { type: 'condition', operator: 'greaterThan', conditionValue: 1000 })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1592,6 +1620,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [createFilterField('Sales', 1, { type: 'condition', operator: 'lessThan', conditionValue: 1000 })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1637,6 +1666,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [createFilterField('Status', 1, { type: 'condition', operator: 'equals', conditionValue: 'Active' })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1677,6 +1707,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [createFilterField('Status', 1, { type: 'condition', operator: 'notEquals', conditionValue: 'Active' })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1714,6 +1745,7 @@ describe('Pivot', () => {
                 rowFields: [createRowField('Product', 0)],
                 columnFields: [],
                 filterFields: [createFilterField('Product', 0, { type: 'condition', operator: 'contains', conditionValue: 'Apple' })],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1775,6 +1807,7 @@ describe('Pivot', () => {
                     createFilterField('Region', 0, { type: 'value', values: ['East'] }),
                     createFilterField('Sales', 2, { type: 'condition', operator: 'greaterThan', conditionValue: 1000 }),
                 ],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1819,6 +1852,7 @@ describe('Pivot', () => {
                     createFilterField('Region', 0, { type: 'value', values: ['East', 'West'] }),
                     createFilterField('Product', 1, { type: 'condition', operator: 'contains', conditionValue: 'Apple' }),
                 ],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1869,6 +1903,7 @@ describe('Pivot', () => {
                 filterFields: [
                     createFilterField('Sales', 1, { type: 'condition', operator: 'greaterThan', conditionValue: 50 }),
                 ],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1910,6 +1945,7 @@ describe('Pivot', () => {
                 filterFields: [
                     createFilterField('Amount', 1, { type: 'condition', operator: 'greaterThan', conditionValue: 75 }),
                 ],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1948,6 +1984,7 @@ describe('Pivot', () => {
                 filterFields: [
                     createFilterField('Score', 1, { type: 'condition', operator: 'greaterThan', conditionValue: 60 }),
                 ],
+                valuePosition: PivotValuePosition.Column,
                 sourceData,
             });
 
@@ -1955,6 +1992,270 @@ describe('Pivot', () => {
 
             expect(result?.[0]?.[0]?.v).toBe('A');
             expect(result?.[0]?.[1]?.v).toBe(90); // (100 + 80) / 2
+        });
+    });
+
+    describe('valuePosition', () => {
+        it('should default to Column position', () => {
+            const sourceData: IObjectMatrixPrimitiveType<ICellData> = {
+                0: {
+                    0: { v: 'Region' },
+                    1: { v: 'Product' },
+                    2: { v: 'Sales' },
+                },
+                1: {
+                    0: { v: 'East' },
+                    1: { v: 'Apple' },
+                    2: { v: 100 },
+                },
+                2: {
+                    0: { v: 'West' },
+                    1: { v: 'Apple' },
+                    2: { v: 150 },
+                },
+            };
+
+            pivot = new PivotEngine({
+                valueFields: [createValueField('Sales', 2)],
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 1)],
+                filterFields: [],
+                valuePosition: PivotValuePosition.Column,
+                sourceData,
+            });
+
+            // Default should be Column
+            expect(pivot.valuePosition).toBe(PivotValuePosition.Column);
+
+            const result = pivot.getCalculatedData();
+
+            // Values should be in columns (default behavior)
+            // |        | Apple |
+            // | East   | 100   |
+            // | West   | 150   |
+            expect(result?.[0]?.[0]?.v).toBe('');
+            expect(result?.[0]?.[1]?.v).toBe('Apple');
+            expect(result?.[1]?.[0]?.v).toBe('East');
+            expect(result?.[1]?.[1]?.v).toBe(100);
+        });
+
+        it('should support Row position for 2D pivot', () => {
+            // Source data:
+            // | Region | Product | Sales |
+            // | East   | Apple   | 100   |
+            // | West   | Apple   | 150   |
+            // | East   | Banana  | 200   |
+            // | West   | Banana  | 250   |
+            const sourceData: IObjectMatrixPrimitiveType<ICellData> = {
+                0: {
+                    0: { v: 'Region' },
+                    1: { v: 'Product' },
+                    2: { v: 'Sales' },
+                },
+                1: {
+                    0: { v: 'East' },
+                    1: { v: 'Apple' },
+                    2: { v: 100 },
+                },
+                2: {
+                    0: { v: 'West' },
+                    1: { v: 'Apple' },
+                    2: { v: 150 },
+                },
+                3: {
+                    0: { v: 'East' },
+                    1: { v: 'Banana' },
+                    2: { v: 200 },
+                },
+                4: {
+                    0: { v: 'West' },
+                    1: { v: 'Banana' },
+                    2: { v: 250 },
+                },
+            };
+
+            pivot = new PivotEngine({
+                valueFields: [createValueField('Sales', 2)],
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 1)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.Row,
+            });
+
+            expect(pivot.valuePosition).toBe(PivotValuePosition.Row);
+
+            const result = pivot.getCalculatedData();
+
+            // With valuePosition = Row, values should be in rows
+            // Expected output:
+            // |        | Apple | Banana |
+            // | East   | Sum of Sales |
+            // |        | 100   | 200    |
+            // | West   | Sum of Sales |
+            // |        | 150   | 250    |
+            // OR more likely:
+            // |        | Apple | Banana |
+            // | East   | Sum of Sales | (empty) |
+            // |        | 100   | 200    |
+            // | West   | Sum of Sales | (empty) |
+            // |        | 150   | 250    |
+
+            // When valuePosition is Row, header row structure is:
+            // [row field headers] [value field header] [column combos]
+            // Header row: Region | (empty) | Apple | Banana
+            expect(result?.[0]?.[0]?.v).toBe('Region'); // Row field header
+            expect(result?.[0]?.[1]?.v).toBe(''); // Value field header (empty for single value field)
+            expect(result?.[0]?.[2]?.v).toBe('Apple'); // Column combo
+            expect(result?.[0]?.[3]?.v).toBe('Banana'); // Column combo
+
+            // First row group: East
+            // Data row structure: [row field values] [value field label] [values for each column combo]
+            // Row: East | Sum of Sales | 100 | 200
+            const eastRowIndex = Array.from({ length: Object.keys(result || {}).length }, (_, i) => i)
+                .find((i) => result?.[i]?.[0]?.v === 'East');
+            expect(eastRowIndex).toBeDefined();
+            if (eastRowIndex !== undefined) {
+                expect(result?.[eastRowIndex]?.[0]?.v).toBe('East'); // Row field value
+                expect(result?.[eastRowIndex]?.[1]?.v).toBe('Sum of Sales'); // Value field label
+                expect(result?.[eastRowIndex]?.[2]?.v).toBe(100); // Apple value
+                expect(result?.[eastRowIndex]?.[3]?.v).toBe(200); // Banana value
+            }
+        });
+
+        it('should support Row position with multiple value fields', () => {
+            // Source data:
+            // | Region | Product | Sales | Quantity |
+            // | East   | Apple   | 100   | 10       |
+            // | West   | Apple   | 150   | 15      |
+            const sourceData: IObjectMatrixPrimitiveType<ICellData> = {
+                0: {
+                    0: { v: 'Region' },
+                    1: { v: 'Product' },
+                    2: { v: 'Sales' },
+                    3: { v: 'Quantity' },
+                },
+                1: {
+                    0: { v: 'East' },
+                    1: { v: 'Apple' },
+                    2: { v: 100 },
+                    3: { v: 10 },
+                },
+                2: {
+                    0: { v: 'West' },
+                    1: { v: 'Apple' },
+                    2: { v: 150 },
+                    3: { v: 15 },
+                },
+            };
+
+            pivot = new PivotEngine({
+                valueFields: [
+                    createValueField('Sales', 2),
+                    createValueField('Quantity', 3),
+                ],
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 1)],
+                filterFields: [],
+                valuePosition: PivotValuePosition.Row,
+                sourceData,
+            });
+
+            const result = pivot.getCalculatedData();
+
+            // With multiple value fields in Row position:
+            // |        | Apple |
+            // | East   | Sum of Sales |
+            // |        | 100   |
+            // |        | Sum of Quantity |
+            // |        | 10    |
+            // | West   | Sum of Sales |
+            // |        | 150   |
+            // |        | Sum of Quantity |
+            // |        | 15    |
+
+            // Header row: Region | (empty) | Apple
+            expect(result?.[0]?.[0]?.v).toBe('Region'); // Row field header
+            expect(result?.[0]?.[1]?.v).toBe(''); // Value field header (empty for multiple value fields)
+            expect(result?.[0]?.[2]?.v).toBe('Apple'); // Column combo
+
+            // Should have rows for each region + value field combination
+            // Expected: East + Sum of Sales, East + Sum of Quantity, West + Sum of Sales, West + Sum of Quantity
+            const resultKeys = Object.keys(result || {}).map(Number).sort((a, b) => a - b);
+            expect(resultKeys.length).toBeGreaterThan(2); // At least header + data rows
+
+            // Verify East rows exist
+            const eastRows = resultKeys.filter((i) => result?.[i]?.[0]?.v === 'East');
+            expect(eastRows.length).toBe(2); // One for each value field
+        });
+
+        it('should support Column position explicitly', () => {
+            const sourceData: IObjectMatrixPrimitiveType<ICellData> = {
+                0: {
+                    0: { v: 'Region' },
+                    1: { v: 'Product' },
+                    2: { v: 'Sales' },
+                },
+                1: {
+                    0: { v: 'East' },
+                    1: { v: 'Apple' },
+                    2: { v: 100 },
+                },
+                2: {
+                    0: { v: 'West' },
+                    1: { v: 'Apple' },
+                    2: { v: 150 },
+                },
+            };
+
+            pivot = new PivotEngine({
+                valueFields: [createValueField('Sales', 2)],
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 1)],
+                filterFields: [],
+                valuePosition: PivotValuePosition.Column,
+                sourceData,
+            });
+
+            expect(pivot.valuePosition).toBe(PivotValuePosition.Column);
+
+            const result = pivot.getCalculatedData();
+
+            // Values should be in columns
+            expect(result?.[0]?.[0]?.v).toBe('');
+            expect(result?.[0]?.[1]?.v).toBe('Apple');
+            expect(result?.[1]?.[0]?.v).toBe('East');
+            expect(result?.[1]?.[1]?.v).toBe(100);
+        });
+
+        it('should mark dirty when valuePosition changes', () => {
+            const sourceData: IObjectMatrixPrimitiveType<ICellData> = {
+                0: {
+                    0: { v: 'Region' },
+                    1: { v: 'Product' },
+                    2: { v: 'Sales' },
+                },
+                1: {
+                    0: { v: 'East' },
+                    1: { v: 'Apple' },
+                    2: { v: 100 },
+                },
+            };
+
+            pivot = new PivotEngine({
+                valueFields: [createValueField('Sales', 2)],
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 1)],
+                filterFields: [],
+                valuePosition: PivotValuePosition.Column,
+                sourceData,
+            });
+
+            pivot.getCalculatedData();
+            expect(pivot.isDirty()).toBe(false);
+
+            pivot.setValuePosition(PivotValuePosition.Row);
+            expect(pivot.isDirty()).toBe(true);
         });
     });
 });

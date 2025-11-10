@@ -28,6 +28,11 @@ export interface IPivotEngineConfig extends IFieldsConfig {
     sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
 }
 
+export enum PivotValuePosition {
+    Row,
+    Column,
+}
+
 /**
  * Pivot table calculation engine
  * Provides efficient pivot table data calculation with caching support
@@ -38,6 +43,8 @@ export class PivotEngine extends Disposable implements IPivotEngineConfig {
     columnFields: IPivotField[];
     filterFields: IPivotField[];
     sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
+
+    valuePosition: PivotValuePosition;
 
     /** Cached calculated result */
     private _calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>> | null;
@@ -53,6 +60,7 @@ export class PivotEngine extends Disposable implements IPivotEngineConfig {
         this.columnFields = config.columnFields;
         this.filterFields = config.filterFields;
         this.sourceData = config.sourceData;
+        this.valuePosition = config.valuePosition ?? PivotValuePosition.Column;
         this._calculatedData = null;
     }
 
@@ -110,6 +118,13 @@ export class PivotEngine extends Disposable implements IPivotEngineConfig {
     setSourceData(sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
         this.sourceData = sourceData;
         this._markDirty();
+    }
+
+    setValuePosition(valuePosition: PivotValuePosition): void {
+        if (this.valuePosition !== valuePosition) {
+            this.valuePosition = valuePosition;
+            this._markDirty();
+        }
     }
 
     /**
@@ -446,6 +461,10 @@ export class PivotEngine extends Disposable implements IPivotEngineConfig {
         columnIndices: number[],
         valueIndices: number[]
     ): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
+        if (this.valuePosition === PivotValuePosition.Row) {
+            return this._build2DResultWithValueInRow(rowGroups, columnCombos, columnIndices, valueIndices);
+        }
+
         const result: IObjectMatrixPrimitiveType<Nullable<ICellData>> = {};
         let currentRow = 0;
 
@@ -479,15 +498,112 @@ export class PivotEngine extends Disposable implements IPivotEngineConfig {
      */
     private _build2DHeaderRow(columnCombos: string[][]): Record<number, ICellData> {
         const row: Record<number, ICellData> = {};
-        row[0] = { v: '' }; // Top-left corner
 
-        for (let i = 0; i < columnCombos.length; i++) {
-            const combo = columnCombos[i];
-            const label = this._formatColumnComboLabel(combo);
-            row[i + 1] = { v: label };
+        if (this.valuePosition === PivotValuePosition.Row) {
+            // When value is in row, header structure is:
+            // [row field headers] [value field header] [column combo 1] [column combo 2] ...
+            let colIndex = 0;
+
+            // Add row field headers
+            for (let i = 0; i < this.rowFields.length; i++) {
+                row[colIndex] = { v: this.rowFields[i].name };
+                colIndex++;
+            }
+
+            // Add value field header (empty if single value field, or label if multiple)
+            if (this.valueFields.length > 1) {
+                row[colIndex] = { v: '' }; // Value field header column
+            } else {
+                row[colIndex] = { v: '' }; // Empty for single value field
+            }
+            colIndex++;
+
+            // Add column combination headers
+            for (let i = 0; i < columnCombos.length; i++) {
+                const combo = columnCombos[i];
+                const label = this._formatColumnComboLabel(combo);
+                row[colIndex] = { v: label };
+                colIndex++;
+            }
+        } else {
+            // Default: value in column
+            row[0] = { v: '' }; // Top-left corner
+
+            for (let i = 0; i < columnCombos.length; i++) {
+                const combo = columnCombos[i];
+                const label = this._formatColumnComboLabel(combo);
+                row[i + 1] = { v: label };
+            }
         }
 
         return row;
+    }
+
+    /**
+     * Build 2D pivot result matrix with value fields in rows
+     * @param rowGroups Grouped data by row fields
+     * @param columnCombos Unique column combinations
+     * @param columnIndices Column field indices
+     * @param valueIndices Value field indices
+     * @returns Result matrix
+     */
+    private _build2DResultWithValueInRow(
+        rowGroups: Map<string, ICellData[][]>,
+        columnCombos: string[][],
+        columnIndices: number[],
+        valueIndices: number[]
+    ): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
+        const result: IObjectMatrixPrimitiveType<Nullable<ICellData>> = {};
+        let currentRow = 0;
+
+        // Build header row
+        result[currentRow] = this._build2DHeaderRow(columnCombos);
+        currentRow++;
+
+        // Build data rows: for each row group + value field combination
+        const sortedRowKeys = Array.from(rowGroups.keys()).sort();
+        for (const rowKey of sortedRowKeys) {
+            const groupRows = rowGroups.get(rowKey);
+            if (!groupRows) continue;
+
+            const rowFieldValues = this._parseGroupKey(rowKey);
+
+            // For each value field, create a row
+            for (let valueIdx = 0; valueIdx < valueIndices.length; valueIdx++) {
+                const valueField = this.valueFields[valueIdx];
+                const aggregation = valueField.aggregation || AggregationType.SUM;
+
+                const row: Record<number, ICellData> = {};
+
+                // Add row field values
+                for (let i = 0; i < rowFieldValues.length; i++) {
+                    row[i] = { v: rowFieldValues[i] };
+                }
+
+                // Add value field label
+                const valueLabelCol = rowFieldValues.length;
+                row[valueLabelCol] = { v: this._getAggregationLabel(aggregation, valueField.name) };
+
+                // Calculate and add values for each column combination
+                for (let colIdx = 0; colIdx < columnCombos.length; colIdx++) {
+                    const columnCombo = columnCombos[colIdx];
+                    const filteredRows = this._filterByColumnCombo(groupRows, columnIndices, columnCombo);
+
+                    const aggregatedValue = this._aggregateSingleValue(
+                        filteredRows,
+                        valueIndices[valueIdx],
+                        aggregation
+                    );
+
+                    row[valueLabelCol + 1 + colIdx] = aggregatedValue;
+                }
+
+                result[currentRow] = row;
+                currentRow++;
+            }
+        }
+
+        return result;
     }
 
     /**

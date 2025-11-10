@@ -17,7 +17,7 @@
 import type { IRange } from '@univerjs/core';
 import type { IPivotTableSelectionInfo } from '../../commands/operations/pivot-table.operation';
 import { IUniverInstanceService, LocaleService, Rectangle } from '@univerjs/core';
-import { Button } from '@univerjs/design';
+import { Button, Radio, RadioGroup } from '@univerjs/design';
 import { deserializeRangeWithSheet, serializeRange } from '@univerjs/engine-formula';
 import { getSheetCommandTarget } from '@univerjs/sheets';
 import { RangeSelector } from '@univerjs/sheets-formula-ui';
@@ -28,10 +28,11 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
     onConfirm: (info: IPivotTableSelectionInfo) => void;
     onCancel: () => void;
 }) => {
-    const { unitId, subUnitId, sourceRange, targetRange, onCancel, onConfirm } = props;
+    const { unitId, subUnitId, sourceRange, targetRange, targetRangeType, onCancel, onConfirm } = props;
 
     const [selectedSourceRange, setSelectedSourceRange] = useState(sourceRange);
     const [selectedTargetRange, setSelectedTargetRange] = useState(targetRange);
+    const [selectedTargetRangeType, setSelectedTargetRangeType] = useState<'new' | 'existing'>(targetRangeType || 'new');
     const [sourceRangeError, setSourceRangeError] = useState('');
     const [targetRangeError, setTargetRangeError] = useState('');
     const localeService = useDependency(LocaleService);
@@ -107,31 +108,54 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                 )}
             </div>
 
-            {/* <div>
+            <div>
                 <div className="univer-mb-2 univer-text-sm univer-font-medium">
                     {localeService.t('pivotTable.dialog.targetRangeLabel')}
                 </div>
-                <RangeSelector
-                    maxRangeCount={1}
-                    unitId={unitId}
-                    subUnitId={subUnitId}
-                    initialValue={serializeRange(targetRange)}
-                    onChange={(_, text) => {
-                        const newRange = deserializeRangeWithSheet(text).range;
-                        const error = validateTargetRange(newRange);
-                        setTargetRangeError(error);
-                        if (!error) {
-                            setSelectedTargetRange(newRange);
+                <RadioGroup
+                    value={selectedTargetRangeType}
+                    onChange={(value) => {
+                        setSelectedTargetRangeType(value as 'new' | 'existing');
+                        if (value === 'new') {
+                            setTargetRangeError('');
                         }
                     }}
-                    supportAcrossSheet={false}
-                />
-                {targetRangeError && (
-                    <div className="univer-mt-1 univer-text-xs univer-text-red-500">
-                        {targetRangeError}
+                    direction="vertical"
+                >
+                    <Radio value="new">
+                        {localeService.t('pivotTable.dialog.targetRangeTypeNew')}
+                    </Radio>
+                    <Radio value="existing">
+                        {localeService.t('pivotTable.dialog.targetRangeTypeExisting')}
+                    </Radio>
+                </RadioGroup>
+                {selectedTargetRangeType === 'existing' && (
+                    <div className="univer-mt-3">
+                        <RangeSelector
+                            unitId={unitId}
+                            subUnitId={subUnitId}
+                            initialValue={targetRange ? serializeRange(targetRange) : ''}
+                            supportAcrossSheet
+                            maxRangeCount={1}
+                            isSingle
+                            autoFocus={true}
+                            onChange={(_, text) => {
+                                const newRange = deserializeRangeWithSheet(text).range;
+                                const error = validateTargetRange(newRange);
+                                setTargetRangeError(error);
+                                if (!error) {
+                                    setSelectedTargetRange(newRange);
+                                }
+                            }}
+                        />
+                        {targetRangeError && (
+                            <div className="univer-mt-1 univer-text-xs univer-text-red-500">
+                                {targetRangeError}
+                            </div>
+                        )}
                     </div>
                 )}
-            </div> */}
+            </div>
 
             <div className="univer-flex univer-justify-end univer-gap-2">
                 <Button onClick={onCancel}>
@@ -140,18 +164,18 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                 <Button
                     variant="primary"
                     onClick={() => {
-                        if (sourceRangeError || targetRangeError) {
+                        if (sourceRangeError || (selectedTargetRangeType === 'existing' && (targetRangeError || !selectedTargetRange))) {
                             return;
                         }
                         onConfirm({
                             unitId,
                             subUnitId,
                             sourceRange: selectedSourceRange,
-                            targetRange: selectedTargetRange,
-                            targetRangeType: 'new',
+                            targetRange: selectedTargetRangeType === 'existing' ? selectedTargetRange : undefined,
+                            targetRangeType: selectedTargetRangeType,
                         });
                     }}
-                    disabled={!!sourceRangeError || !!targetRangeError}
+                    disabled={!!sourceRangeError || (selectedTargetRangeType === 'existing' && (!!targetRangeError || !selectedTargetRange))}
                 >
                     {localeService.t('pivotTable.dialog.confirm')}
                 </Button>
