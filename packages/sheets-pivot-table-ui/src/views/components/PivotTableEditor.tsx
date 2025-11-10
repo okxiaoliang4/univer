@@ -761,9 +761,12 @@ export function PivotTableEditor({
             onDragCancel={onDragCancel}
             modifiers={modifiers}
         >
-            <div className="univer-flex univer-flex-col univer-gap-2">
+            <div className="univer-grid univer-grid-cols-2 univer-gap-2">
                 {containers.map((containerId) => (
                     <DroppableContainer
+                        className={containerId === 'rowFields' || containerId === 'columnFields'
+                            ? 'univer-col-span-1'
+                            : 'univer-col-span-2'}
                         key={containerId}
                         id={containerId}
                         label={minimal ? undefined : localeService.t(`pivotTable.editor.containerLabels.${String(containerId)}`)}
