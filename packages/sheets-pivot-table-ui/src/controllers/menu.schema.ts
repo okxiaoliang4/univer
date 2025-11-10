@@ -38,7 +38,7 @@ export function InsertPivotTableMenuItemFactory(): IMenuButtonItem {
         id: OpenCreatePivotTableDialogOperation.id,
         type: MenuItemType.BUTTON,
         title: 'pivotTable.menu.insert',
-        icon: 'CopyDoubleIcon',
+        icon: 'PivotTableIcon',
         disabled$: new Observable((subscriber) => {
             subscriber.next(false);
         }),

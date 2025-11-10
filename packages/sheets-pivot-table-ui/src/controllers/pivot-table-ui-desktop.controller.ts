@@ -17,6 +17,7 @@
 import type { ISetSelectionsOperationParams } from '@univerjs/sheets';
 import type { IShowPivotTablePanelOperationParams } from '../commands/operations/pivot-table.operation';
 import { Disposable, ICommandService, Inject, Injector } from '@univerjs/core';
+import { PivotTableIcon } from '@univerjs/icons';
 import { SetSelectionsOperation } from '@univerjs/sheets';
 import { ISheetsPivotTableService } from '@univerjs/sheets-pivot-table';
 import { ComponentManager, IMenuManagerService, IShortcutService } from '@univerjs/ui';
@@ -60,7 +61,12 @@ export class PivotTableUIDesktopController extends Disposable {
     }
 
     private _initComponents(): void {
-        this.disposeWithMe(this._componentManager.register(PivotTablePanel.componentKey, PivotTablePanel));
+        ([
+            [PivotTablePanel.componentKey, PivotTablePanel],
+            ['PivotTableIcon', PivotTableIcon],
+        ] as const).forEach(([key, comp]) => {
+            this.disposeWithMe(this._componentManager.register(key, comp));
+        });
     }
 
     /**
