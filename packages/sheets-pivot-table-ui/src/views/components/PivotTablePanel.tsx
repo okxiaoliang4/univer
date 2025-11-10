@@ -145,6 +145,7 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
                     supportAcrossSheet
                     maxRangeCount={1}
                     isSingle
+                    keepSheetReference
                     autoFocus={false}
                     onChange={handleRangeChange}
                     onFocusChange={handleFocusChange}

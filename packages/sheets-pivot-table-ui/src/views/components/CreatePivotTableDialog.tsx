@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import type { IRange } from '@univerjs/core';
+import type { IRange, Workbook } from '@univerjs/core';
 import type { IPivotTableSelectionInfo } from '../../commands/operations/pivot-table.operation';
-import { IUniverInstanceService, LocaleService, Rectangle } from '@univerjs/core';
+import { IUniverInstanceService, LocaleService, Rectangle, UniverInstanceType } from '@univerjs/core';
 import { Button, Radio, RadioGroup } from '@univerjs/design';
-import { deserializeRangeWithSheet, serializeRange } from '@univerjs/engine-formula';
+import { deserializeRangeWithSheet, serializeRange, serializeRangeWithSheet } from '@univerjs/engine-formula';
 import { getSheetCommandTarget } from '@univerjs/sheets';
 import { RangeSelector } from '@univerjs/sheets-formula-ui';
 import { useDependency } from '@univerjs/ui';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
     onConfirm: (info: IPivotTableSelectionInfo) => void;
@@ -30,13 +30,30 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
 }) => {
     const { unitId, subUnitId, sourceRange, targetRange, targetRangeType, onCancel, onConfirm } = props;
 
+    const localeService = useDependency(LocaleService);
+    const univerInstanceService = useDependency(IUniverInstanceService);
+    const workbook = univerInstanceService.getUnit<Workbook>(unitId, UniverInstanceType.UNIVER_SHEET);
+
+    // Get current sheet name for initial value
+    const currentSheetName = useMemo(() => {
+        const currentSheet = workbook?.getSheetBySheetId(subUnitId);
+        return currentSheet?.getName() || '';
+    }, [workbook, subUnitId]);
+
     const [selectedSourceRange, setSelectedSourceRange] = useState(sourceRange);
     const [selectedTargetRange, setSelectedTargetRange] = useState(targetRange);
     const [selectedTargetRangeType, setSelectedTargetRangeType] = useState<'new' | 'existing'>(targetRangeType || 'new');
+    const [targetSheetName, setTargetSheetName] = useState<string>(() => {
+        // Initialize with current sheet name if targetRangeType is 'existing'
+        if (targetRangeType === 'existing') {
+            const currentSheet = workbook?.getSheetBySheetId(subUnitId);
+            return currentSheet?.getName() || '';
+        }
+        return '';
+    });
+    const [targetSubUnitId, setTargetSubUnitId] = useState<string>(subUnitId);
     const [sourceRangeError, setSourceRangeError] = useState('');
     const [targetRangeError, setTargetRangeError] = useState('');
-    const localeService = useDependency(LocaleService);
-    const univerInstanceService = useDependency(IUniverInstanceService);
 
     const validateSourceRange = (range: IRange): string => {
         const { startRow, endRow, startColumn, endColumn } = range;
@@ -134,17 +151,29 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                         <RangeSelector
                             unitId={unitId}
                             subUnitId={subUnitId}
-                            initialValue={targetRange ? serializeRange(targetRange) : ''}
+                            initialValue={targetRange ? serializeRangeWithSheet(targetSheetName || currentSheetName, targetRange) : ''}
                             supportAcrossSheet
+                            keepSheetReference
                             maxRangeCount={1}
                             isSingle
-                            autoFocus={true}
                             onChange={(_, text) => {
-                                const newRange = deserializeRangeWithSheet(text).range;
-                                const error = validateTargetRange(newRange);
+                                const result = deserializeRangeWithSheet(text);
+                                const error = validateTargetRange(result.range);
                                 setTargetRangeError(error);
                                 if (!error) {
-                                    setSelectedTargetRange(newRange);
+                                    setSelectedTargetRange(result.range);
+                                    // Get subUnitId from sheetName
+                                    if (result.sheetName && result.sheetName !== '') {
+                                        const targetSheet = workbook?.getSheetBySheetName(result.sheetName);
+                                        if (targetSheet) {
+                                            setTargetSheetName(result.sheetName);
+                                            setTargetSubUnitId(targetSheet.getSheetId());
+                                        }
+                                    } else {
+                                        // Use current sheet if sheetName is empty
+                                        setTargetSheetName(currentSheetName);
+                                        setTargetSubUnitId(subUnitId);
+                                    }
                                 }
                             }}
                         />
@@ -169,7 +198,7 @@ export const CreatePivotTableDialog = (props: IPivotTableSelectionInfo & {
                         }
                         onConfirm({
                             unitId,
-                            subUnitId,
+                            subUnitId: selectedTargetRangeType === 'existing' ? targetSubUnitId : subUnitId,
                             sourceRange: selectedSourceRange,
                             targetRange: selectedTargetRangeType === 'existing' ? selectedTargetRange : undefined,
                             targetRangeType: selectedTargetRangeType,
