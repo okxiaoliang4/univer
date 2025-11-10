@@ -18,7 +18,7 @@ import type { IDocumentData, Workbook } from '@univerjs/core';
 import type { IRangeSelectorInstance } from '@univerjs/sheets-formula-ui';
 import type { ISetPivotTableSourceRangeCommandParams, ISetPivotTableValuePositionCommandParams } from '@univerjs/sheets-pivot-table';
 import type { IShowPivotTablePanelOperationParams } from '../../commands/operations/pivot-table.operation';
-import { ICommandService, IUniverInstanceService, RichTextBuilder, UniverInstanceType } from '@univerjs/core';
+import { ICommandService, IUniverInstanceService, LocaleService, RichTextBuilder, UniverInstanceType } from '@univerjs/core';
 import { Select } from '@univerjs/design';
 import { deserializeRangeWithSheet, isReferenceString, serializeRangeToRefString, serializeRangeWithSheet } from '@univerjs/engine-formula';
 import { RangeSelector } from '@univerjs/sheets-formula-ui';
@@ -33,6 +33,7 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
     const pivotTableService = useDependency(ISheetsPivotTableService);
     const univerInstanceService = useDependency(IUniverInstanceService);
     const commandService = useDependency(ICommandService);
+    const localeService = useDependency(LocaleService);
     const workbook = univerInstanceService.getUnit<Workbook>(unitId, UniverInstanceType.UNIVER_SHEET);
 
     const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
@@ -135,7 +136,7 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
                       dark:!univer-text-white
                     `}
                 >
-                    Source Range:
+                    {localeService.t('pivotTable.panel.sourceRangeLabel')}
                 </label>
                 <RangeSelector
                     selectorRef={rangeSelectorInstance}
@@ -158,7 +159,7 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
                       dark:!univer-text-white
                     `}
                 >
-                    Field configuration:
+                    {localeService.t('pivotTable.panel.fieldConfigurationLabel')}
                 </label>
                 {pivotTable && (
                     <PivotTableEditor pivotTable={pivotTable} />
@@ -171,13 +172,13 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
                       dark:!univer-text-white
                     `}
                 >
-                    Value Position:
+                    {localeService.t('pivotTable.panel.valuePositionLabel')}
                 </label>
                 <Select
                     value={String(valuePosition)}
                     options={[
-                        { label: 'Row', value: String(PivotValuePosition.Row) },
-                        { label: 'Column', value: String(PivotValuePosition.Column) },
+                        { label: localeService.t('pivotTable.panel.valuePositionRow'), value: String(PivotValuePosition.Row) },
+                        { label: localeService.t('pivotTable.panel.valuePositionColumn'), value: String(PivotValuePosition.Column) },
                     ]}
                     onChange={handleValuePositionChange}
                 />

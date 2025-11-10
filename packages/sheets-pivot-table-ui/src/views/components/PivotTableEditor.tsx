@@ -55,7 +55,7 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { generateRandomId, ICommandService } from '@univerjs/core';
+import { generateRandomId, ICommandService, LocaleService } from '@univerjs/core';
 import { Select } from '@univerjs/design';
 import { AggregationType, UpdatePivotTableFieldsCommand } from '@univerjs/sheets-pivot-table';
 import { useDependency, useObservable } from '@univerjs/ui';
@@ -210,6 +210,7 @@ export function PivotTableEditor({
     const filterFields = useObservable(pivotTable.filterFields$, pivotTable.getFilterFields());
 
     const commandService = useDependency(ICommandService);
+    const localeService = useDependency(LocaleService);
 
     // Memoized containers structure directly from pivotTable data
     const items: Record<string, IPivotField[]> = useMemo(() => ({
@@ -356,12 +357,12 @@ export function PivotTableEditor({
                                       dark:!univer-text-white
                                     `}
                                 >
-                                    汇总方式
+                                    {localeService.t('pivotTable.editor.aggregationMethodLabel')}
                                 </label>
                                 <Select
                                     value={props.field.aggregation ?? AggregationType.SUM}
                                     options={Object.values(AggregationType).map((aggregation) => ({
-                                        label: aggregation.toUpperCase(),
+                                        label: localeService.t(`pivotTable.editor.aggregationType.${aggregation}`),
                                         value: aggregation,
                                     }))}
                                     onChange={(value) => {
@@ -765,7 +766,7 @@ export function PivotTableEditor({
                     <DroppableContainer
                         key={containerId}
                         id={containerId}
-                        label={minimal ? undefined : `${containerId}`}
+                        label={minimal ? undefined : localeService.t(`pivotTable.editor.containerLabels.${String(containerId)}`)}
                         columns={columns}
                         items={items[containerId].map((field) => field.id)}
                         scrollable={scrollable}
@@ -841,7 +842,7 @@ export function PivotTableEditor({
     function renderContainerDragOverlay(containerId: UniqueIdentifier) {
         return (
             <FieldItemsContainer
-                label={`Column ${containerId}`}
+                label={localeService.t('pivotTable.editor.containerLabel', String(containerId))}
                 columns={columns}
                 style={{
                     height: '100%',
