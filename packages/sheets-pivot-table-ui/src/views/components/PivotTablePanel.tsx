@@ -38,6 +38,7 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
     const sourceRangeInfo = useObservable(pivotTable?.sourceRangeInfo$);
     const sourceSheet = sourceRangeInfo ? workbook?.getSheetBySheetId(sourceRangeInfo.subUnitId) : undefined;
 
+    const targetCellInfo = pivotTable?.getTargetCellInfo();
     const initialValue = useMemo(() => {
         if (!sourceSheet || !sourceRangeInfo) return undefined;
 
@@ -68,6 +69,7 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
             setRangeSelectorValue(initialValue);
             return;
         }
+
         const result = deserializeRangeWithSheet(text);
 
         const newSourceSheet = workbook?.getSheetBySheetName(result.sheetName);
@@ -78,6 +80,19 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
             subUnitId: newSourceSheet?.getSheetId() || sourceSheet?.getSheetId() || subUnitId,
             unitId: result.unitId || unitId,
         };
+
+        if (
+            newSourceRangeInfo.unitId === targetCellInfo?.unitId
+          && newSourceRangeInfo.subUnitId === targetCellInfo?.subUnitId
+          && (
+              newSourceRangeInfo.range.startRow >= targetCellInfo?.row
+            || newSourceRangeInfo.range.startColumn >= targetCellInfo?.col
+          )
+        ) {
+            // 如果新源范围的起点大于等于目标单元格的行或列，则不可选择，因为可能源数据会被覆盖掉
+            // TODO: 给个提示
+            return;
+        }
 
         commandService.executeCommand(SetPivotTableSourceRangeCommand.id, {
             unitId,
