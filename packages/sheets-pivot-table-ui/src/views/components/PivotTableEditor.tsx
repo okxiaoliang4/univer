@@ -825,10 +825,16 @@ export function PivotTableEditor({
     );
 
     function renderSortableItemDragOverlay(id: UniqueIdentifier) {
+        // Find the field object to get its name
+        const field = Object.values(items)
+            .flat()
+            .find((f) => f.id === id);
+        const fieldName = field?.name ?? String(id);
+
         return (
             <FieldItem
                 id={String(id)}
-                value={id}
+                value={fieldName}
                 handle={handle}
                 style={getItemStyles({
                     containerId: findContainer(id) as UniqueIdentifier,
