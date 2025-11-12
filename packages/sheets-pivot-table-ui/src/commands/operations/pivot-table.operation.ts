@@ -16,9 +16,8 @@
 
 import type { IAccessor, IOperation, IRange } from '@univerjs/core';
 import type { IInsertSheetCommandParams } from '@univerjs/sheets';
-import type { ICreatePivotTableCommandParams, ISourceFields } from '@univerjs/sheets-pivot-table';
+import type { ICreatePivotTableCommandParams } from '@univerjs/sheets-pivot-table';
 import { BooleanNumber, CommandType, generateRandomId, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
-import { serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { expandToContinuousRange, getSheetCommandTarget, InsertSheetCommand, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
 import { CreatePivotTableCommand, PivotValuePosition } from '@univerjs/sheets-pivot-table';
 import { IDialogService, ISidebarService } from '@univerjs/ui';
@@ -139,20 +138,6 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
         }
 
         const pivotTableId = generateRandomId();
-        const fields = (() => {
-            const fields: ISourceFields[] = [];
-            for (let i = 0; i < pivotInfo.sourceRange.endColumn - pivotInfo.sourceRange.startColumn + 1; i++) {
-                fields.push({
-                    sourceColumnIndex: i,
-                    rangeKey: serializeRangeWithSpreadsheet(unitId, subUnitId, {
-                        ...pivotInfo.sourceRange,
-                        startColumn: i + pivotInfo.sourceRange.startColumn,
-                        endColumn: i + pivotInfo.sourceRange.startColumn,
-                    }),
-                });
-            }
-            return fields;
-        })();
 
         await commandService.executeCommand(CreatePivotTableCommand.id, {
             unitId,
@@ -164,7 +149,6 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
                     range: pivotInfo.sourceRange,
                     subUnitId,
                     unitId,
-                    fields,
                 },
                 targetCellInfo: {
                     row: targetRange.startRow,

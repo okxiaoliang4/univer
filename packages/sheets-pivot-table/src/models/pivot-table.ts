@@ -16,10 +16,10 @@
 
 import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { Observable } from 'rxjs';
-import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
+import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceFields, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import type { PivotValuePosition } from './pivot-engine';
-import { Disposable, ObjectMatrix } from '@univerjs/core';
-import { deserializeRangeWithSheetWithCache, serializeRangeToRefString } from '@univerjs/engine-formula';
+import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
+import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged } from 'rxjs';
 import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
 import { PivotEngine } from './pivot-engine';
@@ -136,12 +136,30 @@ export class PivotTable extends Disposable {
         );
 
         this.disposeWithMe(
-            combineLatest([this.sourceRangeInfo$, this.sourceData$]).subscribe(([sourceRangeInfo, sourceData]) => {
-                const sourceFields = sourceRangeInfo.fields.map((field) => {
+            combineLatest([
+                this.sourceRangeInfo$.pipe(distinctUntilChanged((prev, curr) => {
+                    return prev.unitId === curr.unitId && prev.subUnitId === curr.subUnitId && Rectangle.equals(prev.range, curr.range);
+                })),
+                this.sourceData$,
+            ]).pipe(debounceTime(0)).subscribe(([sourceRangeInfo, sourceData]) => {
+                const fields: ISourceFields[] = [];
+                const { unitId, subUnitId, range } = sourceRangeInfo;
+                for (let i = 0; i < range.endColumn - range.startColumn + 1; i++) {
+                    fields.push({
+                        sourceColumnIndex: i,
+                        rangeKey: serializeRangeWithSpreadsheet(unitId, subUnitId, {
+                            ...range,
+                            startColumn: i + range.startColumn,
+                            endColumn: i + range.startColumn,
+                        }),
+                    });
+                }
+
+                const sourceFields = fields.map((field) => {
                     const range = deserializeRangeWithSheetWithCache(field.rangeKey);
                     return {
                         id: serializeRangeToRefString(range),
-                        name: sourceData[0]?.[field.sourceColumnIndex]?.v || `Field ${field.sourceColumnIndex + 1}`,
+                        name: sourceData[range.range.startRow]?.[field.sourceColumnIndex]?.v || `Field ${field.sourceColumnIndex + 1}`,
                         sourceColumnIndex: field.sourceColumnIndex,
                     } as IPivotField;
                 });

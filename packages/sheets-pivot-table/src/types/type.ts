@@ -38,10 +38,6 @@ export interface ISourceRangeInfo {
     subUnitId: string;
     /** Data range */
     range: IRange;
-    /**
-     * Source fields for pivot table
-     */
-    fields: ISourceFields[];
 }
 
 /**
