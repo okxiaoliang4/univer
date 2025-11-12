@@ -110,7 +110,7 @@ export const UpdatePivotTableFieldsCommand: ICommand<IUpdatePivotTableFieldsComm
             columnFields: [],
             filterFields: [],
             valuePosition: PivotValuePosition.Column,
-        } } satisfies ISetPivotTableFieldsConfigMutationParams });
+        } satisfies IFieldsConfig } satisfies ISetPivotTableFieldsConfigMutationParams });
 
         const res = sequenceExecute(redos, commandService);
 

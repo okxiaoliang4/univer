@@ -15,17 +15,24 @@
  */
 
 import type { IMenuButtonItem, MenuSchemaType } from '@univerjs/ui';
-import { MenuItemType, RibbonDataGroup } from '@univerjs/ui';
+import { ContextMenuGroup, ContextMenuPosition, MenuItemType, RibbonDataGroup } from '@univerjs/ui';
 import { Observable } from 'rxjs';
 import { OpenCreatePivotTableDialogOperation } from '../commands/operations/pivot-table.operation';
 
-export const PIVOT_TABLE_MENU_ID = 'pivotTable.menu.insert';
-
 export const menuSchema: MenuSchemaType = {
     [RibbonDataGroup.OTHERS]: {
-        [PIVOT_TABLE_MENU_ID]: {
+        [OpenCreatePivotTableDialogOperation.id]: {
             order: 0,
             menuItemFactory: InsertPivotTableMenuItemFactory,
+        },
+    },
+
+    [ContextMenuPosition.MAIN_AREA]: {
+        [ContextMenuGroup.DATA]: {
+            [OpenCreatePivotTableDialogOperation.id]: {
+                order: 0,
+                menuItemFactory: InsertPivotTableMenuItemFactory,
+            },
         },
     },
 };

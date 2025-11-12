@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-import type { ICellData, IRange, Nullable, Workbook } from '@univerjs/core';
-import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
+import type { IRange } from '@univerjs/core';
 import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
-import { Disposable, ICommandService, IUniverInstanceService, ObjectMatrix, Rectangle, toDisposable } from '@univerjs/core';
-import { SetRangeValuesMutation } from '@univerjs/sheets';
+import { Disposable, ICommandService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
 import { Subject } from 'rxjs';
 import { PivotTable } from './pivot-table';
 
@@ -74,66 +72,6 @@ export class SheetsPivotDataSourceModel extends Disposable {
         this._pivotTableMap.get(unitId)?.get(subUnitId)?.set(pivotTableId, pivotTable);
 
         this._pivotTableAdded$.next({ unitId, subUnitId, pivotTableId });
-        this.disposeWithMe(this._commandService.onCommandExecuted((commandInfo) => {
-            if (commandInfo.id === SetRangeValuesMutation.id) {
-                // source range data changed
-                const params = commandInfo.params as ISetRangeValuesMutationParams;
-                const sourceRangeInfo = pivotTable.getSourceRangeInfo();
-                if (
-                    sourceRangeInfo.unitId !== params.unitId ||
-                  sourceRangeInfo.subUnitId !== params.subUnitId
-                ) {
-                    return;
-                }
-                const matrix = new ObjectMatrix(params.cellValue);
-                if (matrix.getSizeOf() <= 0) {
-                    return;
-                }
-                const mutateRange = matrix.getDataRange();
-                if (
-                    mutateRange &&
-                  Rectangle.intersects(sourceRangeInfo.range, mutateRange)
-                ) {
-                  // Calculate pivot table data first
-                    const workbook = this._univerInstanceService.getUnit(unitId) as Workbook;
-                  // 获取当前的输出单元格矩阵
-                    const outputCellMatrix = pivotTable.getOutputCellMatrix();
-                    pivotTable.setSourceDataFromWorkbook(workbook);
-
-                  // Get full cell matrix including headers, values, and totals
-                    const cellValue = pivotTable.getOutputCellMatrix();
-
-                    const updateCellData = new ObjectMatrix<Nullable<ICellData>>({});
-
-                    if (outputCellMatrix) {
-                        // 将原来的值设置为null
-                        new ObjectMatrix(outputCellMatrix).forValue((row, col, value) => {
-                            updateCellData.setValue(row, col, {
-                                ...value,
-                                v: null,
-                            });
-                        });
-                    }
-
-                    if (cellValue) {
-                        // 将新的值覆盖到原来的值
-                        new ObjectMatrix(cellValue).forValue((row, col, value) => {
-                            updateCellData.setValue(row, col, value);
-                        });
-                    }
-
-                    const targetCellInfo = pivotTable.getTargetCellInfo();
-                    // Apply the cell matrix to the worksheet
-                    this._commandService.executeCommand(SetRangeValuesMutation.id, {
-                        unitId: targetCellInfo.unitId,
-                        subUnitId: targetCellInfo.subUnitId,
-                        cellValue: updateCellData.getMatrix(),
-                    } satisfies ISetRangeValuesMutationParams, {
-                        onlyLocal: true, // NOTE: 不记录到协同中，每个用户自己本地计算，如果放开的话会出现undo，redo记录上这个操作
-                    });
-                }
-            }
-        }));
     }
 
     /**
@@ -402,7 +340,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
                         config.fieldsConfig
                     );
 
-                    this.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable, config);
+                    this.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable);
                 });
             });
         });

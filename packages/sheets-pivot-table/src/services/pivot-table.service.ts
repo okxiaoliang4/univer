@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import type { ICellData, IRange, Nullable } from '@univerjs/core';
+import type { ICellData, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
 import type { IFieldsConfig, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
-import { createIdentifier, Disposable, generateRandomId, ICommandService, Inject, ObjectMatrix } from '@univerjs/core';
+import { createIdentifier, Disposable, generateRandomId, ICommandService, Inject, IUniverInstanceService, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { SetRangeValuesMutation } from '@univerjs/sheets';
 import { pairwise } from 'rxjs';
 import { PivotTable } from '../models/pivot-table';
@@ -111,7 +111,8 @@ export const ISheetsPivotTableService = createIdentifier<ISheetsPivotTableServic
 export class SheetsPivotTableService extends Disposable implements ISheetsPivotTableService {
     constructor(
         @Inject(SheetsPivotDataSourceModel) private readonly _dataSourceModel: SheetsPivotDataSourceModel,
-        @Inject(ICommandService) private readonly _commandService: ICommandService
+        @Inject(ICommandService) private readonly _commandService: ICommandService,
+        @Inject(IUniverInstanceService) private readonly _univerInstanceService: IUniverInstanceService
     ) {
         super();
 
@@ -125,38 +126,66 @@ export class SheetsPivotTableService extends Disposable implements ISheetsPivotT
             if (!pivotTable) {
                 return;
             }
+            this._initPivotTableSourceValueChange(pivotTable);
+            this._initPivotTableOutputValueChange(pivotTable);
+        }));
+    }
 
-            // 监听output变动，更新数据
-            this.disposeWithMe(pivotTable.calculatedData$.pipe(pairwise()).subscribe(([prev, next]) => {
-                const updateCellData = new ObjectMatrix<Nullable<ICellData>>({});
-                if (prev) {
-                    // 将原来的值设置为null
-                    new ObjectMatrix(prev).forValue((row, col, value) => {
-                        updateCellData.setValue(row, col, {
-                            ...value,
-                            v: null,
-                        });
-                    });
-                }
-
-                if (next) {
-                    // 将新的值覆盖到原来的值
-                    new ObjectMatrix(next).forValue((row, col, value) => {
-                        updateCellData.setValue(row, col, value);
-                    });
-                }
-
-                const targetCellInfo = pivotTable.getTargetCellInfo();
-
-                // Apply the cell matrix to the worksheet
-                this._commandService.executeCommand(SetRangeValuesMutation.id, {
-                    unitId: targetCellInfo.unitId,
-                    subUnitId: targetCellInfo.subUnitId,
-                    cellValue: updateCellData.getMatrix(),
-                } satisfies ISetRangeValuesMutationParams, {
-                    onlyLocal: true, // NOTE: 不记录到协同中，每个用户自己本地计算，如果放开的话会出现undo，redo记录上这个操作
+    private _initPivotTableOutputValueChange(pivotTable: PivotTable): void {
+        // 监听output变动，更新数据
+        this.disposeWithMe(pivotTable.calculatedData$.pipe(pairwise()).subscribe(([prev, next]) => {
+            const updateCellData = new ObjectMatrix<Nullable<ICellData>>({});
+            if (prev) {
+                // 将原来的值设置为null
+                new ObjectMatrix(prev).forValue((row, col) => {
+                    updateCellData.setValue(row, col, null);
                 });
-            }));
+            }
+
+            if (next) {
+                // 将新的值覆盖到原来的值
+                new ObjectMatrix(next).forValue((row, col, value) => {
+                    updateCellData.setValue(row, col, value);
+                });
+            }
+
+            const targetCellInfo = pivotTable.getTargetCellInfo();
+
+            // Apply the cell matrix to the worksheet
+            this._commandService.executeCommand(SetRangeValuesMutation.id, {
+                unitId: targetCellInfo.unitId,
+                subUnitId: targetCellInfo.subUnitId,
+                cellValue: updateCellData.getMatrix(),
+            } satisfies ISetRangeValuesMutationParams, {
+                onlyLocal: true, // NOTE: 不记录到协同中，每个用户自己本地计算，如果放开的话会出现undo，redo记录上这个操作
+            });
+        }));
+    }
+
+    private _initPivotTableSourceValueChange(pivotTable: PivotTable): void {
+        this.disposeWithMe(this._commandService.onCommandExecuted((commandInfo) => {
+            if (commandInfo.id === SetRangeValuesMutation.id) {
+                const params = commandInfo.params as ISetRangeValuesMutationParams;
+                const sourceRangeInfo = pivotTable.getSourceRangeInfo();
+                if (
+                    sourceRangeInfo.unitId !== params.unitId || sourceRangeInfo.subUnitId !== params.subUnitId
+                ) {
+                    return;
+                }
+                const matrix = new ObjectMatrix(params.cellValue);
+                if (matrix.getSizeOf() <= 0) {
+                    return;
+                }
+                const mutateRange = matrix.getDataRange();
+                if (
+                    mutateRange && Rectangle.intersects(sourceRangeInfo.range, mutateRange)
+                ) {
+                    // Calculate pivot table data first
+                    const workbook = this._univerInstanceService.getUnit(sourceRangeInfo.unitId) as Workbook;
+                    // Set source data from workbook
+                    pivotTable.setSourceDataFromWorkbook(workbook);
+                }
+            }
         }));
     }
 
@@ -166,10 +195,6 @@ export class SheetsPivotTableService extends Disposable implements ISheetsPivotT
         config: Omit<IPivotTableConfig, 'id'>
     ): string {
         const pivotTableId = generateRandomId();
-        const fullConfig: IPivotTableConfig = {
-            ...config,
-            id: pivotTableId,
-        };
 
         const pivotTable = new PivotTable(
             pivotTableId,
@@ -183,8 +208,7 @@ export class SheetsPivotTableService extends Disposable implements ISheetsPivotT
             unitId,
             subUnitId,
             pivotTableId,
-            pivotTable,
-            fullConfig
+            pivotTable
         );
 
         return pivotTableId;

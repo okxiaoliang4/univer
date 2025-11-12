@@ -14,10 +14,19 @@
  * limitations under the License.
  */
 
+import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams, ISetPivotTableTargetCellMutationParams, ISetPivotTableValuePositionMutationParams } from './commands/mutations/pivot-table.mutation';
 import type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
+import type { IPivotTableConfigResource } from './types/type';
 import { ICommandService, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
 import { CreatePivotTableCommand, RemovePivotTableCommand, SetPivotTableSourceRangeCommand, SetPivotTableValuePositionCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
-import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation, SetPivotTableTargetCellMutation, SetPivotTableValuePositionMutation } from './commands/mutations/pivot-table.mutation';
+import {
+    AddPivotTableMutation,
+    RemovePivotTableMutation,
+    SetPivotTableFieldsConfigMutation,
+    SetPivotTableSourceRangeMutation,
+    SetPivotTableTargetCellMutation,
+    SetPivotTableValuePositionMutation,
+} from './commands/mutations/pivot-table.mutation';
 import { defaultPluginConfig, SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
 import { SheetPviotTableRangeController } from './controllers/pivot-table-range.controller';
 import { SheetPivotTableController } from './controllers/pivot-table.controller';
@@ -90,3 +99,25 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
         ]);
     }
 }
+
+// Export mutations and their types for collaboration plugin
+export {
+    AddPivotTableMutation,
+    RemovePivotTableMutation,
+    SetPivotTableFieldsConfigMutation,
+    SetPivotTableSourceRangeMutation,
+    SetPivotTableTargetCellMutation,
+    SetPivotTableValuePositionMutation,
+};
+
+export type {
+    IAddPivotTableMutationParams,
+    IRemovePivotTableMutationParams,
+    ISetPivotTableFieldsConfigMutationParams,
+    ISetPivotTableSourceRangeMutationParams,
+    ISetPivotTableTargetCellMutationParams,
+    ISetPivotTableValuePositionMutationParams,
+};
+
+// Export resource types for collaboration plugin
+export type { IPivotTableConfigResource };

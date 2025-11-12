@@ -20,8 +20,9 @@ import type { IPivotField } from '@univerjs/sheets-pivot-table';
 import { CSS } from '@dnd-kit/utilities';
 import { clsx } from '@univerjs/design';
 import { CloseIcon, SequenceIcon } from '@univerjs/icons';
+import { forwardRef } from 'react';
 
-export const FieldRender = (props: {
+export interface IFieldRenderProps {
     field: IPivotField;
     renderFooter?: () => React.ReactNode;
     onRemove?: () => void;
@@ -32,13 +33,14 @@ export const FieldRender = (props: {
     index: number | undefined;
     fadeIn: boolean;
     listeners: DraggableSyntheticListeners;
-    ref: React.Ref<HTMLElement>;
     style: React.CSSProperties | undefined;
     transform: Transform | null;
     transition: string | null;
     value: string;
-}) => {
-    const { dragging, fadeIn, dragOverlay, sorting, ref, style, transform, listeners, value, onRemove, renderFooter } = props;
+}
+
+export const FieldRender = forwardRef<HTMLDivElement, IFieldRenderProps>((props, ref) => {
+    const { dragging, fadeIn, dragOverlay, sorting, style, transform, listeners, value, onRemove, renderFooter } = props;
     return (
         <div
             className={`
@@ -75,4 +77,4 @@ export const FieldRender = (props: {
             {renderFooter?.()}
         </div>
     );
-};
+});

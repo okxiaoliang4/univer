@@ -20,18 +20,8 @@ import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceRangeInfo, I
 import type { PivotValuePosition } from './pivot-engine';
 import { Disposable, ObjectMatrix } from '@univerjs/core';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged } from 'rxjs';
+import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
 import { PivotEngine } from './pivot-engine';
-
-const defaultPlaceholderMatrix: IObjectMatrixPrimitiveType<Nullable<ICellData>> = {
-    0: {
-        0: {
-            v: 'Filter...',
-        },
-    },
-    2: {
-
-    },
-};
 
 /**
  * Simplified PivotTable implementation for MVP
@@ -233,8 +223,7 @@ export class PivotTable extends Disposable {
    */
     getOutputRange(): IRange {
         const outputCellMatrix = this.getOutputCellMatrix();
-        const outputRange = new ObjectMatrix(outputCellMatrix).getDataRange();
-        return outputRange;
+        return new ObjectMatrix(outputCellMatrix).getDataRange();
     }
 
   /**
@@ -245,7 +234,6 @@ export class PivotTable extends Disposable {
     getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         const targetMatrix = this._pivotEngine.getCalculatedData();
         if (!targetMatrix) {
-            // TODO: 做一个placeholder matrix, 也一样需要moveMatrix
             return this._moveMatrix(defaultPlaceholderMatrix, this._targetCellInfo).getMatrix();
         }
         return this._moveMatrix(targetMatrix, this._targetCellInfo).getMatrix();
@@ -254,6 +242,10 @@ export class PivotTable extends Disposable {
     setSourceData(sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
         this._pivotEngine.setSourceData(sourceData);
         this._sourceData$.next(sourceData);
+    }
+
+    getSourceData(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
+        return this._sourceData$.value;
     }
 
   /**

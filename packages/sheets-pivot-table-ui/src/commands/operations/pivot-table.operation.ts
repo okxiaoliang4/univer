@@ -17,13 +17,71 @@
 import type { IAccessor, IOperation, IRange } from '@univerjs/core';
 import type { IInsertSheetCommandParams } from '@univerjs/sheets';
 import type { ICreatePivotTableCommandParams } from '@univerjs/sheets-pivot-table';
-import { CommandType, generateRandomId, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
+import { BooleanNumber, CommandType, generateRandomId, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
 import { expandToContinuousRange, getSheetCommandTarget, InsertSheetCommand, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
 import { CreatePivotTableCommand, PivotValuePosition } from '@univerjs/sheets-pivot-table';
 import { IDialogService, ISidebarService } from '@univerjs/ui';
 import { CREATE_PIVOT_TABLE_DIALOG } from '../../const/const';
 import { ISheetsPivotTablePanelService } from '../../services/pivot-table-panel.service';
 import { PivotTablePanel } from '../../views/components/PivotTablePanel';
+
+/**
+ * Operation to show the pivot table panel
+ */
+export interface IShowPivotTablePanelOperationParams {
+    unitId: string;
+    subUnitId: string;
+    pivotTableId: string;
+}
+
+export const ShowPivotTablePanelOperation: IOperation<IShowPivotTablePanelOperationParams> = {
+    type: CommandType.OPERATION,
+    id: 'sheet.operation.show-pivot-table-panel',
+
+    handler: (accessor, params) => {
+        const { unitId, subUnitId, pivotTableId } = params;
+        if (!params) {
+            return false;
+        }
+
+        const sidebarService = accessor.get(ISidebarService);
+        sidebarService.open({
+            id: 'pivot-table-panel',
+            header: { title: 'Pivot Table Panel' },
+            children: {
+                label: {
+                    name: PivotTablePanel.componentKey,
+                    props: {
+                        unitId,
+                        subUnitId,
+                        pivotTableId,
+                    },
+                },
+            },
+            width: 400,
+            onClose: () => {
+                sidebarService.close('pivot-table-panel');
+            },
+        });
+      // const panelService = accessor.get(ISheetsPivotTablePanelService);
+      // panelService.openPanel(params.unitId, params.subUnitId, params.pivotTableId);
+        return true;
+    },
+};
+
+/**
+ * Operation to hide the pivot table panel
+ */
+export const HidePivotTablePanelOperation: IOperation = {
+    type: CommandType.OPERATION,
+    id: 'sheet.operation.hide-pivot-table-panel',
+
+    handler: (accessor) => {
+        const panelService = accessor.get(ISheetsPivotTablePanelService);
+        panelService.closePanel();
+        return true;
+    },
+};
 
 export interface IPivotTableSelectionInfo {
     unitId: string;
@@ -44,9 +102,7 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
         const univerInstanceService = accessor.get(IUniverInstanceService);
         const commandService = accessor.get(ICommandService);
         const target = getSheetCommandTarget(univerInstanceService);
-        if (!target) {
-            return false;
-        }
+        if (!target) return false;
 
         const { unitId, subUnitId, worksheet } = target;
         const sheetsSelectionsService = accessor.get(SheetsSelectionsService);
@@ -58,9 +114,7 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
         const extendedRange = isSingleCell ? expandToContinuousRange(range, { up: true, left: true, right: true, down: true }, worksheet) : range;
 
         const pivotInfo = await openPivotTableDialog(accessor, unitId, subUnitId, extendedRange);
-        if (!pivotInfo) {
-            return false;
-        }
+        if (!pivotInfo) return false;
 
         let targetRange = pivotInfo.targetRange;
         let targetSheetId = pivotInfo.subUnitId;
@@ -70,6 +124,7 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
                 unitId,
                 sheet: {
                     id: targetSheetId,
+                    showGridlines: BooleanNumber.FALSE,
                 },
             } satisfies IInsertSheetCommandParams);
             if (!success) {
@@ -87,9 +142,11 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
             return false;
         }
 
+        const pivotTableId = generateRandomId();
         await commandService.executeCommand(CreatePivotTableCommand.id, {
             unitId,
             subUnitId: targetSheetId,
+            pivotTableId,
             config: {
                 name: 'New Pivot Table',
                 sourceRangeInfo: {
@@ -112,6 +169,11 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
                 },
             },
         } satisfies ICreatePivotTableCommandParams);
+        await commandService.executeCommand(ShowPivotTablePanelOperation.id, {
+            unitId,
+            subUnitId: targetSheetId,
+            pivotTableId,
+        }) satisfies IShowPivotTablePanelOperationParams;
 
         return true;
     },
@@ -164,61 +226,3 @@ export async function openPivotTableDialog(
         });
     });
 }
-
-/**
- * Operation to show the pivot table panel
- */
-export interface IShowPivotTablePanelOperationParams {
-    unitId: string;
-    subUnitId: string;
-    pivotTableId: string;
-}
-
-export const ShowPivotTablePanelOperation: IOperation<IShowPivotTablePanelOperationParams> = {
-    type: CommandType.OPERATION,
-    id: 'sheet.operation.show-pivot-table-panel',
-
-    handler: (accessor, params) => {
-        const { unitId, subUnitId, pivotTableId } = params;
-        if (!params) {
-            return false;
-        }
-
-        const sidebarService = accessor.get(ISidebarService);
-        sidebarService.open({
-            id: 'pivot-table-panel',
-            header: { title: 'Pivot Table Panel' },
-            children: {
-                label: {
-                    name: PivotTablePanel.componentKey,
-                    props: {
-                        unitId,
-                        subUnitId,
-                        pivotTableId,
-                    },
-                },
-            },
-            width: 400,
-            onClose: () => {
-                sidebarService.close('pivot-table-panel');
-            },
-        });
-        // const panelService = accessor.get(ISheetsPivotTablePanelService);
-        // panelService.openPanel(params.unitId, params.subUnitId, params.pivotTableId);
-        return true;
-    },
-};
-
-/**
- * Operation to hide the pivot table panel
- */
-export const HidePivotTablePanelOperation: IOperation = {
-    type: CommandType.OPERATION,
-    id: 'sheet.operation.hide-pivot-table-panel',
-
-    handler: (accessor) => {
-        const panelService = accessor.get(ISheetsPivotTablePanelService);
-        panelService.closePanel();
-        return true;
-    },
-};
