@@ -48,7 +48,6 @@ export {
 export type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 
 // Models
-export { PivotValuePosition } from './models/pivot-engine';
 export { PivotTable } from './models/pivot-table';
 
 // Plugin
@@ -57,7 +56,7 @@ export { UniverSheetsPivotTablePlugin } from './plugin';
 // Services
 export { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN as SHEET_PIVOT_TABLE_SNAPSHOT_ID } from './services/pivot-table.service';
 
-export { AggregationType, PivotFieldAreaType, PivotSortOrder } from './types/enum';
+export { AggregationType, PivotFieldAreaType, PivotSortOrder, PivotValuePosition } from './types/enum';
 
 // Types
 export type {

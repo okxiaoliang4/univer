@@ -18,8 +18,8 @@ import type { ICommand, IMutationInfo } from '@univerjs/core';
 import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
 import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams, ISetPivotTableValuePositionMutationParams } from '../mutations/pivot-table.mutation';
 import { CommandType, generateRandomId, ICommandService, IUndoRedoService, Rectangle, sequenceExecute } from '@univerjs/core';
-import { PivotValuePosition } from '../../models/pivot-engine';
 import { ISheetsPivotTableService } from '../../services/pivot-table.service';
+import { PivotValuePosition } from '../../types/enum';
 import { AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableFieldsConfigMutation, SetPivotTableSourceRangeMutation, SetPivotTableValuePositionMutation } from '../mutations/pivot-table.mutation';
 
 /**
@@ -109,7 +109,7 @@ export const UpdatePivotTableFieldsCommand: ICommand<IUpdatePivotTableFieldsComm
             rowFields: [],
             columnFields: [],
             filterFields: [],
-            valuePosition: PivotValuePosition.Column,
+            valuePosition: PivotValuePosition.COLUMN,
         } satisfies IFieldsConfig } satisfies ISetPivotTableFieldsConfigMutationParams });
 
         const res = sequenceExecute(redos, commandService);

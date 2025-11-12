@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import type { IRange } from '@univerjs/core';
-import type { PivotValuePosition } from '../models/pivot-engine';
-import type { AggregationType } from './enum';
+import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable } from '@univerjs/core';
+import type { AggregationType, PivotValuePosition } from './enum';
 
 /**
  * Source fields configuration for pivot table
@@ -72,6 +71,8 @@ export interface IPivotField {
     aggregation?: AggregationType;
     /** Filter criteria (for filter fields) */
     filter?: IPivotFilterCriteria;
+    /** Whether to show subtotals for this field (for row/column fields) */
+    showSubTotals?: boolean;
 }
 
 /**
@@ -205,4 +206,113 @@ export interface IPivotTableFieldsConfigChangedEvent {
     tableId: string;
     /** New fields config */
     fieldsConfig: IFieldsConfig;
+}
+
+/**
+ * Input configuration for Cross-Tabulation pivot table calculation
+ */
+export interface IPivotTableCrossTabConfig {
+    /** Row fields configuration */
+    rowFields: IPivotField[];
+    /** Column fields configuration */
+    columnFields: IPivotField[];
+    /** Value fields configuration */
+    valueFields: IPivotField[];
+    /** Filter fields configuration */
+    filterFields: IPivotField[];
+    /** Source data matrix */
+    sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
+}
+
+/**
+ * Subtotal row/column metadata
+ */
+export interface IPivotSubtotalInfo {
+    /** Row/column index */
+    rowIndex?: number;
+    columnIndex?: number;
+    /** Level of the subtotal (0-based, 0 is outermost) */
+    level: number;
+    /** Field index in rowFields/columnFields array */
+    fieldIndex: number;
+    /** Grouping value (e.g., "华北") */
+    value: string;
+    /** Display label (e.g., "华北 总计") */
+    label?: string;
+}
+
+/**
+ * Group information for collapse/expand functionality
+ */
+export interface IPivotGroupInfo {
+    /** Unique group identifier */
+    groupId: string;
+    /** First row/column index of this group */
+    firstRowIndex?: number;
+    firstColumnIndex?: number;
+    /** Last row/column index of this group (inclusive, includes subtotal row/column) */
+    lastRowIndex?: number;
+    lastColumnIndex?: number;
+    /** Group level (0-based, 0 is outermost) */
+    level: number;
+    /** Field index in rowFields/columnFields array */
+    fieldIndex: number;
+    /** Group value (e.g., "华北") */
+    value: string;
+    /** Parent group ID (for nested groups) */
+    parentGroupId?: string;
+    /** Child group IDs */
+    childGroupIds?: string[];
+    /** Whether the group is expanded (default true) */
+    expanded?: boolean;
+}
+
+/**
+ * Output result structure for Cross-Tabulation pivot table
+ */
+export interface IPivotTableCrossTabData {
+    /** Whether the data is empty (no value fields, no data rows, or all values are null) */
+    isEmpty: boolean;
+
+    /** Dimension information */
+    dimensions: {
+        /** Total number of rows (including subtotal rows and grand total row) */
+        totalRows: number;
+        /** Total number of columns (including subtotal columns and grand total column) */
+        totalColumns: number;
+        /** Number of data rows (excluding subtotals and grand total) */
+        dataRowCount: number;
+        /** Number of data columns (excluding subtotals and grand total) */
+        dataColumnCount: number;
+        /** Number of value fields */
+        valueFieldCount: number;
+    };
+
+    /** Structure data */
+    structure: {
+        /** Row headers array, each element is an array representing all level values for that row */
+        rowHeaders: string[][];
+        /** Column headers array, each element is an array representing all level values for that column */
+        columnHeaders: string[][];
+        /** Value field headers (when multiple value fields exist) */
+        valueFieldHeaders?: string[];
+        /** Values matrix: [rowIndex][columnIndex][valueFieldIndex] */
+        values: (number | string | null)[][][];
+        /** Row type markers: 'data' | 'subtotal' */
+        rowTypes: ('data' | 'subtotal')[];
+        /** Column type markers: 'data' | 'subtotal' */
+        columnTypes: ('data' | 'subtotal')[];
+        /** Subtotal row information */
+        subtotalRows?: IPivotSubtotalInfo[];
+        /** Subtotal column information */
+        subtotalColumns?: IPivotSubtotalInfo[];
+        /** Row group information for collapse/expand */
+        rowGroups?: IPivotGroupInfo[];
+        /** Column group information for collapse/expand */
+        columnGroups?: IPivotGroupInfo[];
+        /** Row level map: rowIndex -> array of group IDs (from outermost to innermost) */
+        rowLevelMap?: Record<number, string[]>;
+        /** Column level map: columnIndex -> array of group IDs (from outermost to innermost) */
+        columnLevelMap?: Record<number, string[]>;
+    };
 }

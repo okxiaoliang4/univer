@@ -15,7 +15,7 @@
  */
 
 import type { IMutation } from '@univerjs/core';
-import type { PivotValuePosition } from '../../models/pivot-engine';
+import type { PivotValuePosition } from '../../types/enum';
 import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
 import { CommandType } from '@univerjs/core';
 import { PivotTable } from '../../models/pivot-table';

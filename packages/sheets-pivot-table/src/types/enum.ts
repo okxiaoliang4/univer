@@ -43,3 +43,11 @@ export enum PivotSortOrder {
     ASC = 'asc',
     DESC = 'desc',
 }
+
+/**
+ * Pivot value position
+ */
+export enum PivotValuePosition {
+    ROW = 'row',
+    COLUMN = 'column',
+}

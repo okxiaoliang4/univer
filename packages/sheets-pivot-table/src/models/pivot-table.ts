@@ -16,13 +16,13 @@
 
 import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { Observable } from 'rxjs';
+import type { PivotValuePosition } from '../types/enum';
 import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceFields, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
-import type { PivotValuePosition } from './pivot-engine';
 import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, pairwise } from 'rxjs';
 import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
-import { PivotEngine } from './pivot-engine';
+import { PivotEngineV2 } from './pivot-engine-v2';
 
 /**
  * Simplified PivotTable implementation for MVP
@@ -34,7 +34,7 @@ export class PivotTable extends Disposable {
     private _sourceRangeInfo$: BehaviorSubject<ISourceRangeInfo>;
     private _targetCellInfo: ITargetCellInfo;
 
-    private _pivotEngine: PivotEngine;
+    private _pivotEngine: PivotEngineV2;
 
     private _valueFields$: BehaviorSubject<IPivotField[]>;
     private _rowFields$: BehaviorSubject<IPivotField[]>;
@@ -70,10 +70,10 @@ export class PivotTable extends Disposable {
         this._sourceRangeInfo$ = new BehaviorSubject(sourceRangeInfo);
         this._targetCellInfo = targetCellInfo;
 
-        this._pivotEngine = new PivotEngine({
-            valueFields: fieldsConfig.valueFields || [],
+        this._pivotEngine = new PivotEngineV2({
             rowFields: fieldsConfig.rowFields || [],
             columnFields: fieldsConfig.columnFields || [],
+            valueFields: fieldsConfig.valueFields || [],
             filterFields: fieldsConfig.filterFields || [],
             sourceData: {},
             valuePosition: fieldsConfig.valuePosition,
@@ -328,7 +328,7 @@ export class PivotTable extends Disposable {
    * @returns ObjectMatrix with all cell values positioned relative to target cell, or null if not calculated
    */
     getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
-        const targetMatrix = this._pivotEngine.getCalculatedData();
+        const targetMatrix = this._pivotEngine.getCalculatedCellMatrix();
         if (!targetMatrix) {
             return this._moveMatrix(defaultPlaceholderMatrix, this._targetCellInfo).getMatrix();
         }

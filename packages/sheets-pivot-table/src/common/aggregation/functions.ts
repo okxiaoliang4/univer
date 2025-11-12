@@ -57,8 +57,8 @@ export class CountAggregator extends BaseAggregator {
         }
     }
 
-    override getResult(): number {
-        return this._count;
+    override getResult(): number | null {
+        return this._count > 0 ? this._count : null;
     }
 }
 
