@@ -71,6 +71,7 @@ export type {
     IPivotTableRangeChangedEvent,
     IPivotTableSourceRangeChangedEvent,
     IPivotTableTargetCellChangedEvent,
+    ISourceFields,
     ISourceRangeInfo,
     ITargetCellInfo,
 } from './types/type';

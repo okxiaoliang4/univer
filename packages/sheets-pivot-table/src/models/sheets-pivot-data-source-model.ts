@@ -320,7 +320,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
      * Deserialize from JSON
      */
     fromJSON(data: IPivotTableConfigResource): void {
-        const pivotConfigs = data.pivotTableConfigs;
+        const pivotConfigs = data.pivotTableConfigs || {};
 
         Object.keys(pivotConfigs).forEach((unitId) => {
             const unitData = pivotConfigs[unitId];

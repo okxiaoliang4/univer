@@ -186,8 +186,8 @@ export function PivotTableEditor({
 }: IPivotTableEditorProps) {
     // Get current fields from pivotTable observables
     // const sourceFields = useObservable(pivotTable.sourceFields$, pivotTable.getSourceFields());
-    const sourceFields: IPivotField[] = []; // TODO:
     const valueFields = useObservable(pivotTable.valueFields$, pivotTable.getValueFields());
+    const sourceFields = useObservable(pivotTable.sourceFields$, pivotTable.getSourceFields());
     const rowFields = useObservable(pivotTable.rowFields$, pivotTable.getRowFields());
     const columnFields = useObservable(pivotTable.columnFields$, pivotTable.getColumnFields());
     const filterFields = useObservable(pivotTable.filterFields$, pivotTable.getFilterFields());
@@ -202,7 +202,7 @@ export function PivotTableEditor({
         columnFields,
         rowFields,
         valueFields,
-    }), [filterFields, columnFields, rowFields, valueFields]);
+    }), [sourceFields, filterFields, columnFields, rowFields, valueFields]);
 
     const config = {
         sourceFields: {
@@ -445,7 +445,7 @@ export function PivotTableEditor({
     const getSourceField = useCallback((sourceColumnIndex: number): IPivotField | null => {
         // Extract base ID (remove _suffix if exists)
         return sourceFields.find((f) => f.sourceColumnIndex === sourceColumnIndex) || null;
-    }, []);
+    }, [sourceFields]);
 
     // Helper: Check if a field (by base ID) exists in exclusive containers
     const findFieldInExclusiveContainers = useCallback((sourceColumnIndex: number): {
@@ -606,7 +606,7 @@ export function PivotTableEditor({
 
             const newField: IPivotField = {
                 ...sourceField,
-                id: generateRandomId(6),
+                id: `${generateRandomId(6)}_${sourceField.id}`,
             };
             // Apply Excel pivot table rules
             if (overContainer === 'valueFields') {
@@ -695,7 +695,7 @@ export function PivotTableEditor({
 
                 const newField: IPivotField = {
                     ...sourceField,
-                    id: generateRandomId(6),
+                    id: `${generateRandomId(6)}_${sourceField.id}`,
                 };
 
                 // Add to target container

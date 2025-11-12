@@ -19,6 +19,16 @@ import type { PivotValuePosition } from '../models/pivot-engine';
 import type { AggregationType } from './enum';
 
 /**
+ * Source fields configuration for pivot table
+ */
+export interface ISourceFields {
+    /** Column index in the source range */
+    sourceColumnIndex: number;
+    /** Range key */
+    rangeKey: string;
+}
+
+/**
  * Source range information for pivot table data
  */
 export interface ISourceRangeInfo {
@@ -28,6 +38,10 @@ export interface ISourceRangeInfo {
     subUnitId: string;
     /** Data range */
     range: IRange;
+    /**
+     * Source fields for pivot table
+     */
+    fields: ISourceFields[];
 }
 
 /**
@@ -86,6 +100,13 @@ export interface IFieldsConfig {
     filterFields: IPivotField[];
     /** Value position (Column or Row) */
     valuePosition: PivotValuePosition;
+}
+
+/**
+ * Source configuration for pivot table
+ */
+export interface ISourceConfig {
+    sourceFields: IPivotField[];
 }
 
 /**

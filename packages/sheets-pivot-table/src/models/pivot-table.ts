@@ -19,6 +19,7 @@ import type { Observable } from 'rxjs';
 import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import type { PivotValuePosition } from './pivot-engine';
 import { Disposable, ObjectMatrix } from '@univerjs/core';
+import { deserializeRangeWithSheetWithCache, serializeRangeToRefString } from '@univerjs/engine-formula';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged } from 'rxjs';
 import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
 import { PivotEngine } from './pivot-engine';
@@ -42,6 +43,7 @@ export class PivotTable extends Disposable {
     private _valuePosition$: BehaviorSubject<PivotValuePosition>;
 
     private _sourceData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
+    private _sourceFields$: BehaviorSubject<IPivotField[]>;
     private _calculatedData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
 
     sourceRangeInfo$: Observable<ISourceRangeInfo>;
@@ -52,6 +54,7 @@ export class PivotTable extends Disposable {
     valuePosition$: Observable<PivotValuePosition>;
 
     sourceData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
+    sourceFields$: Observable<IPivotField[]>;
     calculatedData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
 
     constructor(
@@ -82,6 +85,7 @@ export class PivotTable extends Disposable {
         this._filterFields$ = new BehaviorSubject(fieldsConfig.filterFields);
         this._valuePosition$ = new BehaviorSubject(fieldsConfig.valuePosition);
         this._sourceData$ = new BehaviorSubject({});
+        this._sourceFields$ = new BehaviorSubject<IPivotField[]>([]);
         this._calculatedData$ = new BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>(null);
 
         this.sourceRangeInfo$ = this._sourceRangeInfo$.asObservable();
@@ -91,6 +95,7 @@ export class PivotTable extends Disposable {
         this.filterFields$ = this._filterFields$.asObservable();
         this.valuePosition$ = this._valuePosition$.asObservable();
         this.sourceData$ = this._sourceData$.asObservable();
+        this.sourceFields$ = this._sourceFields$.asObservable();
         this.calculatedData$ = this._calculatedData$.asObservable();
 
         this._initListeners();
@@ -129,6 +134,20 @@ export class PivotTable extends Disposable {
                     this._calculatedData$.next(cellValue);
                 })
         );
+
+        this.disposeWithMe(
+            combineLatest([this.sourceRangeInfo$, this.sourceData$]).subscribe(([sourceRangeInfo, sourceData]) => {
+                const sourceFields = sourceRangeInfo.fields.map((field) => {
+                    const range = deserializeRangeWithSheetWithCache(field.rangeKey);
+                    return {
+                        id: serializeRangeToRefString(range),
+                        name: sourceData[0]?.[field.sourceColumnIndex]?.v || `Field ${field.sourceColumnIndex + 1}`,
+                        sourceColumnIndex: field.sourceColumnIndex,
+                    } as IPivotField;
+                });
+                this._sourceFields$.next(sourceFields);
+            })
+        );
     }
 
     getId(): string {
@@ -161,6 +180,14 @@ export class PivotTable extends Disposable {
 
     isDirty(): boolean {
         return this._pivotEngine.isDirty();
+    }
+
+    getSourceFields(): IPivotField[] {
+        return this._sourceFields$.value;
+    }
+
+    setSourceFields(sourceFields: IPivotField[]): void {
+        this._sourceFields$.next(sourceFields);
     }
 
     getValueFields(): IPivotField[] {
@@ -282,9 +309,9 @@ export class PivotTable extends Disposable {
         };
     }
 
-    /**
-     * Create from JSON
-     */
+  /**
+   * Create from JSON
+   */
     static fromJSON(json: {
         id: string;
         name: string;

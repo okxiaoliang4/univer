@@ -147,7 +147,7 @@ export const RemovePivotTableCommand: ICommand<IRemovePivotTableCommandParams> =
         const commandService = accessor.get(ICommandService);
         const undoRedoService = accessor.get(IUndoRedoService);
 
-        const { unitId, subUnitId, pivotTableId = generateRandomId() } = params;
+        const { unitId, subUnitId, pivotTableId } = params;
 
         const config = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId);
 

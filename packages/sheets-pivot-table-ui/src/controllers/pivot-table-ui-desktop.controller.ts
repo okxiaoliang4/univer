@@ -15,11 +15,12 @@
  */
 
 import type { ISetSelectionsOperationParams } from '@univerjs/sheets';
+import type { IRemovePivotTableMutationParams } from '@univerjs/sheets-pivot-table';
 import type { IShowPivotTablePanelOperationParams } from '../commands/operations/pivot-table.operation';
 import { Disposable, ICommandService, Inject, Injector } from '@univerjs/core';
 import { PivotTableIcon } from '@univerjs/icons';
 import { SetSelectionsOperation } from '@univerjs/sheets';
-import { ISheetsPivotTableService } from '@univerjs/sheets-pivot-table';
+import { ISheetsPivotTableService, RemovePivotTableMutation } from '@univerjs/sheets-pivot-table';
 import { ComponentManager, IMenuManagerService, IShortcutService } from '@univerjs/ui';
 import { HidePivotTablePanelOperation, OpenCreatePivotTableDialogOperation, ShowPivotTablePanelOperation } from '../commands/operations/pivot-table.operation';
 import { PivotTablePanel } from '../views/components/PivotTablePanel';
@@ -103,6 +104,13 @@ export class PivotTableUIDesktopController extends Disposable {
                         unitId: params.unitId,
                         subUnitId: params.subUnitId,
                         pivotTableId: pivotTable.getId(),
+                    } satisfies IShowPivotTablePanelOperationParams);
+                } else if (command.id === RemovePivotTableMutation.id) {
+                    const params = command.params as IRemovePivotTableMutationParams;
+                    this._commandService.executeCommand(HidePivotTablePanelOperation.id, {
+                        unitId: params.unitId,
+                        subUnitId: params.subUnitId,
+                        pivotTableId: params.pivotTableId,
                     } satisfies IShowPivotTablePanelOperationParams);
                 }
             })

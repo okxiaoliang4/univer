@@ -16,13 +16,13 @@
 
 import type { IAccessor, IOperation, IRange } from '@univerjs/core';
 import type { IInsertSheetCommandParams } from '@univerjs/sheets';
-import type { ICreatePivotTableCommandParams } from '@univerjs/sheets-pivot-table';
+import type { ICreatePivotTableCommandParams, ISourceFields } from '@univerjs/sheets-pivot-table';
 import { BooleanNumber, CommandType, generateRandomId, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
+import { serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { expandToContinuousRange, getSheetCommandTarget, InsertSheetCommand, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
 import { CreatePivotTableCommand, PivotValuePosition } from '@univerjs/sheets-pivot-table';
 import { IDialogService, ISidebarService } from '@univerjs/ui';
 import { CREATE_PIVOT_TABLE_DIALOG } from '../../const/const';
-import { ISheetsPivotTablePanelService } from '../../services/pivot-table-panel.service';
 import { PivotTablePanel } from '../../views/components/PivotTablePanel';
 
 /**
@@ -33,6 +33,8 @@ export interface IShowPivotTablePanelOperationParams {
     subUnitId: string;
     pivotTableId: string;
 }
+
+const PIVOT_TABLE_PANEL_ID = 'pivot-table-panel';
 
 export const ShowPivotTablePanelOperation: IOperation<IShowPivotTablePanelOperationParams> = {
     type: CommandType.OPERATION,
@@ -46,7 +48,7 @@ export const ShowPivotTablePanelOperation: IOperation<IShowPivotTablePanelOperat
 
         const sidebarService = accessor.get(ISidebarService);
         sidebarService.open({
-            id: 'pivot-table-panel',
+            id: PIVOT_TABLE_PANEL_ID,
             header: { title: 'Pivot Table Panel' },
             children: {
                 label: {
@@ -59,12 +61,7 @@ export const ShowPivotTablePanelOperation: IOperation<IShowPivotTablePanelOperat
                 },
             },
             width: 400,
-            onClose: () => {
-                sidebarService.close('pivot-table-panel');
-            },
         });
-      // const panelService = accessor.get(ISheetsPivotTablePanelService);
-      // panelService.openPanel(params.unitId, params.subUnitId, params.pivotTableId);
         return true;
     },
 };
@@ -75,10 +72,9 @@ export const ShowPivotTablePanelOperation: IOperation<IShowPivotTablePanelOperat
 export const HidePivotTablePanelOperation: IOperation = {
     type: CommandType.OPERATION,
     id: 'sheet.operation.hide-pivot-table-panel',
-
     handler: (accessor) => {
-        const panelService = accessor.get(ISheetsPivotTablePanelService);
-        panelService.closePanel();
+        const sidebarService = accessor.get(ISidebarService);
+        sidebarService.close(PIVOT_TABLE_PANEL_ID);
         return true;
     },
 };
@@ -143,6 +139,21 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
         }
 
         const pivotTableId = generateRandomId();
+        const fields = (() => {
+            const fields: ISourceFields[] = [];
+            for (let i = 0; i < pivotInfo.sourceRange.endColumn - pivotInfo.sourceRange.startColumn + 1; i++) {
+                fields.push({
+                    sourceColumnIndex: i,
+                    rangeKey: serializeRangeWithSpreadsheet(unitId, subUnitId, {
+                        ...pivotInfo.sourceRange,
+                        startColumn: i + pivotInfo.sourceRange.startColumn,
+                        endColumn: i + pivotInfo.sourceRange.startColumn,
+                    }),
+                });
+            }
+            return fields;
+        })();
+
         await commandService.executeCommand(CreatePivotTableCommand.id, {
             unitId,
             subUnitId: targetSheetId,
@@ -153,6 +164,7 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
                     range: pivotInfo.sourceRange,
                     subUnitId,
                     unitId,
+                    fields,
                 },
                 targetCellInfo: {
                     row: targetRange.startRow,
