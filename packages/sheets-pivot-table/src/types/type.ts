@@ -64,6 +64,8 @@ export interface IPivotField {
     sourceColumnIndex: number;
     /** Field display name */
     name: string;
+    /** Range key */
+    // rangeKey: string;
     /** Field area (row, column, value, filter) */
     // area?: PivotFieldAreaType;
     /** Aggregation function (for value fields) */

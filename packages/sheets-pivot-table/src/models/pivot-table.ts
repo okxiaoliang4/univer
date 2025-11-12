@@ -20,7 +20,7 @@ import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceFields, ISou
 import type { PivotValuePosition } from './pivot-engine';
 import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
-import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged } from 'rxjs';
+import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, pairwise } from 'rxjs';
 import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
 import { PivotEngine } from './pivot-engine';
 
@@ -115,6 +115,15 @@ export class PivotTable extends Disposable {
     }
 
     private _initListeners(): void {
+        this._initCalculatedDataListener();
+        this._initSourceFieldsListener();
+        this._initFieldsUpdateListener();
+    }
+
+    /**
+     * Listen to field changes and update calculated data
+     */
+    private _initCalculatedDataListener(): void {
         this.disposeWithMe(
             combineLatest([
                 this.valueFields$,
@@ -134,7 +143,12 @@ export class PivotTable extends Disposable {
                     this._calculatedData$.next(cellValue);
                 })
         );
+    }
 
+    /**
+     * Listen to source range info and data changes, update source fields
+     */
+    private _initSourceFieldsListener(): void {
         this.disposeWithMe(
             combineLatest([
                 this.sourceRangeInfo$.pipe(distinctUntilChanged((prev, curr) => {
@@ -145,27 +159,64 @@ export class PivotTable extends Disposable {
                 const fields: ISourceFields[] = [];
                 const { unitId, subUnitId, range } = sourceRangeInfo;
                 for (let i = 0; i < range.endColumn - range.startColumn + 1; i++) {
+                    const columnIndex = i + range.startColumn;
                     fields.push({
                         sourceColumnIndex: i,
                         rangeKey: serializeRangeWithSpreadsheet(unitId, subUnitId, {
                             ...range,
-                            startColumn: i + range.startColumn,
-                            endColumn: i + range.startColumn,
+                            startColumn: columnIndex,
+                            endColumn: columnIndex,
                         }),
                     });
                 }
 
-                const sourceFields = fields.map((field) => {
+                const sourceFields = fields.map((field, index) => {
                     const range = deserializeRangeWithSheetWithCache(field.rangeKey);
                     return {
                         id: serializeRangeToRefString(range),
-                        name: sourceData[range.range.startRow]?.[field.sourceColumnIndex]?.v || `Field ${field.sourceColumnIndex + 1}`,
+                        name: String(sourceData[range.range.startRow]?.[range.range.startColumn]?.v as string) || `Field ${index + 1}`,
                         sourceColumnIndex: field.sourceColumnIndex,
-                    } as IPivotField;
+                    } satisfies IPivotField;
                 });
                 this._sourceFields$.next(sourceFields);
             })
         );
+    }
+
+    /**
+     * Listen to source fields changes, filter and update all pivot fields
+     */
+    private _initFieldsUpdateListener(): void {
+        this.disposeWithMe(this.sourceFields$.pipe(pairwise()).subscribe(([_prev, curr]) => {
+            // Create a map of source fields by id for quick lookup
+            const sourceFieldMap = new Map<string, IPivotField>();
+            for (const sourceField of curr) {
+                sourceFieldMap.set(sourceField.id, sourceField);
+            }
+
+            // Helper function to filter and update fields in a single pass
+            const filterAndUpdateFields = (fields: IPivotField[]): IPivotField[] => {
+                const result: IPivotField[] = [];
+                for (const field of fields) {
+                    // Extract rangeKey from field id (format: prefix_rangeKey) - only once
+                    const rangeKey = field.id.split('_').slice(1).join('_');
+                    const sourceField = sourceFieldMap.get(rangeKey);
+                    if (sourceField) {
+                        result.push({
+                            ...field,
+                            name: sourceField.name,
+                        });
+                    }
+                }
+                return result;
+            };
+
+            // Update all field types
+            this.setValueFields(filterAndUpdateFields(this.getValueFields()));
+            this.setRowFields(filterAndUpdateFields(this.getRowFields()));
+            this.setColumnFields(filterAndUpdateFields(this.getColumnFields()));
+            this.setFilterFields(filterAndUpdateFields(this.getFilterFields()));
+        }));
     }
 
     getId(): string {
