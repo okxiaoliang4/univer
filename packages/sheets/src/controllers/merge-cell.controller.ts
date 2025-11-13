@@ -54,7 +54,7 @@ import {
     Tools,
     UniverInstanceType,
 } from '@univerjs/core';
-import { first } from 'rxjs';
+import { filter, take } from 'rxjs';
 import { ClearSelectionAllCommand } from '../commands/commands/clear-selection-all.command';
 import { ClearSelectionFormatCommand } from '../commands/commands/clear-selection-format.command';
 import { DeleteRangeMoveLeftCommand } from '../commands/commands/delete-range-move-left.command';
@@ -333,12 +333,21 @@ export class MergeCellController extends Disposable {
             })
         );
 
-        this._univerInstanceService.getCurrentTypeOfUnit$<Workbook>(UniverInstanceType.UNIVER_SHEET).pipe(first((workbook) => !!workbook)).subscribe((workbook) => {
-            const sheet = workbook!.getActiveSheet();
-            if (!sheet) return;
+        // Use filter + take(1) instead of first() to avoid EmptyError when Observable completes
+        // before a matching value is emitted. Also wrap with disposeWithMe to properly manage subscription.
+        this.disposeWithMe(
+            this._univerInstanceService.getCurrentTypeOfUnit$<Workbook>(UniverInstanceType.UNIVER_SHEET)
+                .pipe(
+                    filter((workbook): workbook is Workbook => !!workbook),
+                    take(1)
+                )
+                .subscribe((workbook) => {
+                    const sheet = workbook.getActiveSheet();
+                    if (!sheet) return;
 
-            registerRefRange(workbook!.getUnitId(), sheet.getSheetId());
-        });
+                    registerRefRange(workbook.getUnitId(), sheet.getSheetId());
+                })
+        );
     }
 
     private _handleMoveRowsCommand(params: IMoveRowsCommandParams, unitId: string, subUnitId: string) {
