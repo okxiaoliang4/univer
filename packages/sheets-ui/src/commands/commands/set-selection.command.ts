@@ -120,7 +120,11 @@ export const MoveSelectionCommand: ICommand<IMoveSelectionCommandParams> = {
 
         const selections = [
             {
-                range: Rectangle.clone(destRange),
+                range: {
+                    ...destRange,
+                    unitId,
+                    sheetId: worksheet.getSheetId(),
+                },
                 primary: {
                     startRow: destRange.startRow,
                     startColumn: destRange.startColumn,
@@ -364,7 +368,7 @@ export const ExpandSelectionCommand: ICommand<IExpandSelectionCommandParams> = {
                     endRow: startRange.startRow,
                     endColumn: startRange.startColumn,
                     unitId: startRange.unitId,
-                    subUnitId: startRange.sheetId,
+                    sheetId: startRange.sheetId,
                 };
                 selectionsService.setFocusAnchor(anchorRange);
             }
@@ -397,7 +401,11 @@ export const ExpandSelectionCommand: ICommand<IExpandSelectionCommandParams> = {
             type: SelectionMoveType.MOVE_END,
             selections: [
                 {
-                    range: destRange,
+                    range: {
+                        ...destRange,
+                        unitId,
+                        sheetId: subUnitId,
+                    },
                     primary, // this remains unchanged
                 },
             ],
