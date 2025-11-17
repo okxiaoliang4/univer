@@ -16,7 +16,7 @@
 
 import type { IDisposable, IRangeWithCoord, Nullable, Workbook } from '@univerjs/core';
 import type { IMouseEvent, IPointerEvent, IRenderContext, IRenderModule, Scene, SpreadsheetSkeleton, Viewport } from '@univerjs/engine-render';
-import type { ISelectionStyle, ISelectionWithCoord, ISelectionWithStyle, SheetsSelectionsService, WorkbookSelectionModel } from '@univerjs/sheets';
+import type { ISelectionStyle, ISelectionWithCoord, ISelectionWithStyle, RefSelectionsService, WorkbookSelectionModel } from '@univerjs/sheets';
 import { DisposableCollection, IContextService, Inject, Injector, RANGE_TYPE, Rectangle, ThemeService, toDisposable } from '@univerjs/core';
 import { ScrollTimerType, SHEET_VIEWPORT_KEY, Vector2 } from '@univerjs/engine-render';
 import { convertSelectionDataToRange, IRefSelectionsService, SelectionMoveType } from '@univerjs/sheets';
@@ -45,7 +45,7 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
         @IShortcutService shortcutService: IShortcutService,
         @Inject(SheetSkeletonManagerService) sheetSkeletonManagerService: SheetSkeletonManagerService,
         @IContextService protected readonly _contextService: IContextService,
-        @IRefSelectionsService private readonly _refSelectionsService: SheetsSelectionsService
+        @IRefSelectionsService private readonly _refSelectionsService: RefSelectionsService
     ) {
         super(
             injector,
@@ -307,6 +307,12 @@ export class RefSelectionsRenderService extends BaseSelectionRenderService imple
 
         const selectCell = this._skeleton.getCellByOffset(offsetX, offsetY, scaleX, scaleY, scrollXY);
         if (!selectCell) return;
+        this._refSelectionsService.setFocusAnchor({
+            startRow: selectCell.startRow,
+            startColumn: selectCell.startColumn,
+            endRow: selectCell.startRow,
+            endColumn: selectCell.startColumn,
+        });
         switch (rangeType) {
             case RANGE_TYPE.NORMAL:
                 break;

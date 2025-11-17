@@ -21,6 +21,7 @@ import { DocSelectionManagerService } from '@univerjs/docs';
 import { DocSelectionRenderService } from '@univerjs/docs-ui';
 import { deserializeRangeWithSheetWithCache, isFormulaLexerToken, LexerTreeBuilder, matchRefDrawToken, matchToken, sequenceNodeType } from '@univerjs/engine-formula';
 import { IRenderManagerService } from '@univerjs/engine-render';
+import { IRefSelectionsService } from '@univerjs/sheets';
 import { useDependency, useEvent } from '@univerjs/ui';
 import { useEffect, useRef, useState } from 'react';
 import { filter } from 'rxjs';
@@ -62,9 +63,27 @@ export function useFormulaSelecting(opts: { editorId: string; isFocus: boolean; 
     const lexerTreeBuilder = useDependency(LexerTreeBuilder);
     const isDisabledByPointer = useRef(true);
     const refSelectionsRenderService = sheetRenderer?.with(RefSelectionsRenderService);
+    const refSelectionsService = useDependency(IRefSelectionsService);
     const isSelectingRef = useStateRef(isSelecting);
     const workbook = univerInstanceService.getUnit<Workbook>(unitId, UniverInstanceType.UNIVER_SHEET);
     const sourceSheet = workbook?.getSheetBySheetId(subUnitId);
+
+    useEffect(() => {
+        if (!refSelectionsRenderService) return;
+        if (isSelecting === FormulaSelectingType.CAN_EDIT) {
+            const activeRange = refSelectionsRenderService.getActiveRange();
+            if (activeRange) {
+                refSelectionsService.setFocusAnchor({
+                    startRow: activeRange.startRow,
+                    startColumn: activeRange.startColumn,
+                    endRow: activeRange.startRow,
+                    endColumn: activeRange.startColumn,
+                });
+                return;
+            }
+        }
+        refSelectionsService.setFocusAnchor(null);
+    }, [isSelecting, refSelectionsRenderService, refSelectionsService]);
 
     const setIsSelecting = useEvent((v: FormulaSelectingType) => {
         if (refSelectionsRenderService) {
