@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
-import type { Workbook } from '@univerjs/core';
+import type { IRange, Nullable, Workbook } from '@univerjs/core';
 import type { Observable } from 'rxjs';
 import type { WorkbookSelectionModel } from './selection-data-model';
 import { createIdentifier, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { BehaviorSubject, map, merge, of, switchMap, takeUntil } from 'rxjs';
 import { SheetsSelectionsService } from './selection.service';
+
+interface IRefSelectionsService extends SheetsSelectionsService {
+    getFocusAnchor(): Nullable<IRange>;
+    setFocusAnchor(focusAnchor: Nullable<IRange>): void;
+}
 
 /**
  * Ref selections service reuses code of `SelectionManagerService`. And it only contains ref selections
@@ -27,13 +32,16 @@ import { SheetsSelectionsService } from './selection.service';
  *
  * Its data should be cleared by the caller quit editing formula and reconstructed when user starts editing.
  */
-export const IRefSelectionsService = createIdentifier<SheetsSelectionsService>('sheets-formula.ref-selections.service');
+export const IRefSelectionsService = createIdentifier<IRefSelectionsService>('sheets-formula.ref-selections.service');
 
 /**
  * RefSelectionsService treats `selectionMoveStart$` `selectionMoving$` and `selectionMoveEnd$` differently
  * than `SheetsSelectionsService`. Because ref selections can be in different workbooks.
  */
 export class RefSelectionsService extends SheetsSelectionsService {
+    private _focusAnchor$ = new BehaviorSubject<Nullable<IRange>>(null);
+    readonly focusAnchor$ = this._focusAnchor$.asObservable();
+
     constructor(
         @IUniverInstanceService _instanceSrv: IUniverInstanceService
     ) {
@@ -50,6 +58,7 @@ export class RefSelectionsService extends SheetsSelectionsService {
 
     override dispose(): void {
         super.dispose();
+        this._focusAnchor$.complete();
 
         // @ts-ignore
         this.selectionMoveStart$ = of(null);
@@ -62,6 +71,14 @@ export class RefSelectionsService extends SheetsSelectionsService {
         //@ts-ignore
         delete this._instanceSrv;
         this._workbookSelections.clear();
+    }
+
+    getFocusAnchor(): Nullable<IRange> {
+        return this._focusAnchor$.getValue() ?? null;
+    }
+
+    setFocusAnchor(focusAnchor: Nullable<IRange>): void {
+        this._focusAnchor$.next(focusAnchor);
     }
 
     private _getAliveWorkbooks$(): Observable<WorkbookSelectionModel[]> {
