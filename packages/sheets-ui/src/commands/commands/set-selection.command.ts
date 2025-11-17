@@ -18,7 +18,7 @@ import type { ICommand, IMutationInfo, IRange } from '@univerjs/core';
 import type {
     ISetSelectionsOperationParams,
 } from '@univerjs/sheets';
-import { CommandType, Direction, ICommandService, IUniverInstanceService, RANGE_TYPE, Rectangle, sequenceExecute, Tools } from '@univerjs/core';
+import { CommandType, Direction, ICommandService, IContextService, IUniverInstanceService, RANGE_TYPE, Rectangle, sequenceExecute, Tools } from '@univerjs/core';
 
 import { IRenderManagerService } from '@univerjs/engine-render';
 import {
@@ -26,6 +26,8 @@ import {
     getCellAtRowCol,
     getSelectionsService,
     getSheetCommandTarget,
+    IRefSelectionsService,
+    REF_SELECTIONS_ENABLED,
     SelectionMoveType,
     SetSelectionsOperation,
     SheetInterceptorService,
@@ -41,6 +43,7 @@ import {
     expandToWholeSheet,
     findNextGapRange,
     findNextRange,
+    getEdgeOfRange,
     getStartRange,
     shrinkToNextCell,
     shrinkToNextGapRange,
@@ -100,6 +103,8 @@ export const MoveSelectionCommand: ICommand<IMoveSelectionCommandParams> = {
                 ? findNextGapRange(startRange, direction, worksheet)
                 : findNextRange(startRange, direction, worksheet);
         const destRange = getCellAtRowCol(next.startRow, next.startColumn, worksheet);
+
+        accessor.get(IRefSelectionsService).setFocusAnchor(destRange);
 
         if (Rectangle.equals(destRange, startRange)) {
             return false;
@@ -336,13 +341,38 @@ export const ExpandSelectionCommand: ICommand<IExpandSelectionCommandParams> = {
 
         const { worksheet, unitId, subUnitId } = target;
 
-        const selection = getSelectionsService(accessor).getCurrentLastSelection();
+        const contextService = accessor.get(IContextService);
+        const isInRefSelectionMode = contextService.getContextValue(REF_SELECTIONS_ENABLED);
+
+        const selectionsService = accessor.get(IRefSelectionsService);
+        const selection = selectionsService.getCurrentLastSelection();
         if (!selection) return false;
 
         const { range: startRange, primary } = selection;
         const { jumpOver, direction, extra } = params;
 
-        const isShrink = checkIfShrink(selection, direction, worksheet);
+        let anchorRange: IRange;
+
+        if (isInRefSelectionMode) {
+            const focusAnchor = selectionsService.getFocusAnchor();
+            if (focusAnchor) {
+                anchorRange = focusAnchor;
+            } else {
+                anchorRange = {
+                    startRow: startRange.startRow,
+                    startColumn: startRange.startColumn,
+                    endRow: startRange.startRow,
+                    endColumn: startRange.startColumn,
+                    unitId: startRange.unitId,
+                    subUnitId: startRange.sheetId,
+                };
+                selectionsService.setFocusAnchor(anchorRange);
+            }
+        } else {
+            anchorRange = getEdgeOfRange(startRange, direction, worksheet);
+        }
+
+        const isShrink = checkIfShrink(selection, direction, anchorRange);
         const destRange = !isShrink
             ? jumpOver === JumpOver.moveGap
                 ? expandToNextGapRange(startRange, direction, worksheet)

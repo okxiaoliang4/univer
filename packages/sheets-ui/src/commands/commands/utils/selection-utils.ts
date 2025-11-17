@@ -420,7 +420,7 @@ export function expandToWholeSheet(worksheet: Worksheet): IRange {
     };
 }
 
-function getEdgeOfRange(startRange: IRange, direction: Direction, worksheet: Worksheet): IRange {
+export function getEdgeOfRange(startRange: IRange, direction: Direction, worksheet: Worksheet): IRange {
     let destRange: IRange;
     switch (direction) {
         case Direction.UP:
@@ -510,7 +510,7 @@ export function getStartRange(range: IRange, primary: Nullable<ISelectionCell>, 
     return ret;
 }
 
-export function checkIfShrink(selection: ISelection, direction: Direction, worksheet: Worksheet): boolean {
+export function checkIfShrink(selection: ISelection, direction: Direction, anchorRange: IRange): boolean {
     const { primary, range } = selection;
 
     const startRange: IRange = Rectangle.clone(range);
@@ -527,7 +527,6 @@ export function checkIfShrink(selection: ISelection, direction: Direction, works
             break;
     }
 
-    const anchorRange = getEdgeOfRange(startRange, direction, worksheet);
     switch (direction) {
         case Direction.DOWN:
             return range.startRow < anchorRange.startRow;
