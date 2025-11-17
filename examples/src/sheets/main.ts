@@ -50,6 +50,7 @@ import { UniverSheetsZenEditorPlugin } from '@univerjs/sheets-zen-editor';
 import { UniverUIPlugin } from '@univerjs/ui';
 import { UniverVue3AdapterPlugin } from '@univerjs/ui-adapter-vue3';
 import { UniverWebComponentAdapterPlugin } from '@univerjs/ui-adapter-web-component';
+import { customRangePopups } from './custom/custom-range-popup';
 import { customRegisterEvent } from './custom/custom-register-event';
 import { UniverSheetsCustomShortcutPlugin } from './custom/custom-shortcut';
 import ImportCSVButtonPlugin from './custom/import-csv-button';
@@ -121,6 +122,7 @@ function createNewInstance() {
         [UniverRenderEnginePlugin],
         [UniverUIPlugin, {
             container: 'app',
+            // ribbonType: 'classic',
         }],
         [UniverWebComponentAdapterPlugin],
         [UniverVue3AdapterPlugin],
@@ -190,6 +192,7 @@ function createNewInstance() {
     window.univerAPI = FUniver.newAPI(univer);
 
     customRegisterEvent(univer, window.univerAPI!);
+    customRangePopups(univer, window.univerAPI!);
 }
 
 createNewInstance();

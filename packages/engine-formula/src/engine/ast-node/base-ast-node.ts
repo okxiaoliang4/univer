@@ -23,7 +23,7 @@ import { AstNodePromiseType } from '../../basics/common';
 import { ErrorValueObject } from '../value-object/base-value-object';
 import { NodeType } from './node-type';
 
-interface IAstNodeNodeJson {
+export interface IAstNodeNodeJson {
     token: string;
     children?: IAstNodeNodeJson[];
     nodeType: number;
@@ -69,6 +69,14 @@ export class BaseAstNode {
 
     get nodeType() {
         return NodeType.BASE;
+    }
+
+    resetCalculationState() {
+        this._children.forEach((node) => {
+            node.resetCalculationState();
+        });
+        this._valueObject = null;
+        this._calculateState = false;
     }
 
     isAsync() {
