@@ -51,7 +51,7 @@ export class NumfmtAlertRenderController extends Disposable implements IRenderMo
                 const location = cellPos.location;
                 const workbook = this._context.unit;
                 const worksheet = workbook.getActiveSheet();
-                if (!worksheet) return;
+                if (!worksheet) return this._hideAlert();
 
                 const unitId = location.unitId;
                 const sheetId = location.subUnitId;
@@ -91,6 +91,7 @@ export class NumfmtAlertRenderController extends Disposable implements IRenderMo
                         currentLoc.subUnitId === location.subUnitId &&
                         currentLoc.unitId === location.unitId
                     ) {
+                        this._hideAlert();
                         return;
                     }
 

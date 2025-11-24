@@ -22,7 +22,7 @@ import { UniscriptMenuItemFactory } from './menu';
 export const menuSchema: MenuSchemaType = {
     [RibbonOthersGroup.OTHERS]: {
         [ToggleScriptPanelOperation.id]: {
-            order: 2,
+            order: 0,
             menuItemFactory: UniscriptMenuItemFactory,
         },
     },

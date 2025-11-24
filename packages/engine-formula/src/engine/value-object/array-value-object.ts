@@ -640,7 +640,8 @@ export class ArrayValueObject extends BaseValueObject {
         let maxOrMinPosition: Nullable<{ row: number; column: number }>;
 
         const _handleMatch = (itemValue: Nullable<BaseValueObject>, row: number, column: number) => {
-            if (itemValue == null) {
+            // Skip the blank cells
+            if (itemValue == null || itemValue.isNull()) {
                 return true;
             }
 
@@ -1725,6 +1726,14 @@ export class ArrayValueObject extends BaseValueObject {
          * Inverted indexing enhances matching performance.
          */
         if (currentValue == null) {
+            return;
+        }
+
+        /**
+         * The blank cell are not stored in the inverted index, so skip it.
+         * If needed store it in the future. ask @DR-Univer
+         */
+        if (currentValue.isNull()) {
             return;
         }
 

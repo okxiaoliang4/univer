@@ -17,7 +17,7 @@
 import type { Workbook } from '@univerjs/core';
 import type { IRenderContext, IRenderModule } from '@univerjs/engine-render';
 import type { IUniverSheetsUIConfig } from './config.schema';
-import { CellValueType, Disposable, IConfigService, Inject, isRealNum, LocaleService, numfmt } from '@univerjs/core';
+import { CellValueType, Disposable, IConfigService, Inject, isRealNum, isTextFormat, LocaleService, numfmt } from '@univerjs/core';
 import { IZenZoneService } from '@univerjs/ui';
 import { CellAlertManagerService, CellAlertType } from '../services/cell-alert-manager.service';
 import { HoverManagerService } from '../services/hover-manager.service';
@@ -46,14 +46,30 @@ export class ForceStringAlertRenderController extends Disposable implements IRen
     private _initCellAlertPopup() {
         this.disposeWithMe(this._hoverManagerService.currentCell$.subscribe((cellPos) => {
             if (cellPos) {
+                const location = cellPos.location;
                 const workbook = this._context.unit;
                 const worksheet = workbook.getActiveSheet();
 
-                if (!worksheet) return;
+                if (!worksheet) return this._hideAlert();
 
-                const cellData = worksheet.getCell(cellPos.location.row, cellPos.location.col);
+                const cellData = worksheet.getCell(location.row, location.col);
 
-                if (!cellData || cellData.v === null || cellData.v === undefined) return;
+                if (!cellData || cellData.v === null || cellData.v === undefined) return this._hideAlert();
+
+                let numfmtValue;
+
+                if (cellData?.s) {
+                    const style = workbook.getStyles().get(cellData.s);
+                    if (style?.n) {
+                        numfmtValue = style.n;
+                    }
+                }
+
+                // If the cell has text format, follow the logic of text format and do not show the force string alert.
+                if (isTextFormat(numfmtValue?.pattern)) {
+                    this._hideAlert();
+                    return;
+                }
 
                 /**
                  * If the cell type is string or force string, and the value is a pure number or a string that can be converted to a number, show the force string alert.
@@ -67,6 +83,11 @@ export class ForceStringAlertRenderController extends Disposable implements IRen
                     (cellData.t === CellValueType.FORCE_STRING || cellData.t === CellValueType.STRING) &&
                     (isRealNum(cellData.v) || (typeof cellData.v === 'string' && numfmt.parseNumber(cellData.v)))
                 ) {
+                    // If the user has disabled the force string alert, do not show it
+                    if (this._configService.getConfig<IUniverSheetsUIConfig>(SHEETS_UI_PLUGIN_CONFIG_KEY)?.disableForceStringAlert) {
+                        return;
+                    }
+
                     const currentAlert = this._cellAlertManagerService.currentAlert.get(ALERT_KEY);
                     const currentLoc = currentAlert?.alert?.location;
                     if (
@@ -76,11 +97,7 @@ export class ForceStringAlertRenderController extends Disposable implements IRen
                         currentLoc.subUnitId === cellPos.location.subUnitId &&
                         currentLoc.unitId === cellPos.location.unitId
                     ) {
-                        return;
-                    }
-
-                    // If the user has disabled the force string alert, do not show it
-                    if (this._configService.getConfig<IUniverSheetsUIConfig>(SHEETS_UI_PLUGIN_CONFIG_KEY)?.disableForceStringAlert) {
+                        this._hideAlert();
                         return;
                     }
 
@@ -88,7 +105,7 @@ export class ForceStringAlertRenderController extends Disposable implements IRen
                         type: CellAlertType.ERROR,
                         title: this._localeService.t('info.error'),
                         message: this._localeService.t('info.forceStringInfo'),
-                        location: cellPos.location,
+                        location,
                         width: 200,
                         height: 74,
                         key: ALERT_KEY,
