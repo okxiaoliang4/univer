@@ -217,3 +217,76 @@ Protection is implemented using a layered architecture:
 - **AND** displays a permission error dialog
 - **AND** the pivot table output remains unchanged
 
+### Requirement: Pivot Table Formula Integration
+
+The system SHALL enable formulas to reference pivot table output cells seamlessly, allowing users to create calculations based on pivot table results without writing data to the worksheet model.
+
+Formula integration is implemented using the feature calculation mechanism:
+- **Formula Engine Integration**: `PivotTableFormulaController` registers pivot tables as features in `IFeatureCalculationManagerService`
+- **Runtime Data Provision**: Pivot table output is provided to the formula engine as runtime cell data without persisting to the model
+- **Automatic Lifecycle Management**: Features are registered/unregistered when pivot tables are created/deleted
+- **Dynamic Range Updates**: Feature dependency ranges are updated when pivot table configuration changes
+
+#### Scenario: Simple formula referencing pivot output cell
+- **WHEN** a user creates a formula `=C3` where `C3` is a pivot table output cell
+- **THEN** the formula engine calls the pivot table feature's `getDirtyData()` callback
+- **AND** receives the pivot table value for that cell position
+- **AND** the formula calculates correctly using the pivot table data
+
+#### Scenario: Formula with operations on pivot output cells
+- **WHEN** a user creates a formula `=C3+D3` where both `C3` and `D3` are pivot table output cells
+- **THEN** the formula engine retrieves values from both cells via the feature callback
+- **AND** performs the addition operation correctly
+- **AND** returns the calculated result
+
+#### Scenario: Formula referencing pivot table in different worksheet
+- **WHEN** a user creates a formula in `Sheet2!A1` that references `Sheet1!C3` where `C3` is pivot output
+- **THEN** the formula engine correctly resolves the cross-sheet reference
+- **AND** retrieves pivot data from the appropriate unit and sheet
+- **AND** calculates the formula using the pivot table value
+
+#### Scenario: Automatic formula recalculation when pivot data changes
+- **WHEN** pivot table source data is modified (e.g., values in source range change)
+- **AND** the pivot table recalculates its output
+- **THEN** any formulas referencing the pivot output automatically recalculate
+- **AND** the new formula results reflect the updated pivot table values
+
+#### Scenario: Feature registration on pivot table creation
+- **WHEN** a new pivot table is created via `SheetsPivotTableService.createPivotTable()`
+- **THEN** `PivotTableFormulaController` automatically registers the pivot table as a feature
+- **AND** executes `SetFeatureCalculationMutation` with appropriate parameters
+- **AND** the feature is available for formula calculations immediately
+
+#### Scenario: Feature unregistration on pivot table deletion
+- **WHEN** a pivot table is deleted via `SheetsPivotTableService.deletePivotTable()`
+- **THEN** `PivotTableFormulaController` automatically unregisters the feature
+- **AND** executes `RemoveFeatureCalculationMutation` to clean up the feature
+- **AND** formulas referencing the deleted pivot table return errors
+
+#### Scenario: Feature range updates when pivot table moves
+- **WHEN** a pivot table's target cell is changed via `updateTargetCell()`
+- **THEN** `PivotTableFormulaController` detects the range change event
+- **AND** unregisters the old feature and registers a new feature with updated ranges
+- **AND** formulas continue to work with the moved pivot table
+
+#### Scenario: Feature range updates when pivot output size changes
+- **WHEN** pivot table field configuration changes cause the output dimensions to change
+- **THEN** `PivotTableFormulaController` detects the range change event
+- **AND** updates the feature dependency ranges to match the new output size
+- **AND** formulas referencing cells outside the new range return errors
+- **AND** formulas referencing cells within the new range continue to work
+
+#### Scenario: Runtime data isolation from worksheet model
+- **WHEN** formulas reference pivot table output cells
+- **THEN** the formula engine receives data from the feature callback
+- **AND** the worksheet model cells remain empty (no data persistence)
+- **AND** pivot table values are not saved to the document
+- **AND** rendering continues to use `CELL_CONTENT` interceptor for display
+
+#### Scenario: Performance optimization with O(1) data access
+- **WHEN** the formula engine calls `getDirtyData()` for pivot table features
+- **THEN** the callback performs O(1) lookup in the pre-calculated pivot output matrix
+- **AND** transforms relative positions to absolute worksheet positions
+- **AND** returns data in the expected `IRuntimeUnitDataType` format
+- **AND** does not trigger pivot table recalculation during formula evaluation
+

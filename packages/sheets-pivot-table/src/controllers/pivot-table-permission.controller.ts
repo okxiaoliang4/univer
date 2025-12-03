@@ -88,6 +88,11 @@ export class PivotTablePermissionController extends Disposable {
                             [UnitAction.View]: true,
                         }];
 
+                        // Inject pivot output value
+                        const outputCellMatrix = pivotTable?.getOutputCellMatrix();
+                        const targetCellInfo = pivotTable.getTargetCellInfo();
+                        _cellData.v = outputCellMatrix?.[row - targetCellInfo.row]?.[col - targetCellInfo.col]?.v;
+
                         return next(_cellData);
                     }
 
