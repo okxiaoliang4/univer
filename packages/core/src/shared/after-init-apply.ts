@@ -16,7 +16,7 @@
 
 import type { ICommandService } from '../services/command/command.service';
 import { merge, timer } from 'rxjs';
-import { debounceTime, filter, first } from 'rxjs/operators';
+import { debounceTime, filter, take } from 'rxjs/operators';
 import { CommandType } from '../services/command/command.service';
 import { fromCallback } from './rxjs';
 
@@ -27,7 +27,7 @@ export const afterInitApply = (commandService: ICommandService) => {
                 return info.type === CommandType.MUTATION;
             })),
             timer(300)
-        ).pipe(debounceTime(16), first()).subscribe(() => {
+        ).pipe(debounceTime(16), take(1)).subscribe(() => {
             res();
         });
     });

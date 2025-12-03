@@ -18,7 +18,7 @@ import type { CSSProperties } from 'react';
 import type { IFloatDom } from '../../../services/dom/canvas-dom-layer.service';
 import { DocumentDataModel, IUniverInstanceService } from '@univerjs/core';
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { distinctUntilChanged, first } from 'rxjs';
+import { distinctUntilChanged, take } from 'rxjs';
 import { ComponentManager } from '../../../common';
 import { CanvasFloatDomService } from '../../../services/dom/canvas-dom-layer.service';
 import { useDependency, useObservable } from '../../../utils/di';
@@ -35,7 +35,7 @@ export const FloatDomSingle = memo((props: { layer: IFloatDom; id: string }) => 
         )
     ), [layer.position$]);
     const univerInstanceService = useDependency(IUniverInstanceService);
-    const position = useObservable(useMemo(() => layer.position$.pipe(first()), [layer.position$]));
+    const position = useObservable(useMemo(() => layer.position$.pipe(take(1)), [layer.position$]));
     const domRef = useRef<HTMLDivElement>(null);
     const innerDomRef = useRef<HTMLDivElement>(null);
     const transformRef = useRef<string>(`transform: rotate(${position?.rotate}deg) translate(${position?.startX}px, ${position?.startY}px)`);
