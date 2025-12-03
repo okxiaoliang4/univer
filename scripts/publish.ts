@@ -35,10 +35,22 @@ for await (const pkgGlob of [
     packages.push(path.resolve(file, '..'));
 }
 
-await Promise.allSettled(
+await Promise.all(
     packages.map(async (p) => {
         await Bun.$.cwd(p)`pnpm build`;
-        await Bun.$.cwd(p)`pnpm unpublish -f`;
-        await Bun.$.cwd(p)`pnpm publish`;
     })
 );
+
+const results = await Promise.allSettled(
+    packages.map(async (p) => {
+        try {
+            await Bun.$.cwd(p)`pnpm unpublish -f`;
+            await Bun.$.cwd(p)`pnpm publish`;
+            return { status: 'success', package: p };
+        } catch (error) {
+            return { status: 'error', package: p, error };
+        }
+    })
+);
+
+console.log(results.map((result) => `${result.status === 'fulfilled' ? result.value.package : result.reason}: ${result.status}`));
