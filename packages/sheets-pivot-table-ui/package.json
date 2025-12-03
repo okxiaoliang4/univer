@@ -77,11 +77,13 @@
         "@dnd-kit/utilities": "^3.2.2",
         "@univerjs/core": "workspace:*",
         "@univerjs/design": "workspace:*",
+        "@univerjs/docs-ui": "workspace:*",
         "@univerjs/engine-formula": "workspace:*",
         "@univerjs/icons": "^0.4.9",
         "@univerjs/sheets": "workspace:*",
         "@univerjs/sheets-formula-ui": "workspace:*",
         "@univerjs/sheets-pivot-table": "workspace:*",
+        "@univerjs/sheets-ui": "workspace:*",
         "@univerjs/ui": "workspace:*"
     },
     "devDependencies": {

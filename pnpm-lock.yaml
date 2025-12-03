@@ -2854,6 +2854,9 @@ importers:
       '@univerjs/design':
         specifier: workspace:*
         version: link:../design
+      '@univerjs/docs-ui':
+        specifier: workspace:*
+        version: link:../docs-ui
       '@univerjs/engine-formula':
         specifier: workspace:*
         version: link:../engine-formula
@@ -2869,6 +2872,9 @@ importers:
       '@univerjs/sheets-pivot-table':
         specifier: workspace:*
         version: link:../sheets-pivot-table
+      '@univerjs/sheets-ui':
+        specifier: workspace:*
+        version: link:../sheets-ui
       '@univerjs/ui':
         specifier: workspace:*
         version: link:../ui

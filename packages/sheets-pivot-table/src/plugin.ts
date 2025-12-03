@@ -28,6 +28,7 @@ import {
     SetPivotTableValuePositionMutation,
 } from './commands/mutations/pivot-table.mutation';
 import { defaultPluginConfig, SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
+import { PivotTablePermissionController } from './controllers/pivot-table-permission.controller';
 import { SheetPviotTableRangeController } from './controllers/pivot-table-range.controller';
 import { SheetPivotTableController } from './controllers/pivot-table.controller';
 import { SheetsPivotDataSourceModel } from './models/sheets-pivot-data-source-model';
@@ -60,11 +61,13 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
             [ISheetsPivotTableService, { useClass: SheetsPivotTableService }],
             [SheetPivotTableController],
             [SheetPviotTableRangeController],
+            [PivotTablePermissionController],
             [SheetsPivotDataSourceModel],
         ]);
 
         touchDependencies(this._injector, [
             [SheetPviotTableRangeController],
+            [PivotTablePermissionController],
         ]);
 
         // Register commands

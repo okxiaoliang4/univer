@@ -100,6 +100,28 @@ export interface ISheetsPivotTableService {
      * Get the data source model
      */
     getDataSourceModel(): SheetsPivotDataSourceModel;
+
+    /**
+     * Check if a cell is within any pivot table output range
+     * Used by permission system to protect pivot output cells
+     * @param unitId - Workbook ID
+     * @param subUnitId - Worksheet ID
+     * @param row - Cell row index
+     * @param col - Cell column index
+     * @returns true if cell is in any pivot output range
+     */
+    isPivotOutputCell(unitId: string, subUnitId: string, row: number, col: number): boolean;
+
+    /**
+     * Get pivot table by output cell position
+     * Returns the pivot table that contains the specified cell in its output range
+     * @param unitId - Workbook ID
+     * @param subUnitId - Worksheet ID
+     * @param row - Cell row index
+     * @param col - Cell column index
+     * @returns PivotTable if cell is in output range, undefined otherwise
+     */
+    getPivotTableByOutputCell(unitId: string, subUnitId: string, row: number, col: number): PivotTable | undefined;
 }
 
 export const ISheetsPivotTableService = createIdentifier<ISheetsPivotTableService>('sheets-pivot-table.pivot-table-service');
@@ -263,5 +285,75 @@ export class SheetsPivotTableService extends Disposable implements ISheetsPivotT
 
     getDataSourceModel(): SheetsPivotDataSourceModel {
         return this._dataSourceModel;
+    }
+
+    /**
+     * Check if a cell is within any pivot table output range
+     * Used by permission system to protect pivot output cells from manual editing
+     */
+    isPivotOutputCell(unitId: string, subUnitId: string, row: number, col: number): boolean {
+        const pivotTables = this.getWorksheetPivotTables(unitId, subUnitId);
+        if (!pivotTables) {
+            return false;
+        }
+
+        for (const pivotTable of pivotTables.values()) {
+            const targetCellInfo = pivotTable.getTargetCellInfo();
+            if (targetCellInfo.unitId !== unitId || targetCellInfo.subUnitId !== subUnitId) {
+                continue;
+            }
+
+            const outputRange = pivotTable.getOutputRange();
+            if (outputRange) {
+                // Adjust output range to absolute position using target cell
+                const absoluteRange = {
+                    startRow: outputRange.startRow + targetCellInfo.row,
+                    endRow: outputRange.endRow + targetCellInfo.row,
+                    startColumn: outputRange.startColumn + targetCellInfo.col,
+                    endColumn: outputRange.endColumn + targetCellInfo.col,
+                };
+
+                if (Rectangle.contains(absoluteRange, { startRow: row, endRow: row, startColumn: col, endColumn: col })) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get pivot table by output cell position
+     * Returns the first pivot table that contains the specified cell in its output range
+     */
+    getPivotTableByOutputCell(unitId: string, subUnitId: string, row: number, col: number): PivotTable | undefined {
+        const pivotTables = this.getWorksheetPivotTables(unitId, subUnitId);
+        if (!pivotTables) {
+            return undefined;
+        }
+
+        for (const pivotTable of pivotTables.values()) {
+            const targetCellInfo = pivotTable.getTargetCellInfo();
+            if (targetCellInfo.unitId !== unitId || targetCellInfo.subUnitId !== subUnitId) {
+                continue;
+            }
+
+            const outputRange = pivotTable.getOutputRange();
+            if (outputRange) {
+                // Adjust output range to absolute position using target cell
+                const absoluteRange = {
+                    startRow: outputRange.startRow + targetCellInfo.row,
+                    endRow: outputRange.endRow + targetCellInfo.row,
+                    startColumn: outputRange.startColumn + targetCellInfo.col,
+                    endColumn: outputRange.endColumn + targetCellInfo.col,
+                };
+
+                if (Rectangle.contains(absoluteRange, { startRow: row, endRow: row, startColumn: col, endColumn: col })) {
+                    return pivotTable;
+                }
+            }
+        }
+
+        return undefined;
     }
 }

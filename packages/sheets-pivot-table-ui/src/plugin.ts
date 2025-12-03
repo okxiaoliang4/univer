@@ -21,6 +21,7 @@ import { UniverSheetsPivotTablePlugin } from '@univerjs/sheets-pivot-table';
 import { ComponentManager } from '@univerjs/ui';
 import { PLUGIN_NAME } from './const/const';
 import { defaultPluginConfig, SHEETS_PIVOT_TABLE_UI_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
+import { PivotTablePermissionUIController } from './controllers/pivot-table-permission-ui.controller';
 import { PivotTableUIDesktopController } from './controllers/pivot-table-ui-desktop.controller';
 import { ISheetsPivotTablePanelService, SheetsPivotTablePanelService } from './services/pivot-table-panel.service';
 import { registerPivotTableComponents } from './views/menu';
@@ -54,9 +55,12 @@ export class UniverSheetsPivotTableUIPlugin extends Plugin {
 
     override onStarting(): void {
         // Register services and controllers
-        ([
+        const dependencies: Dependency[] = [
             [ISheetsPivotTablePanelService, { useClass: SheetsPivotTablePanelService }],
-        ] as Dependency[]).forEach((d) => this._injector.add(d));
+        ];
+        dependencies.forEach((d) => {
+            this._injector.add(d);
+        });
     }
 
     override onReady(): void {
@@ -68,12 +72,17 @@ export class UniverSheetsPivotTableUIPlugin extends Plugin {
         // Register components
         registerPivotTableComponents(this._componentManager);
 
-        // Register desktop controller
-        ([
+        // Register desktop controller and permission UI controller
+        const controllers: Dependency[] = [
             [PivotTableUIDesktopController],
-        ] as Dependency[]).forEach((d) => this._injector.add(d));
+            [PivotTablePermissionUIController],
+        ];
+        controllers.forEach((d) => {
+            this._injector.add(d);
+        });
 
-        // Touch desktop controller to ensure initialization
+        // Touch controllers to ensure initialization
         this._injector.get(PivotTableUIDesktopController);
+        this._injector.get(PivotTablePermissionUIController);
     }
 }

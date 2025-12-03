@@ -16,6 +16,7 @@
 
 import type { Injector } from '@univerjs/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PivotValuePosition } from '../../types/enum';
 import { SheetsPivotTableService } from '../pivot-table.service';
 
 describe('SheetsPivotTableService', () => {
@@ -70,6 +71,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: ['field2'],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -105,6 +108,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: [],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -142,6 +147,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: ['field2'],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -175,6 +182,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: ['field2'],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -210,6 +219,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: ['field2'],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -284,6 +295,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: ['field2'],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -301,6 +314,8 @@ describe('SheetsPivotTableService', () => {
                 columnFields: [],
                 valueFields: ['field2'],
                 filterFields: [],
+                valuePosition: PivotValuePosition.COLUMN,
+
             });
 
             expect(rangeChangeCalled).toBe(false);
@@ -328,6 +343,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: ['field2'],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -387,6 +404,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: [],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -420,6 +439,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: [],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -461,6 +482,8 @@ describe('SheetsPivotTableService', () => {
                     columnFields: [],
                     valueFields: [],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
+
                 },
             };
 
@@ -493,6 +516,8 @@ describe('SheetsPivotTableService', () => {
                         columnFields: [],
                         valueFields: ['field2'],
                         filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
                     },
                 };
 
@@ -549,6 +574,8 @@ describe('SheetsPivotTableService', () => {
                         columnFields: [],
                         valueFields: [],
                         filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
                     },
                 };
 
@@ -591,6 +618,8 @@ describe('SheetsPivotTableService', () => {
                         columnFields: [],
                         valueFields: [],
                         filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
                     },
                 };
 
@@ -653,6 +682,8 @@ describe('SheetsPivotTableService', () => {
                         columnFields: [],
                         valueFields: ['field2'],
                         filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
                     },
                 };
 
@@ -671,6 +702,7 @@ describe('SheetsPivotTableService', () => {
                     columnFields: ['field4'],
                     valueFields: ['field2'],
                     filterFields: [],
+                    valuePosition: PivotValuePosition.COLUMN,
                 };
 
                 service.updateFieldsConfig(unitId, subUnitId, id, newFieldsConfig);
@@ -690,6 +722,147 @@ describe('SheetsPivotTableService', () => {
                 const updatedConfig = service.getPivotTableConfig(unitId, subUnitId, id);
                 expect(updatedConfig?.fieldsConfig.rowFields).toEqual(['field1', 'field3']);
                 expect(updatedConfig?.fieldsConfig.columnFields).toEqual(['field4']);
+            });
+        });
+
+        describe('isPivotOutputCell', () => {
+            it('should return true for cells within pivot output range', () => {
+                const unitId = 'test-unit';
+                const subUnitId = 'test-sheet';
+                const pivotId = service.createPivotTable(unitId, subUnitId, {
+                    name: 'Test Pivot',
+                    sourceRangeInfo: {
+                        unitId,
+                        subUnitId,
+                        range: { startRow: 0, startColumn: 0, endRow: 10, endColumn: 3 },
+                    },
+                    targetCellInfo: {
+                        unitId,
+                        subUnitId,
+                        row: 0,
+                        col: 5,
+                    },
+                    fieldsConfig: {
+                        rowFields: [],
+                        columnFields: [],
+                        valueFields: [],
+                        filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
+                    },
+                });
+
+                const pivotTable = service.getPivotTable(unitId, subUnitId, pivotId);
+                // Mock output range (normally calculated by pivot engine)
+                if (pivotTable) {
+                    // Set mock calculated data to create an output range
+                    pivotTable.setSourceData({
+                        0: { 0: { v: 'Header' }, 1: { v: 'Value' } },
+                        1: { 0: { v: 'Row1' }, 1: { v: 100 } },
+                    });
+                }
+
+                // Check cells in pivot output range (target cell + calculated dimensions)
+                expect(service.isPivotOutputCell(unitId, subUnitId, 0, 5)).toBe(true);
+                expect(service.isPivotOutputCell(unitId, subUnitId, 0, 6)).toBe(true);
+                expect(service.isPivotOutputCell(unitId, subUnitId, 1, 5)).toBe(true);
+            });
+
+            it('should return false for cells outside pivot output range', () => {
+                const unitId = 'test-unit';
+                const subUnitId = 'test-sheet';
+                service.createPivotTable(unitId, subUnitId, {
+                    name: 'Test Pivot',
+                    sourceRangeInfo: {
+                        unitId,
+                        subUnitId,
+                        range: { startRow: 0, startColumn: 0, endRow: 10, endColumn: 3 },
+                    },
+                    targetCellInfo: {
+                        unitId,
+                        subUnitId,
+                        row: 0,
+                        col: 5,
+                    },
+                    fieldsConfig: {
+                        rowFields: [],
+                        columnFields: [],
+                        valueFields: [],
+                        filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
+                    },
+                });
+
+                // Check cells outside pivot output range
+                expect(service.isPivotOutputCell(unitId, subUnitId, 0, 4)).toBe(false);
+                expect(service.isPivotOutputCell(unitId, subUnitId, 10, 5)).toBe(false);
+            });
+
+            it('should return false when no pivot tables exist', () => {
+                expect(service.isPivotOutputCell('non-existent', 'sheet', 0, 0)).toBe(false);
+            });
+        });
+
+        describe('getPivotTableByOutputCell', () => {
+            it('should return pivot table for cells within output range', () => {
+                const unitId = 'test-unit';
+                const subUnitId = 'test-sheet';
+                const pivotId = service.createPivotTable(unitId, subUnitId, {
+                    name: 'Test Pivot',
+                    sourceRangeInfo: {
+                        unitId,
+                        subUnitId,
+                        range: { startRow: 0, startColumn: 0, endRow: 10, endColumn: 3 },
+                    },
+                    targetCellInfo: {
+                        unitId,
+                        subUnitId,
+                        row: 0,
+                        col: 5,
+                    },
+                    fieldsConfig: {
+                        rowFields: [],
+                        columnFields: [],
+                        valueFields: [],
+                        filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
+                    },
+                });
+
+                const pivotTable = service.getPivotTableByOutputCell(unitId, subUnitId, 0, 5);
+                expect(pivotTable).toBeDefined();
+                expect(pivotTable?.getId()).toBe(pivotId);
+            });
+
+            it('should return undefined for cells outside output range', () => {
+                const unitId = 'test-unit';
+                const subUnitId = 'test-sheet';
+                service.createPivotTable(unitId, subUnitId, {
+                    name: 'Test Pivot',
+                    sourceRangeInfo: {
+                        unitId,
+                        subUnitId,
+                        range: { startRow: 0, startColumn: 0, endRow: 10, endColumn: 3 },
+                    },
+                    targetCellInfo: {
+                        unitId,
+                        subUnitId,
+                        row: 0,
+                        col: 5,
+                    },
+                    fieldsConfig: {
+                        rowFields: [],
+                        columnFields: [],
+                        valueFields: [],
+                        filterFields: [],
+                        valuePosition: PivotValuePosition.COLUMN,
+
+                    },
+                });
+
+                expect(service.getPivotTableByOutputCell(unitId, subUnitId, 0, 4)).toBeUndefined();
             });
         });
     });
