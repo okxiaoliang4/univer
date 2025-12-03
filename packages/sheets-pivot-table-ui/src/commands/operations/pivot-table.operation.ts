@@ -161,7 +161,7 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
                     columnFields: [],
                     valueFields: [],
                     filterFields: [],
-                    valuePosition: PivotValuePosition.Column,
+                    valuePosition: PivotValuePosition.COLUMN,
                 },
             },
         } satisfies ICreatePivotTableCommandParams);

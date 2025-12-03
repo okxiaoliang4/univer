@@ -177,8 +177,8 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
                 <Select
                     value={String(valuePosition)}
                     options={[
-                        { label: localeService.t('pivotTable.panel.valuePositionRow'), value: String(PivotValuePosition.Row) },
-                        { label: localeService.t('pivotTable.panel.valuePositionColumn'), value: String(PivotValuePosition.Column) },
+                        { label: localeService.t('pivotTable.panel.valuePositionRow'), value: String(PivotValuePosition.ROW) },
+                        { label: localeService.t('pivotTable.panel.valuePositionColumn'), value: String(PivotValuePosition.COLUMN) },
                     ]}
                     onChange={handleValuePositionChange}
                 />
