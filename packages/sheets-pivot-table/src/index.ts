@@ -54,6 +54,7 @@ export { PivotTable } from './models/pivot-table';
 export { UniverSheetsPivotTablePlugin } from './plugin';
 
 // Services
+export { IPivotTableRangeService } from './services/pivot-table-range.service';
 export { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN as SHEET_PIVOT_TABLE_SNAPSHOT_ID } from './services/pivot-table.service';
 
 export { AggregationType, PivotFieldAreaType, PivotSortOrder, PivotValuePosition } from './types/enum';

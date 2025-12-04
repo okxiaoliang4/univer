@@ -22,8 +22,10 @@ import { ComponentManager } from '@univerjs/ui';
 import { PLUGIN_NAME } from './const/const';
 import { defaultPluginConfig, SHEETS_PIVOT_TABLE_UI_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
 import { PivotTablePermissionUIController } from './controllers/pivot-table-permission-ui.controller';
+import { PivotTableRenderController } from './controllers/pivot-table-render.controller';
 import { PivotTableUIDesktopController } from './controllers/pivot-table-ui-desktop.controller';
 import { ISheetsPivotTablePanelService, SheetsPivotTablePanelService } from './services/pivot-table-panel.service';
+import { IPivotTableStyleService, PivotTableStyleService } from './services/pivot-table-style.service';
 import { registerPivotTableComponents } from './views/menu';
 
 @DependentOn(UniverSheetsPivotTablePlugin)
@@ -57,6 +59,7 @@ export class UniverSheetsPivotTableUIPlugin extends Plugin {
         // Register services and controllers
         const dependencies: Dependency[] = [
             [ISheetsPivotTablePanelService, { useClass: SheetsPivotTablePanelService }],
+            [IPivotTableStyleService, { useClass: PivotTableStyleService }],
         ];
         dependencies.forEach((d) => {
             this._injector.add(d);
@@ -76,6 +79,7 @@ export class UniverSheetsPivotTableUIPlugin extends Plugin {
         const controllers: Dependency[] = [
             [PivotTableUIDesktopController],
             [PivotTablePermissionUIController],
+            [PivotTableRenderController],
         ];
         controllers.forEach((d) => {
             this._injector.add(d);
@@ -84,5 +88,6 @@ export class UniverSheetsPivotTableUIPlugin extends Plugin {
         // Touch controllers to ensure initialization
         this._injector.get(PivotTableUIDesktopController);
         this._injector.get(PivotTablePermissionUIController);
+        this._injector.get(PivotTableRenderController);
     }
 }

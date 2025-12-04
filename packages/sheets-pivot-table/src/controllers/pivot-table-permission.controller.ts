@@ -14,21 +14,23 @@
  * limitations under the License.
  */
 
-import type { ICellDataForSheetInterceptor, ICommandInfo } from '@univerjs/core';
+import type { ICommandInfo } from '@univerjs/core';
 import type { ISetRangeValuesCommandParams } from '@univerjs/sheets';
-import { CustomCommandExecutionError, Disposable, ICommandService, Inject, InterceptorEffectEnum, IUniverInstanceService, LocaleService, ObjectMatrix } from '@univerjs/core';
-import { ClearSelectionContentCommand, getSheetCommandTarget, INTERCEPTOR_POINT, SetRangeValuesCommand, SheetInterceptorService, UnitAction } from '@univerjs/sheets';
+import { CustomCommandExecutionError, Disposable, ICommandService, Inject, IUniverInstanceService, LocaleService, ObjectMatrix } from '@univerjs/core';
+import { ClearSelectionContentCommand, getSheetCommandTarget, SetRangeValuesCommand } from '@univerjs/sheets';
+import { IPivotTableRangeService } from '../services/pivot-table-range.service';
 import { ISheetsPivotTableService } from '../services/pivot-table.service';
 
 /**
  * Controller that protects pivot table output ranges from manual editing
  *
- * This controller implements runtime protection for pivot table output cells using interceptors.
+ * This controller implements runtime protection for pivot table output cells using command interceptors.
  * Protection is not persisted to snapshot as pivot output is dynamically calculated.
  *
  * Architecture:
- * 1. Cell Content Interceptor: Injects read-only metadata into pivot output cells during rendering
- * 2. Command Interceptor: Blocks core edit commands (SetRangeValues, ClearSelectionContent) before execution
+ * - Command Interceptor: Blocks core edit commands (SetRangeValues, ClearSelectionContent) before execution
+ * - Value and style injection is handled by PivotTableRenderController in @sheets-pivot-table-ui package
+ * - Range detection is handled by PivotTableRangeService using spatial indexing
  *
  * UI-related command interception (edit mode, formula bar input) is handled by
  * PivotTablePermissionUIController in @sheets-pivot-table-ui package.
@@ -40,66 +42,14 @@ import { ISheetsPivotTableService } from '../services/pivot-table.service';
  */
 export class PivotTablePermissionController extends Disposable {
     constructor(
-        @Inject(SheetInterceptorService) private readonly _sheetInterceptorService: SheetInterceptorService,
         @ICommandService private readonly _commandService: ICommandService,
         @Inject(ISheetsPivotTableService) private readonly _pivotTableService: ISheetsPivotTableService,
+        @Inject(IPivotTableRangeService) private readonly _pivotTableRangeService: IPivotTableRangeService,
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
         @Inject(LocaleService) private readonly _localeService: LocaleService
     ) {
         super();
-        this._initCellContentInterceptor();
         this._initCommandInterceptor();
-    }
-
-    /**
-     * Initialize cell content interceptor to inject read-only metadata into pivot output cells
-     * This makes cells visually appear as read-only in the UI
-     */
-    private _initCellContentInterceptor(): void {
-        this.disposeWithMe(
-            this._sheetInterceptorService.intercept(INTERCEPTOR_POINT.CELL_CONTENT, {
-                // Set priority lower than worksheet/range protection (999) to avoid conflicts
-                priority: 900,
-                effect: InterceptorEffectEnum.Value | InterceptorEffectEnum.Style,
-                handler: (cell, context, next) => {
-                    const { unitId, subUnitId, row, col } = context;
-
-                    // Check if cell is in any pivot table output range
-                    const isPivotOutput = this._pivotTableService.isPivotOutputCell(unitId, subUnitId, row, col);
-
-                    if (isPivotOutput) {
-                        const pivotTable = this._pivotTableService.getPivotTableByOutputCell(unitId, subUnitId, row, col);
-                        if (!pivotTable) {
-                            return next(cell);
-                        }
-
-                        // Clone cell data to avoid modifying original
-                        const _cellData = ((!cell || cell === context.rawData) ? { ...context.rawData } : cell) as ICellDataForSheetInterceptor & {
-                            isPivotOutput?: boolean;
-                            selectionProtection?: Array<{ [key: number]: boolean }>;
-                        };
-
-                        // Inject pivot output marker
-                        _cellData.isPivotOutput = true;
-
-                        // Inject read-only permission metadata (compatible with existing permission system)
-                        _cellData.selectionProtection = [{
-                            [UnitAction.Edit]: false,
-                            [UnitAction.View]: true,
-                        }];
-
-                        // Inject pivot output value
-                        const outputCellMatrix = pivotTable?.getOutputCellMatrix();
-                        const targetCellInfo = pivotTable.getTargetCellInfo();
-                        _cellData.v = outputCellMatrix?.[row - targetCellInfo.row]?.[col - targetCellInfo.col]?.v;
-
-                        return next(_cellData);
-                    }
-
-                    return next(cell);
-                },
-            })
-        );
     }
 
     /**
@@ -158,7 +108,7 @@ export class PivotTablePermissionController extends Disposable {
         for (const range of affectedRanges) {
             for (let row = range.startRow; row <= range.endRow; row++) {
                 for (let col = range.startColumn; col <= range.endColumn; col++) {
-                    if (this._pivotTableService.isPivotOutputCell(unitId, subUnitId, row, col)) {
+                    if (this._pivotTableRangeService.isPivotOutputCell(unitId, subUnitId, row, col)) {
                         return false; // Block command - cell is in pivot output
                     }
                 }

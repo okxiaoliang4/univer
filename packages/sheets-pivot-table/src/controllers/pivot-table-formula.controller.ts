@@ -17,7 +17,7 @@
 import type { ICellData, IObjectMatrixPrimitiveType, IRange, IUnitRange, Nullable } from '@univerjs/core';
 import type { IFeatureCalculationManagerParam, IFeatureDirtyRangeType, IRuntimeUnitDataType } from '@univerjs/engine-formula';
 import type { PivotTable } from '../models/pivot-table';
-import { Disposable, ICommandService, Inject, IUniverInstanceService, ObjectMatrix } from '@univerjs/core';
+import { Disposable, ICommandService, Inject, IUniverInstanceService, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { IFeatureCalculationManagerService, RemoveFeatureCalculationMutation, SetFeatureCalculationMutation, SetFormulaCalculationStartMutation } from '@univerjs/engine-formula';
 import { skip } from 'rxjs';
 import { SheetsPivotDataSourceModel } from '../models/sheets-pivot-data-source-model';
@@ -67,6 +67,13 @@ export class PivotTableFormulaController extends Disposable {
     private _pivotTableSubscriptions: Map<string, Map<string, Map<string, { dispose: () => void }>>> = new Map();
 
     /**
+     * Map to track previous pivot table output ranges
+     * unitId -> subUnitId -> pivotTableId -> lastOutputRange
+     * Used to mark the entire affected range (including shrunk areas) as dirty when range changes
+     */
+    private _previousPivotRanges: Map<string, Map<string, Map<string, IRange>>> = new Map();
+
+    /**
      * Initialize controller lifecycle
      */
     private _init(): void {
@@ -110,11 +117,13 @@ export class PivotTableFormulaController extends Disposable {
             return;
         }
 
-        const outputRange = pivotTable.getOutputRange();
+        // Use absolute output range for dependency tracking
+        // This ensures formula engine knows the exact cells affected by the pivot table
+        const absoluteOutputRange = pivotTable.getAbsoluteOutputRange();
         const dependencyRanges: IUnitRange[] = [{
             unitId,
             sheetId: subUnitId,
-            range: outputRange,
+            range: absoluteOutputRange,
         }];
 
         const calculationParam: IFeatureCalculationManagerParam = {
@@ -136,7 +145,10 @@ export class PivotTableFormulaController extends Disposable {
         });
 
         // Listen to pivot table data changes to trigger formula recalculation
-        this._listenToPivotTableDataChanges(unitId, subUnitId, pivotTableId, pivotTable, outputRange);
+        this._listenToPivotTableDataChanges(unitId, subUnitId, pivotTableId, pivotTable, absoluteOutputRange);
+
+        // Store the current range for future change detection
+        this._setPreviousRange(unitId, subUnitId, pivotTableId, absoluteOutputRange);
     }
 
     /**
@@ -145,6 +157,15 @@ export class PivotTableFormulaController extends Disposable {
     private _unregisterPivotFeature(unitId: string, subUnitId: string, pivotTableId: string): void {
         // Clean up the subscription for this pivot table
         this._cleanupPivotTableSubscription(unitId, subUnitId, pivotTableId);
+
+        // Clean up the stored previous range
+        const unitMap = this._previousPivotRanges.get(unitId);
+        if (unitMap) {
+            const subUnitMap = unitMap.get(subUnitId);
+            if (subUnitMap) {
+                subUnitMap.delete(pivotTableId);
+            }
+        }
 
         // Remove the feature from the manager
         this._featureCalculationManagerService.remove(unitId, subUnitId, [pivotTableId]);
@@ -160,15 +181,18 @@ export class PivotTableFormulaController extends Disposable {
     /**
      * Listen to pivot table data changes and trigger formula recalculation
      */
-    private _listenToPivotTableDataChanges(unitId: string, subUnitId: string, pivotTableId: string, pivotTable: PivotTable, outputRange: IRange): void {
+    private _listenToPivotTableDataChanges(unitId: string, subUnitId: string, pivotTableId: string, pivotTable: PivotTable, _outputRange: IRange): void {
         // Clean up any existing subscription
         this._cleanupPivotTableSubscription(unitId, subUnitId, pivotTableId);
 
         // Listen to calculatedData changes (skip the first emission which is the initial null value)
         const subscription = pivotTable.calculatedData$.pipe(skip(1)).subscribe((newData: IObjectMatrixPrimitiveType<Nullable<ICellData>> | null) => {
             if (newData) {
-                // Trigger formula recalculation for the pivot table output range
-                this._triggerFormulaRecalculation(unitId, subUnitId, outputRange);
+                // Get the current output range (may have changed)
+                // Note: We don't use the _outputRange parameter as it's stale when range changes
+                const currentOutputRange = pivotTable.getAbsoluteOutputRange();
+                // Trigger formula recalculation for the current pivot table output range
+                this._triggerFormulaRecalculation(unitId, subUnitId, currentOutputRange);
             }
         });
 
@@ -238,12 +262,57 @@ export class PivotTableFormulaController extends Disposable {
 
     /**
      * Update a pivot table feature (re-register with new parameters)
+     * When range changes, mark the union of old and new ranges as dirty to ensure
+     * formula engine recalculates all affected formulas
      */
     private _updatePivotFeature(unitId: string, subUnitId: string, pivotTableId: string): void {
+        const pivotTable = this._pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
+        if (!pivotTable) {
+            return;
+        }
+
+        const newRange = pivotTable.getAbsoluteOutputRange();
+        const previousRange = this._getPreviousRange(unitId, subUnitId, pivotTableId);
+
+        // If range changed, mark the union of old and new ranges as dirty
+        if (previousRange && !Rectangle.equals(previousRange, newRange)) {
+            const unionRange = Rectangle.union(previousRange, newRange);
+            this._triggerFormulaRecalculation(unitId, subUnitId, unionRange);
+        }
+
+        // Store the new range
+        this._setPreviousRange(unitId, subUnitId, pivotTableId, newRange);
+
         // For updates, we need to unregister and re-register the feature
         // since there's no direct update method in the feature calculation manager
         this._unregisterPivotFeature(unitId, subUnitId, pivotTableId);
         this._registerPivotFeature(unitId, subUnitId, pivotTableId);
+    }
+
+    /**
+     * Get the previously stored output range for a pivot table
+     */
+    private _getPreviousRange(unitId: string, subUnitId: string, pivotTableId: string): IRange | undefined {
+        return this._previousPivotRanges.get(unitId)?.get(subUnitId)?.get(pivotTableId);
+    }
+
+    /**
+     * Store the current output range for a pivot table
+     */
+    private _setPreviousRange(unitId: string, subUnitId: string, pivotTableId: string, range: IRange): void {
+        let unitMap = this._previousPivotRanges.get(unitId);
+        if (!unitMap) {
+            unitMap = new Map();
+            this._previousPivotRanges.set(unitId, unitMap);
+        }
+
+        let subUnitMap = unitMap.get(subUnitId);
+        if (!subUnitMap) {
+            subUnitMap = new Map();
+            unitMap.set(subUnitId, subUnitMap);
+        }
+
+        subUnitMap.set(pivotTableId, range);
     }
 
     /**
@@ -260,7 +329,7 @@ export class PivotTableFormulaController extends Disposable {
 
         const outputMatrix = pivotTable.getOutputCellMatrix();
         const targetCellInfo = pivotTable.getTargetCellInfo();
-        const outputRange = pivotTable.getOutputRange();
+        const outputRange = pivotTable.getAbsoluteOutputRange();
 
         // Create runtime cell data structure
         const runtimeCellData: IRuntimeUnitDataType = {

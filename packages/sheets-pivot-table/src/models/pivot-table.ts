@@ -304,14 +304,6 @@ export class PivotTable extends Disposable {
         this._valuePosition$.next(valuePosition);
     }
 
-    private _moveMatrix(matrix: IObjectMatrixPrimitiveType<Nullable<ICellData>>, targetCellInfo: ITargetCellInfo): ObjectMatrix<Nullable<ICellData>> {
-        const targetObjectMatrix = new ObjectMatrix<Nullable<ICellData>>();
-        new ObjectMatrix(matrix).forValue((row, col, value) => {
-            targetObjectMatrix.setValue(row + targetCellInfo.row, col + targetCellInfo.col, value);
-        });
-        return targetObjectMatrix;
-    }
-
   /**
    * Get the output range of the pivot table based on calculated data
    * Returns the range from target cell to the end of calculated output (including grand totals)
@@ -323,16 +315,31 @@ export class PivotTable extends Disposable {
     }
 
   /**
+   * Get the absolute output range of the pivot table in the worksheet
+   * Applies target cell offset to the relative output range
+   * @returns Absolute output range in worksheet coordinates
+   */
+    getAbsoluteOutputRange(): IRange {
+        const relativeRange = this.getOutputRange();
+        return {
+            startRow: relativeRange.startRow + this._targetCellInfo.row,
+            endRow: relativeRange.endRow + this._targetCellInfo.row,
+            startColumn: relativeRange.startColumn + this._targetCellInfo.col,
+            endColumn: relativeRange.endColumn + this._targetCellInfo.col,
+        };
+    }
+
+  /**
    * Generate full cell matrix for pivot table output
    * Includes headers, values, and totals in the correct layout
-   * @returns ObjectMatrix with all cell values positioned relative to target cell, or null if not calculated
+   * @returns ObjectMatrix with all cell values in relative position (0-indexed), or null if not calculated
    */
     getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         const targetMatrix = this._pivotEngine.getCalculatedCellMatrix();
         if (!targetMatrix) {
-            return this._moveMatrix(defaultPlaceholderMatrix, this._targetCellInfo).getMatrix();
+            return defaultPlaceholderMatrix;
         }
-        return this._moveMatrix(targetMatrix, this._targetCellInfo).getMatrix();
+        return targetMatrix;
     }
 
     setSourceData(sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {

@@ -33,6 +33,7 @@ import { PivotTablePermissionController } from './controllers/pivot-table-permis
 import { SheetPviotTableRangeController } from './controllers/pivot-table-range.controller';
 import { SheetPivotTableController } from './controllers/pivot-table.controller';
 import { SheetsPivotDataSourceModel } from './models/sheets-pivot-data-source-model';
+import { IPivotTableRangeService, PivotTableRangeService } from './services/pivot-table-range.service';
 import { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN, SheetsPivotTableService } from './services/pivot-table.service';
 
 export class UniverSheetsPivotTablePlugin extends Plugin {
@@ -60,6 +61,7 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
         // Register services and controllers
         registerDependencies(this._injector, [
             [ISheetsPivotTableService, { useClass: SheetsPivotTableService }],
+            [IPivotTableRangeService, { useClass: PivotTableRangeService }],
             [SheetPivotTableController],
             [SheetPviotTableRangeController],
             [PivotTablePermissionController],

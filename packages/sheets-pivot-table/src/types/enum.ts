@@ -48,6 +48,6 @@ export enum PivotSortOrder {
  * Pivot value position
  */
 export enum PivotValuePosition {
-    ROW = 'row',
-    COLUMN = 'column',
+    ROW,
+    COLUMN,
 }
