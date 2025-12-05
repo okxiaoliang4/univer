@@ -15,7 +15,7 @@
  */
 
 import type { ICommandInfo } from '@univerjs/core';
-import type { ISetRangeValuesCommandParams } from '@univerjs/sheets';
+import type { IClearSelectionContentCommandParams, ISetRangeValuesCommandParams } from '@univerjs/sheets';
 import { CustomCommandExecutionError, Disposable, ICommandService, Inject, IUniverInstanceService, LocaleService, ObjectMatrix } from '@univerjs/core';
 import { ClearSelectionContentCommand, getSheetCommandTarget, SetRangeValuesCommand } from '@univerjs/sheets';
 import { IPivotTableRangeService } from '../services/pivot-table-range.service';
@@ -147,7 +147,10 @@ export class PivotTablePermissionController extends Disposable {
                 return null;
             }
             case ClearSelectionContentCommand.id: {
-                const params = commandInfo.params as { unitId?: string; subUnitId?: string; ranges?: Array<{ startRow: number; endRow: number; startColumn: number; endColumn: number }> };
+                const params = commandInfo.params as IClearSelectionContentCommandParams | undefined;
+                if (!params) {
+                    return null;
+                }
                 if (params.unitId !== unitId || params.subUnitId !== subUnitId) {
                     return null;
                 }
