@@ -69,7 +69,7 @@ const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'modu
 univer.registerPlugin(UniverRPCMainThreadPlugin, { workerURL: worker });
 univer.onDispose(() => worker.terminate());
 
-univer.registerPlugin(UniverFormulaEnginePlugin);
+univer.registerPlugin(UniverFormulaEnginePlugin, { notExecuteFormula: true });
 univer.registerPlugin(UniverRenderEnginePlugin);
 univer.registerPlugin(UniverUIPlugin, {
     container: 'app',
@@ -79,14 +79,14 @@ univer.registerPlugin(UniverDocsPlugin);
 univer.registerPlugin(UniverDocsUIPlugin);
 
 // sheets plugin
-univer.registerPlugin(UniverSheetsPlugin);
+univer.registerPlugin(UniverSheetsPlugin, { notExecuteFormula: true });
 univer.registerPlugin(UniverSheetsUIPlugin);
 univer.registerPlugin(UniverSheetsFormulaUIPlugin);
 // sheet feature plugins
 univer.registerPlugin(UniverSheetsNumfmtPlugin);
 univer.registerPlugin(UniverSheetsNumfmtUIPlugin);
-univer.registerPlugin(UniverSheetsFormulaPlugin);
-univer.registerPlugin(UniverSheetsPivotTablePlugin);
+univer.registerPlugin(UniverSheetsFormulaPlugin, { notExecuteFormula: true });
+univer.registerPlugin(UniverSheetsPivotTablePlugin, { notExecuteFormula: true });
 univer.registerPlugin(UniverSheetsPivotTableUIPlugin);
 
 univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
@@ -440,6 +440,7 @@ univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
             defaultRowHeight: 24,
             mergeData: [],
             cellData: {
+                15: { 0: { f: '=C8' } },
             },
             rowData: {},
             columnData: {},

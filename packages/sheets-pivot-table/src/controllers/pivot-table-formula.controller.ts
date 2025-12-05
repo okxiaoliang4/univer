@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-import type { ICellData, IObjectMatrixPrimitiveType, IRange, IUnitRange, Nullable } from '@univerjs/core';
+import type { ICellData, IObjectMatrixPrimitiveType, IRange, IUnitRange, Nullable, Workbook } from '@univerjs/core';
 import type { IFeatureCalculationManagerParam, IFeatureDirtyRangeType, IRuntimeUnitDataType } from '@univerjs/engine-formula';
+import type { ISetPivotTableCalculatedDataMutationParams } from '../commands/mutations/pivot-table.mutation';
 import type { PivotTable } from '../models/pivot-table';
 import { Disposable, ICommandService, Inject, IUniverInstanceService, ObjectMatrix, Rectangle } from '@univerjs/core';
-import { IFeatureCalculationManagerService, RemoveFeatureCalculationMutation, SetFeatureCalculationMutation, SetFormulaCalculationStartMutation } from '@univerjs/engine-formula';
+import { IFeatureCalculationManagerService, SetFormulaCalculationStartMutation } from '@univerjs/engine-formula';
 import { skip } from 'rxjs';
+import { SetPivotTableCalculatedDataMutation } from '../commands/mutations/pivot-table.mutation';
 import { SheetsPivotDataSourceModel } from '../models/sheets-pivot-data-source-model';
 import { ISheetsPivotTableService } from '../services/pivot-table.service';
 
@@ -117,6 +119,14 @@ export class PivotTableFormulaController extends Disposable {
             return;
         }
 
+        // Ensure pivot table has source data loaded (important for Worker thread)
+        // In RPC environment, SheetPviotTableRangeController may not be available in Worker
+        // So we need to load source data here to ensure getDirtyData returns correct values
+        const workbook = this._univerInstanceService.getUnit(unitId) as Workbook;
+        if (workbook) {
+            pivotTable.setSourceDataFromWorkbook(workbook);
+        }
+
         // Use absolute output range for dependency tracking
         // This ensures formula engine knows the exact cells affected by the pivot table
         const absoluteOutputRange = pivotTable.getAbsoluteOutputRange();
@@ -135,14 +145,17 @@ export class PivotTableFormulaController extends Disposable {
             },
         };
 
-        // Register the feature
+        // Register the feature directly with the service
+        // Note: We intentionally do NOT execute SetFeatureCalculationMutation here because:
+        // 1. The register() method already triggers onChanged$ which notifies SetDependencyController
+        // 2. The mutation contains a function (getDirtyData) that cannot be serialized through RPC
+        // 3. In RPC environment, DataSyncReplicaController would try to sync this mutation back
+        //    to main thread, causing DataCloneError
         this._featureCalculationManagerService.register(unitId, subUnitId, pivotTableId, calculationParam);
-
-        // Execute the mutation to notify the formula engine
-        this._commandService.executeCommand(SetFeatureCalculationMutation.id, {
-            featureId: pivotTableId,
-            calculationParam,
-        });
+        // this._commandService.syncExecuteCommand(SetFeatureCalculationMutation.id, {
+        //     featureId: pivotTableId,
+        //     calculationParam,
+        // } satisfies ISetFeatureCalculationMutation, { fromSync: true, onlyLocal: true });
 
         // Listen to pivot table data changes to trigger formula recalculation
         this._listenToPivotTableDataChanges(unitId, subUnitId, pivotTableId, pivotTable, absoluteOutputRange);
@@ -168,18 +181,30 @@ export class PivotTableFormulaController extends Disposable {
         }
 
         // Remove the feature from the manager
+        // Note: We intentionally do NOT execute RemoveFeatureCalculationMutation here because:
+        // 1. The remove() method already triggers onChanged$ which notifies SetDependencyController
+        // 2. In RPC environment, DataSyncReplicaController would try to sync this mutation back
+        //    to main thread, which is unnecessary and could cause issues
         this._featureCalculationManagerService.remove(unitId, subUnitId, [pivotTableId]);
-
-        // Execute the mutation to notify the formula engine
-        this._commandService.executeCommand(RemoveFeatureCalculationMutation.id, {
-            unitId,
-            subUnitId,
-            featureIds: [pivotTableId],
-        });
+        // this._commandService.syncExecuteCommand(RemoveFeatureCalculationMutation.id, {
+        //     featureIds: [pivotTableId],
+        //     unitId,
+        //     subUnitId,
+        // } satisfies IRemoveFeatureCalculationMutationParam, { fromSync: true, onlyLocal: true });
     }
 
     /**
      * Listen to pivot table data changes and trigger formula recalculation
+     *
+     * There are two scenarios we need to handle:
+     * 1. Initial calculation: When pivot table calculates for the first time after registration,
+     *    we need to trigger formula recalculation because getDirtyData may have returned
+     *    placeholder data during the initial formula calculation.
+     * 2. Subsequent changes: When pivot table data changes (e.g., source data changes),
+     *    we need to trigger formula recalculation to update dependent formulas.
+     *
+     * In RPC environment (Worker thread), this also syncs the calculated data to Main thread
+     * via SetPivotTableCalculatedDataMutation.
      */
     private _listenToPivotTableDataChanges(unitId: string, subUnitId: string, pivotTableId: string, pivotTable: PivotTable, _outputRange: IRange): void {
         // Clean up any existing subscription
@@ -191,6 +216,18 @@ export class PivotTableFormulaController extends Disposable {
                 // Get the current output range (may have changed)
                 // Note: We don't use the _outputRange parameter as it's stale when range changes
                 const currentOutputRange = pivotTable.getAbsoluteOutputRange();
+
+                // Sync calculated data to main thread via mutation
+                // In RPC environment, this mutation will be synced from Worker to Main thread
+                // via DataSyncReplicaController, updating the main thread's model
+                const params: ISetPivotTableCalculatedDataMutationParams = {
+                    unitId,
+                    subUnitId,
+                    pivotTableId,
+                    calculatedData: newData,
+                };
+                this._commandService.executeCommand(SetPivotTableCalculatedDataMutation.id, params);
+
                 // Trigger formula recalculation for the current pivot table output range
                 this._triggerFormulaRecalculation(unitId, subUnitId, currentOutputRange);
             }
@@ -272,7 +309,24 @@ export class PivotTableFormulaController extends Disposable {
         }
 
         const newRange = pivotTable.getAbsoluteOutputRange();
+        if (!newRange) {
+            return;
+        }
+
         const previousRange = this._getPreviousRange(unitId, subUnitId, pivotTableId);
+
+        // If we have never stored a previous range (should not happen, but guard anyway),
+        // just store the current range and exit.
+        if (!previousRange) {
+            this._setPreviousRange(unitId, subUnitId, pivotTableId, newRange);
+            return;
+        }
+
+        // Range didn't change (common when notifyRangeChanged is called as a side effect).
+        // Avoid unnecessary unregister/register cycles that would clear formula dependencies.
+        if (Rectangle.equals(previousRange, newRange)) {
+            return;
+        }
 
         // If range changed, mark the union of old and new ranges as dirty
         if (previousRange && !Rectangle.equals(previousRange, newRange)) {

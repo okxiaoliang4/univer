@@ -15,10 +15,11 @@
  */
 
 import type { ICellData, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
+import type { PivotValuePosition } from '../types/enum';
 import type { IPivotField, IPivotFilterCriteria, IPivotGroupInfo, IPivotSubtotalInfo, IPivotTableCrossTabConfig, IPivotTableCrossTabData } from '../types/type';
 import { Disposable } from '@univerjs/core';
 import { createAggregator } from '../common/aggregation/functions';
-import { AggregationType, PivotValuePosition } from '../types/enum';
+import { AggregationType } from '../types/enum';
 
 // Constants
 const BLANK_VALUE_PLACEHOLDER = '(blank)';
@@ -42,7 +43,7 @@ export class PivotEngineV2 extends Disposable {
     /** Dirty flag for cache invalidation */
     private _isDirty: boolean = true;
 
-    constructor(config: IPivotTableCrossTabConfig & { valuePosition?: PivotValuePosition }) {
+    constructor(config: IPivotTableCrossTabConfig) {
         super();
 
         this._rowFields = config.rowFields;
@@ -50,7 +51,7 @@ export class PivotEngineV2 extends Disposable {
         this._valueFields = config.valueFields;
         this._filterFields = config.filterFields;
         this._sourceData = config.sourceData;
-        this.valuePosition = config.valuePosition ?? PivotValuePosition.COLUMN;
+        this.valuePosition = config.valuePosition;
     }
 
     // #region Public API Methods

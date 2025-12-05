@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams, ISetPivotTableTargetCellMutationParams, ISetPivotTableValuePositionMutationParams } from './commands/mutations/pivot-table.mutation';
+import type { Dependency } from '@univerjs/core';
+import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableCalculatedDataMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams, ISetPivotTableTargetCellMutationParams, ISetPivotTableValuePositionMutationParams } from './commands/mutations/pivot-table.mutation';
 import type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 import type { IPivotTableConfigResource } from './types/type';
-import { ICommandService, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
+import { ICommandService, IConfigService, Inject, Injector, merge, Optional, Plugin, touchDependencies, UniverInstanceType } from '@univerjs/core';
+import { DataSyncPrimaryController } from '@univerjs/rpc';
 import { CreatePivotTableCommand, RemovePivotTableCommand, SetPivotTableSourceRangeCommand, SetPivotTableValuePositionCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
 import {
     AddPivotTableMutation,
     RemovePivotTableMutation,
+    SetPivotTableCalculatedDataMutation,
     SetPivotTableFieldsConfigMutation,
     SetPivotTableSourceRangeMutation,
     SetPivotTableTargetCellMutation,
@@ -44,7 +47,8 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
         private readonly _config: Partial<IUniverSheetsPivotTableConfig> = defaultPluginConfig,
         @Inject(Injector) protected readonly _injector: Injector,
         @IConfigService private readonly _configService: IConfigService,
-        @ICommandService private readonly _commandService: ICommandService
+        @ICommandService private readonly _commandService: ICommandService,
+        @Optional(DataSyncPrimaryController) private readonly _dataSyncPrimaryController?: DataSyncPrimaryController
     ) {
         super();
 
@@ -59,21 +63,23 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
 
     override onStarting(): void {
         // Register services and controllers
-        registerDependencies(this._injector, [
+        const dependencies: Dependency[] = [
             [ISheetsPivotTableService, { useClass: SheetsPivotTableService }],
             [IPivotTableRangeService, { useClass: PivotTableRangeService }],
             [SheetPivotTableController],
             [SheetPviotTableRangeController],
             [PivotTablePermissionController],
-            [PivotTableFormulaController],
             [SheetsPivotDataSourceModel],
-        ]);
+        ];
 
-        touchDependencies(this._injector, [
-            [SheetPviotTableRangeController],
-            [PivotTablePermissionController],
-            [PivotTableFormulaController],
-        ]);
+        // Only register PivotTableFormulaController if notExecuteFormula is false
+        if (!this._config.notExecuteFormula) {
+            dependencies.push([PivotTableFormulaController]);
+        }
+
+        dependencies.forEach((dependency) => {
+            this._injector.add(dependency);
+        });
 
         // Register commands
         [
@@ -94,13 +100,28 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
             SetPivotTableFieldsConfigMutation,
             SetPivotTableTargetCellMutation,
             SetPivotTableValuePositionMutation,
+            SetPivotTableCalculatedDataMutation,
         ].forEach((mutation) => {
             this._commandService.registerCommand(mutation);
+            // Register mutations to be synced to the worker thread
+            this._dataSyncPrimaryController?.registerSyncingMutations(mutation);
         });
     }
 
     override onReady(): void {
         // Touch dependencies to ensure they are initialized
+        touchDependencies(this._injector, [
+            [SheetPviotTableRangeController],
+            [PivotTablePermissionController],
+        ]);
+
+        // Only touch PivotTableFormulaController if notExecuteFormula is false
+        if (!this._config.notExecuteFormula) {
+            touchDependencies(this._injector, [
+                [PivotTableFormulaController],
+            ]);
+        }
+
         touchDependencies(this._injector, [
             [ISheetsPivotTableService],
             [SheetPivotTableController],
@@ -112,6 +133,7 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
 export {
     AddPivotTableMutation,
     RemovePivotTableMutation,
+    SetPivotTableCalculatedDataMutation,
     SetPivotTableFieldsConfigMutation,
     SetPivotTableSourceRangeMutation,
     SetPivotTableTargetCellMutation,
@@ -121,6 +143,7 @@ export {
 export type {
     IAddPivotTableMutationParams,
     IRemovePivotTableMutationParams,
+    ISetPivotTableCalculatedDataMutationParams,
     ISetPivotTableFieldsConfigMutationParams,
     ISetPivotTableSourceRangeMutationParams,
     ISetPivotTableTargetCellMutationParams,

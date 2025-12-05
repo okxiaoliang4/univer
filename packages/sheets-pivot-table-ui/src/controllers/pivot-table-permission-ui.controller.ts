@@ -18,7 +18,7 @@ import type { ICommandInfo } from '@univerjs/core';
 import { CustomCommandExecutionError, Disposable, FOCUSING_EDITOR_STANDALONE, ICommandService, IContextService, Inject, IUniverInstanceService, LocaleService } from '@univerjs/core';
 import { IMEInputCommand, InsertCommand } from '@univerjs/docs-ui';
 import { getSheetCommandTarget, SheetsSelectionsService } from '@univerjs/sheets';
-import { ISheetsPivotTableService } from '@univerjs/sheets-pivot-table';
+import { IPivotTableRangeService } from '@univerjs/sheets-pivot-table';
 import { SetCellEditVisibleOperation, SetCellEditVisibleWithF2Operation } from '@univerjs/sheets-ui';
 
 /**
@@ -40,7 +40,7 @@ import { SetCellEditVisibleOperation, SetCellEditVisibleWithF2Operation } from '
 export class PivotTablePermissionUIController extends Disposable {
     constructor(
         @ICommandService private readonly _commandService: ICommandService,
-        @Inject(ISheetsPivotTableService) private readonly _pivotTableService: ISheetsPivotTableService,
+        @Inject(IPivotTableRangeService) private readonly _pivotTableRangeService: IPivotTableRangeService,
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
         @Inject(LocaleService) private readonly _localeService: LocaleService,
         @Inject(SheetsSelectionsService) private readonly _selectionsService: SheetsSelectionsService,
@@ -108,7 +108,7 @@ export class PivotTablePermissionUIController extends Disposable {
                 const primarySelection = selections[0];
                 const { startRow, startColumn } = primarySelection.range;
                 // Check if the selected cell is in a pivot output range
-                if (this._pivotTableService.isPivotOutputCell(unitId, subUnitId, startRow, startColumn)) {
+                if (this._pivotTableRangeService.isPivotOutputCell(unitId, subUnitId, startRow, startColumn)) {
                     return false; // Block entering edit mode
                 }
             }
@@ -129,7 +129,7 @@ export class PivotTablePermissionUIController extends Disposable {
                 const primarySelection = selections[0];
                 const { startRow, startColumn } = primarySelection.range;
                 // Check if the selected cell is in a pivot output range
-                if (this._pivotTableService.isPivotOutputCell(unitId, subUnitId, startRow, startColumn)) {
+                if (this._pivotTableRangeService.isPivotOutputCell(unitId, subUnitId, startRow, startColumn)) {
                     return false; // Block input
                 }
             }

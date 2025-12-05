@@ -49,6 +49,7 @@ export { RegisterFunctionMutation } from './commands/mutations/register-function
 export { type ISetArrayFormulaDataMutationParams, SetArrayFormulaDataMutation } from './commands/mutations/set-array-formula-data.mutation';
 export { type ISetDefinedNameMutationParam, type ISetDefinedNameMutationSearchParam, RemoveDefinedNameMutation, SetDefinedNameMutation } from './commands/mutations/set-defined-name.mutation';
 export { SetDefinedNameMutationFactory } from './commands/mutations/set-defined-name.mutation';
+export type { IRemoveFeatureCalculationMutationParam, ISetFeatureCalculationMutation } from './commands/mutations/set-feature-calculation.mutation';
 export { RemoveFeatureCalculationMutation, SetFeatureCalculationMutation } from './commands/mutations/set-feature-calculation.mutation';
 export {
     type ISetFormulaCalculationNotificationMutation,

@@ -25,6 +25,20 @@ import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
 import { PivotEngineV2 } from './pivot-engine-v2';
 
 /**
+ * Configuration options for PivotTable
+ */
+export interface IPivotTableOptions {
+    /**
+     * If true, the pivot table will not auto-calculate when fields or source data change.
+     * Instead, it will wait for calculated data to be set via setCalculatedData().
+     * This is used in RPC environment where the main thread receives calculated data
+     * from the Worker thread via mutation.
+     * @default false
+     */
+    skipAutoCalculation?: boolean;
+}
+
+/**
  * Simplified PivotTable implementation for MVP
  * This class handles the core pivot table calculation logic
  */
@@ -33,6 +47,7 @@ export class PivotTable extends Disposable {
     private _name: string;
     private _sourceRangeInfo$: BehaviorSubject<ISourceRangeInfo>;
     private _targetCellInfo: ITargetCellInfo;
+    private _options: IPivotTableOptions;
 
     private _pivotEngine: PivotEngineV2;
 
@@ -62,13 +77,15 @@ export class PivotTable extends Disposable {
         name: string,
         sourceRangeInfo: ISourceRangeInfo,
         targetCellInfo: ITargetCellInfo,
-        fieldsConfig: IFieldsConfig
+        fieldsConfig: IFieldsConfig,
+        options: IPivotTableOptions = {}
     ) {
         super();
         this._id = id;
         this._name = name;
         this._sourceRangeInfo$ = new BehaviorSubject(sourceRangeInfo);
         this._targetCellInfo = targetCellInfo;
+        this._options = options;
 
         this._pivotEngine = new PivotEngineV2({
             rowFields: fieldsConfig.rowFields || [],
@@ -115,13 +132,19 @@ export class PivotTable extends Disposable {
     }
 
     private _initListeners(): void {
-        this._initCalculatedDataListener();
+        // Only auto-calculate if skipAutoCalculation is not set
+        // In RPC environment, main thread sets skipAutoCalculation: true
+        // and receives calculated data from Worker via mutation
+        if (!this._options.skipAutoCalculation) {
+            this._initCalculatedDataListener();
+        }
         this._initSourceFieldsListener();
         this._initFieldsUpdateListener();
     }
 
     /**
      * Listen to field changes and update calculated data
+     * This listener is only active when skipAutoCalculation is false (default)
      */
     private _initCalculatedDataListener(): void {
         this.disposeWithMe(
@@ -335,6 +358,19 @@ export class PivotTable extends Disposable {
    * @returns ObjectMatrix with all cell values in relative position (0-indexed), or null if not calculated
    */
     getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
+        // In RPC environment (skipAutoCalculation: true), the main thread receives
+        // calculated data via mutation (setCalculatedData), so we should use
+        // calculatedData$ instead of relying on _pivotEngine which doesn't auto-calculate
+        if (this._options.skipAutoCalculation) {
+            const calculatedData = this._calculatedData$.value;
+            if (calculatedData) {
+                return calculatedData;
+            }
+            // If no calculated data yet, return placeholder
+            return defaultPlaceholderMatrix;
+        }
+
+        // In non-RPC environment, use engine's calculated matrix
         const targetMatrix = this._pivotEngine.getCalculatedCellMatrix();
         if (!targetMatrix) {
             return defaultPlaceholderMatrix;
@@ -349,6 +385,22 @@ export class PivotTable extends Disposable {
 
     getSourceData(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         return this._sourceData$.value;
+    }
+
+    /**
+     * Directly set calculated data (used in RPC environment)
+     * This method allows the main thread to receive calculated data from Worker
+     * via mutation without triggering recalculation.
+     */
+    setCalculatedData(calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
+        this._calculatedData$.next(calculatedData);
+    }
+
+    /**
+     * Get the current calculated data
+     */
+    getCalculatedData(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
+        return this._calculatedData$.value;
     }
 
   /**
@@ -387,6 +439,8 @@ export class PivotTable extends Disposable {
 
   /**
    * Create from JSON
+   * @param json - The JSON configuration
+   * @param options - Optional configuration options (e.g., skipAutoCalculation for RPC environment)
    */
     static fromJSON(json: {
         id: string;
@@ -394,13 +448,14 @@ export class PivotTable extends Disposable {
         sourceRangeInfo: ISourceRangeInfo;
         targetCellInfo: ITargetCellInfo;
         fieldsConfig: IFieldsConfig;
-    }): PivotTable {
+    }, options?: IPivotTableOptions): PivotTable {
         return new PivotTable(
             json.id,
             json.name,
             json.sourceRangeInfo,
             json.targetCellInfo,
-            json.fieldsConfig
+            json.fieldsConfig,
+            options
         );
     }
 }

@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-import type { IMutation } from '@univerjs/core';
+import type { ICellData, IMutation, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
+import type { IUniverSheetsPivotTableConfig } from '../../controllers/config.schema';
 import type { PivotValuePosition } from '../../types/enum';
 import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
-import { CommandType } from '@univerjs/core';
+import { CommandType, IConfigService } from '@univerjs/core';
+import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../../controllers/config.schema';
 import { PivotTable } from '../../models/pivot-table';
+import { SheetsPivotDataSourceModel } from '../../models/sheets-pivot-data-source-model';
 import { ISheetsPivotTableService } from '../../services/pivot-table.service';
 
 /**
@@ -50,17 +53,25 @@ export const AddPivotTableMutation: IMutation<IAddPivotTableMutationParams> = {
         }
 
         const pivotTableService = accessor.get(ISheetsPivotTableService);
+        const configService = accessor.get(IConfigService);
         const dataSourceModel = pivotTableService.getDataSourceModel();
 
         const { unitId, subUnitId, pivotTableId, config } = params;
 
-        // Create new pivot table
+        // Check if auto-calculation should be skipped (RPC environment)
+        const pluginConfig = configService.getConfig<IUniverSheetsPivotTableConfig>(SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY);
+        const skipAutoCalculation = pluginConfig?.notExecuteFormula ?? false;
+
+        // Create new pivot table with skipAutoCalculation option
+        // In RPC environment, main thread skips auto-calculation
+        // and receives calculated data from Worker via mutation
         const pivotTable = new PivotTable(
             pivotTableId,
             config.name,
             config.sourceRangeInfo,
             config.targetCellInfo,
-            config.fieldsConfig
+            config.fieldsConfig,
+            { skipAutoCalculation }
         );
 
         dataSourceModel.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable);
@@ -222,6 +233,60 @@ export const SetPivotTableValuePositionMutation: IMutation<ISetPivotTableValuePo
                 valuePosition,
             });
         }
+
+        return true;
+    },
+};
+
+/**
+ * Mutation to sync calculated data from Worker thread to Main thread
+ * This mutation is used in RPC environment where:
+ * - Worker thread performs pivot table calculations
+ * - Worker thread executes this mutation to sync results
+ * - Main thread receives the mutation via RPC and updates the model
+ *
+ * The calculated data is serializable (IObjectMatrixPrimitiveType) so it can be
+ * passed through postMessage without DataCloneError.
+ *
+ * IMPORTANT: This mutation only updates the model on the Main thread (notExecuteFormula: true).
+ * On the Worker thread (notExecuteFormula: false), the model already has the correct data
+ * from the auto-calculation listener, so we skip the update to prevent infinite loops.
+ */
+export interface ISetPivotTableCalculatedDataMutationParams {
+    unitId: string;
+    subUnitId: string;
+    pivotTableId: string;
+    calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
+}
+
+export const SetPivotTableCalculatedDataMutation: IMutation<ISetPivotTableCalculatedDataMutationParams> = {
+    type: CommandType.MUTATION,
+    id: 'sheet.mutation.set-pivot-table-calculated-data',
+
+    handler: (accessor, params) => {
+        if (!params) {
+            return false;
+        }
+
+        const configService = accessor.get(IConfigService);
+        const pluginConfig = configService.getConfig<IUniverSheetsPivotTableConfig>(SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY);
+
+        // Only update the model on the Main thread (notExecuteFormula: true).
+        // On the Worker thread (notExecuteFormula: false), the data is already correct
+        // from the auto-calculation listener. Updating here would trigger calculatedData$
+        // which would trigger _listenToPivotTableDataChanges which would execute this
+        // mutation again, causing an infinite loop.
+        const isCalculate = pluginConfig?.notExecuteFormula ?? false;
+        const { unitId, subUnitId, pivotTableId, calculatedData } = params;
+
+        if (!isCalculate) {
+            return true;
+        }
+
+        const dataSourceModel = accessor.get(SheetsPivotDataSourceModel);
+
+        // Update calculated data in the model (Main thread only)
+        dataSourceModel.setCalculatedData(unitId, subUnitId, pivotTableId, calculatedData);
 
         return true;
     },

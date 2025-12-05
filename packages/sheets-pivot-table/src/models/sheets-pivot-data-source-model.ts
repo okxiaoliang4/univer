@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-import type { IRange } from '@univerjs/core';
+import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable } from '@univerjs/core';
+import type { IUniverSheetsPivotTableConfig } from '../controllers/config.schema';
 import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
-import { Disposable, ICommandService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
+import { Disposable, ICommandService, IConfigService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
 import { Subject } from 'rxjs';
+import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../controllers/config.schema';
 import { PivotTable } from './pivot-table';
 
 /**
@@ -47,7 +49,8 @@ export class SheetsPivotDataSourceModel extends Disposable {
 
     constructor(
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
-        @ICommandService private readonly _commandService: ICommandService
+        @ICommandService private readonly _commandService: ICommandService,
+        @IConfigService private readonly _configService: IConfigService
     ) {
         super();
 
@@ -56,6 +59,14 @@ export class SheetsPivotDataSourceModel extends Disposable {
                 this._pivotTableMap.clear();
             })
         );
+    }
+
+    /**
+     * Check if auto-calculation should be skipped (RPC environment)
+     */
+    private _shouldSkipAutoCalculation(): boolean {
+        const config = this._configService.getConfig<IUniverSheetsPivotTableConfig>(SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY);
+        return config?.notExecuteFormula ?? false;
     }
 
     /**
@@ -246,6 +257,33 @@ export class SheetsPivotDataSourceModel extends Disposable {
     }
 
     /**
+     * Set calculated data for a pivot table
+     * Used in RPC environment to sync calculated data from Worker to Main thread
+     */
+    setCalculatedData(
+        unitId: string,
+        subUnitId: string,
+        pivotTableId: string,
+        calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>>
+    ): void {
+        const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
+        if (pivotTable) {
+            pivotTable.setCalculatedData(calculatedData);
+
+            // Emit range change event (output range may have changed)
+            const outputRange = pivotTable.getOutputRange();
+            if (outputRange) {
+                this._tableRangeChanged$.next({
+                    unitId,
+                    subUnitId,
+                    tableId: pivotTableId,
+                    range: outputRange,
+                });
+            }
+        }
+    }
+
+    /**
      * Get all pivot tables in a subunit
      */
     getSubUnitPivotTables(unitId: string, subUnitId: string): Map<string, PivotTable> | undefined {
@@ -321,6 +359,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
      */
     fromJSON(data: IPivotTableConfigResource): void {
         const pivotConfigs = data.pivotTableConfigs || {};
+        const skipAutoCalculation = this._shouldSkipAutoCalculation();
 
         Object.keys(pivotConfigs).forEach((unitId) => {
             const unitData = pivotConfigs[unitId];
@@ -331,13 +370,16 @@ export class SheetsPivotDataSourceModel extends Disposable {
                 Object.keys(subUnitData).forEach((pivotTableId) => {
                     const config = subUnitData[pivotTableId];
 
-                    // Create PivotTable instance
+                    // Create PivotTable instance with skipAutoCalculation option
+                    // In RPC environment (notExecuteFormula: true), main thread skips auto-calculation
+                    // and receives calculated data from Worker via mutation
                     const pivotTable = new PivotTable(
                         pivotTableId,
                         `Pivot_${pivotTableId}`,
                         config.sourceRangeInfo,
                         config.targetCellInfo,
-                        config.fieldsConfig
+                        config.fieldsConfig,
+                        { skipAutoCalculation }
                     );
 
                     this.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable);

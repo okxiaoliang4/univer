@@ -21,6 +21,7 @@ import { UniverRPCWorkerThreadPlugin } from '@univerjs/rpc';
 import { UniverSheetsPlugin } from '@univerjs/sheets';
 import { UniverSheetsFilterPlugin } from '@univerjs/sheets-filter';
 import { UniverRemoteSheetsFormulaPlugin } from '@univerjs/sheets-formula';
+import { UniverSheetsPivotTablePlugin } from '@univerjs/sheets-pivot-table';
 
 // Univer web worker is also a univer application.
 const univer = new Univer({
@@ -37,6 +38,7 @@ univer.registerPlugins([
     [UniverRPCWorkerThreadPlugin],
     [UniverRemoteSheetsFormulaPlugin],
     [UniverSheetsFilterPlugin],
+    [UniverSheetsPivotTablePlugin],
 ]);
 
 declare let self: WorkerGlobalScope & typeof globalThis & { univer: Univer };

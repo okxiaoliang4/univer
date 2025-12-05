@@ -35,6 +35,16 @@ export interface IUniverSheetsPivotTableConfig {
      * @default true
      */
     enableCache?: boolean;
+
+    /**
+     * If true, the plugin will not execute formula integration logic.
+     * Set to true on the main thread when using RPC/Web Worker environments.
+     * The Worker thread should use the default value (false).
+     * This allows the Worker thread to handle formula integration while avoiding
+     * DataCloneError when serializing mutations with function callbacks.
+     * @default false
+     */
+    notExecuteFormula?: boolean;
 }
 
 /**
@@ -44,6 +54,7 @@ export const defaultPluginConfig: IUniverSheetsPivotTableConfig = {
     autoRefresh: true,
     maxRows: 10000,
     enableCache: true,
+    notExecuteFormula: false,
 };
 
 /**

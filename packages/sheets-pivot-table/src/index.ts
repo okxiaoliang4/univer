@@ -33,11 +33,13 @@ export {
     AddPivotTableMutation,
     type IAddPivotTableMutationParams,
     type IRemovePivotTableMutationParams,
+    type ISetPivotTableCalculatedDataMutationParams,
     type ISetPivotTableFieldsConfigMutationParams,
     type ISetPivotTableSourceRangeMutationParams,
     type ISetPivotTableTargetCellMutationParams,
     type ISetPivotTableValuePositionMutationParams,
     RemovePivotTableMutation,
+    SetPivotTableCalculatedDataMutation,
     SetPivotTableFieldsConfigMutation,
     SetPivotTableSourceRangeMutation,
     SetPivotTableTargetCellMutation,
@@ -48,7 +50,7 @@ export {
 export type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 
 // Models
-export { PivotTable } from './models/pivot-table';
+export { type IPivotTableOptions, PivotTable } from './models/pivot-table';
 
 // Plugin
 export { UniverSheetsPivotTablePlugin } from './plugin';

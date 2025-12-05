@@ -220,6 +220,8 @@ export interface IPivotTableCrossTabConfig {
     valueFields: IPivotField[];
     /** Filter fields configuration */
     filterFields: IPivotField[];
+  /** Value position (Column or Row) */
+    valuePosition: PivotValuePosition;
     /** Source data matrix */
     sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
 }
