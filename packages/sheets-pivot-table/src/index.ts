@@ -69,6 +69,7 @@ export type {
     IPivotTableCalculatedData,
     IPivotTableConfig,
     IPivotTableConfigResource,
+    IPivotTableCrossTabData,
     IPivotTableFieldsConfigChangedEvent,
     IPivotTableRangeChangedEvent,
     IPivotTableSourceRangeChangedEvent,

@@ -330,6 +330,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
     toJSON(unitId: string): IPivotTableConfigResource {
         const result: IPivotTableConfigResource = {
             pivotTableConfigs: {},
+            pivotData: {},
         };
 
         const unitConfigMap = this._pivotTableMap.get(unitId);
