@@ -47,12 +47,12 @@ export class SheetPivotTableController extends Disposable {
         };
         const parseJson = (json: string): IPivotTableConfigResource => {
             if (!json) {
-                return { pivotTableConfigs: {}, pivotData: {} };
+                return { pivotTableConfigs: {} };
             }
             try {
                 return JSON.parse(json);
             } catch {
-                return { pivotTableConfigs: {}, pivotData: {} };
+                return { pivotTableConfigs: {} };
             }
         };
 
