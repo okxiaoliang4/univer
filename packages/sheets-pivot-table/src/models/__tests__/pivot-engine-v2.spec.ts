@@ -18,7 +18,7 @@ import type { ICellData, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/
 import type { IPivotField, IPivotFilterCriteria } from '../../types/type';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AggregationType } from '../../types/enum';
+import { AggregationType, PivotValuePosition } from '../../types/enum';
 import { PivotEngineV2 } from '../pivot-engine-v2';
 import { PivotTableRenderModel } from '../pivot-table-render-model';
 
@@ -1022,6 +1022,329 @@ describe('PivotTableRenderModel', () => {
             expect(cellInfo.value).toBe(100);
             expect(cellInfo.isVisible).toBe(true);
             expect(cellInfo.rowHeaders).toEqual(['North']);
+        });
+    });
+
+    describe('Value Position Support', () => {
+        it('should support valuePosition COLUMN (baseline)', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 2)],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales', 'Product'],
+                    ['North', 100, 'A'],
+                    ['North', 200, 'B'],
+                    ['South', 150, 'A'],
+                    ['South', 250, 'B'],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data = engine.getCalculatedData();
+            expect(data.isEmpty).toBe(false);
+            expect(data.structure.rowHeaders.length).toBe(2); // North, South
+            expect(data.structure.columnHeaders.length).toBe(2); // Product A, Product B
+            expect(data.structure.values[0][0][0]).toBe(100); // North-A
+            expect(data.structure.values[0][1][0]).toBe(200); // North-B
+            expect(data.structure.values[1][0][0]).toBe(150); // South-A
+            expect(data.structure.values[1][1][0]).toBe(250); // South-B
+        });
+
+        it('should support valuePosition ROW', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 2)],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales', 'Product'],
+                    ['North', 100, 'A'],
+                    ['North', 200, 'B'],
+                    ['South', 150, 'A'],
+                    ['South', 250, 'B'],
+                ]),
+                valuePosition: PivotValuePosition.ROW,
+            });
+
+            const data = engine.getCalculatedData();
+            expect(data.isEmpty).toBe(false);
+            // With ROW position and 1 value field:
+            // Should have 2 rows (one per region, value field is just an additional level in row header)
+            expect(data.structure.rowHeaders.length).toBe(2);
+            // Column headers should be from column fields only (no value headers)
+            expect(data.structure.columnHeaders.length).toBe(2); // Product A, Product B
+            // Values should still be correct
+            expect(data.structure.values.length).toBe(2);
+        });
+
+        it('should handle valuePosition change from COLUMN to ROW', () => {
+            const sourceData = createSourceData([
+                ['Region', 'Sales', 'Product'],
+                ['North', 100, 'A'],
+                ['North', 200, 'B'],
+            ]);
+
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 2)],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const dataColumnPos = engine.getCalculatedData();
+            const rowCountColumn = dataColumnPos.structure.rowHeaders.length;
+            const colCountColumn = dataColumnPos.structure.columnHeaders.length;
+
+            // Switch to ROW position
+            engine.setValuePosition(PivotValuePosition.ROW);
+            const dataRowPos = engine.getCalculatedData();
+
+            // With single value field, row count should remain same
+            // (value field just becomes an additional row header level)
+            expect(dataRowPos.structure.rowHeaders.length).toBe(rowCountColumn);
+            expect(dataRowPos.structure.columnHeaders.length).toBe(colCountColumn);
+            expect(engine.isDirty()).toBe(false); // Should be clean after recalculation
+        });
+
+        it('should handle valuePosition change from ROW to COLUMN', () => {
+            const sourceData = createSourceData([
+                ['Region', 'Sales', 'Product'],
+                ['North', 100, 'A'],
+                ['North', 200, 'B'],
+            ]);
+
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 2)],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.ROW,
+            });
+
+            const dataRowPos = engine.getCalculatedData();
+            const rowCountRow = dataRowPos.structure.rowHeaders.length;
+
+            // Switch to COLUMN position
+            engine.setValuePosition(PivotValuePosition.COLUMN);
+            const dataColumnPos = engine.getCalculatedData();
+
+            // With single value field, row count should remain same
+            expect(dataColumnPos.structure.rowHeaders.length).toBe(rowCountRow);
+            expect(engine.isDirty()).toBe(false);
+        });
+
+        it('should handle multiple value fields with ROW position', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [
+                    createValueField('Sales', 1),
+                    createValueField('Count', 2, AggregationType.COUNT),
+                ],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales', 'Count'],
+                    ['North', 100, 5],
+                    ['South', 200, 3],
+                ]),
+                valuePosition: PivotValuePosition.ROW,
+            });
+
+            const data = engine.getCalculatedData();
+            expect(data.isEmpty).toBe(false);
+            // Should have rows for each value field per region
+            // North-Sales, North-Count, South-Sales, South-Count = 4 rows
+            expect(data.structure.rowHeaders.length).toBe(4);
+            // Each row should have one value column
+            expect(data.structure.values[0].length).toBe(1);
+        });
+
+        it('should handle multiple value fields with COLUMN position', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [
+                    createValueField('Sales', 1),
+                    createValueField('Count', 2, AggregationType.COUNT),
+                ],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales', 'Count'],
+                    ['North', 100, 5],
+                    ['South', 200, 3],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data = engine.getCalculatedData();
+            expect(data.isEmpty).toBe(false);
+            // Should have rows for each region
+            expect(data.structure.rowHeaders.length).toBe(2);
+            // Column headers should include value field names
+            expect(data.structure.valueFieldHeaders).toBeDefined();
+            expect(data.structure.valueFieldHeaders?.length).toBe(2);
+            // When no column fields, single column, but with multiple values per cell
+            expect(data.structure.values[0].length).toBe(1);
+            // Each cell should contain an array of value field values
+            expect(data.structure.values[0][0].length).toBe(2);
+        });
+
+        it('should verify dirty flag is reset after recalculation', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            // First call triggers recalculation
+            engine.getCalculatedData();
+            // Should be clean after calculation
+            expect(engine.isDirty()).toBe(false);
+
+            // Change position
+            engine.setValuePosition(PivotValuePosition.ROW);
+            // Should be marked dirty
+            expect(engine.isDirty()).toBe(true);
+
+            // Recalculate should reset dirty flag
+            engine.getCalculatedData();
+            expect(engine.isDirty()).toBe(false);
+        });
+
+        it('should support no-change scenario (same position set twice)', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data1 = engine.getCalculatedData();
+
+            // Set same position again
+            engine.setValuePosition(PivotValuePosition.COLUMN);
+
+            // Should not be dirty (optimization: same position)
+            // Implementation may or may not optimize this, but result should be same
+            const data2 = engine.getCalculatedData();
+
+            expect(data1.structure.rowHeaders).toEqual(data2.structure.rowHeaders);
+            expect(data1.structure.columnHeaders).toEqual(data2.structure.columnHeaders);
+        });
+
+        it('should handle row-only pivot with valuePosition ROW', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                    ['South', 200],
+                ]),
+                valuePosition: PivotValuePosition.ROW,
+            });
+
+            const data = engine.getCalculatedData();
+            expect(data.isEmpty).toBe(false);
+            // Should have rows for each region's values
+            expect(data.structure.rowHeaders.length).toBeGreaterThan(0);
+            expect(data.structure.columnHeaders.length).toBeGreaterThan(0);
+        });
+
+        it('should handle row-only pivot with valuePosition COLUMN', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                    ['South', 200],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data = engine.getCalculatedData();
+            expect(data.isEmpty).toBe(false);
+            expect(data.structure.rowHeaders.length).toBe(2); // North, South
+            expect(data.structure.columnHeaders.length).toBe(1);
+            expect(data.structure.values[0][0][0]).toBe(100);
+            expect(data.structure.values[1][0][0]).toBe(200);
+        });
+
+        it('should handle empty pivot with valuePosition changes', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [],
+                columnFields: [],
+                valueFields: [],
+                filterFields: [],
+                sourceData: {},
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data1 = engine.getCalculatedData();
+            expect(data1.isEmpty).toBe(true);
+
+            engine.setValuePosition(PivotValuePosition.ROW);
+            const data2 = engine.getCalculatedData();
+            expect(data2.isEmpty).toBe(true);
+
+            // Both should be empty
+            expect(data1.isEmpty).toBe(data2.isEmpty);
+        });
+
+        it('should correctly update dimensions with position changes', () => {
+            const sourceData = createSourceData([
+                ['Region', 'Sales', 'Product'],
+                ['North', 100, 'A'],
+                ['North', 200, 'B'],
+                ['South', 150, 'A'],
+                ['South', 250, 'B'],
+            ]);
+
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 2)],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const dataColumn = engine.getCalculatedData();
+            const dimsColumn = dataColumn.dimensions;
+
+            engine.setValuePosition(PivotValuePosition.ROW);
+            const dataRow = engine.getCalculatedData();
+            const dimsRow = dataRow.dimensions;
+
+            // Column dimensions should remain same (still from column fields)
+            expect(dimsRow.totalColumns).toBe(dimsColumn.totalColumns);
+
+            // Row dimensions should remain same with single value field
+            expect(dimsRow.totalRows).toBe(dimsColumn.totalRows);
+
+            // Value field count should remain same
+            expect(dimsRow.valueFieldCount).toBe(dimsColumn.valueFieldCount);
         });
     });
 });

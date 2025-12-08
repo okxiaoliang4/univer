@@ -15,11 +15,10 @@
  */
 
 import type { ICellData, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
-import type { PivotValuePosition } from '../types/enum';
 import type { IPivotField, IPivotFilterCriteria, IPivotGroupInfo, IPivotSubtotalInfo, IPivotTableCrossTabConfig, IPivotTableCrossTabData } from '../types/type';
 import { Disposable } from '@univerjs/core';
 import { createAggregator } from '../common/aggregation/functions';
-import { AggregationType } from '../types/enum';
+import { AggregationType, PivotValuePosition } from '../types/enum';
 
 // Constants
 const BLANK_VALUE_PLACEHOLDER = '(blank)';
@@ -508,8 +507,43 @@ export class PivotEngineV2 extends Disposable {
 
     /**
      * Build Cross-Tabulation result structure
+     * Respects valuePosition to place value fields as rows or columns
      */
     private _buildCrossTabResult(
+        rowGroups: Map<string, ICellData[][]>,
+        columnCombos: string[][],
+        rowIndices: number[],
+        columnIndices: number[],
+        valueIndices: number[]
+    ): IPivotTableCrossTabData['structure'] {
+        // Check if we should place value fields as rows instead of columns
+        const useValueFieldsAsRows = this.valuePosition === PivotValuePosition.ROW;
+
+        // Delegate to appropriate implementation based on valuePosition
+        if (useValueFieldsAsRows) {
+            return this._buildCrossTabResultWithRowValues(
+                rowGroups,
+                columnCombos,
+                rowIndices,
+                columnIndices,
+                valueIndices
+            );
+        } else {
+            return this._buildCrossTabResultWithColumnValues(
+                rowGroups,
+                columnCombos,
+                rowIndices,
+                columnIndices,
+                valueIndices
+            );
+        }
+    }
+
+    /**
+     * Build Cross-Tabulation with value fields as column headers (current behavior)
+     * This is the original implementation
+     */
+    private _buildCrossTabResultWithColumnValues(
         rowGroups: Map<string, ICellData[][]>,
         columnCombos: string[][],
         rowIndices: number[],
@@ -843,6 +877,322 @@ export class PivotEngineV2 extends Disposable {
             rowHeaders,
             columnHeaders,
             valueFieldHeaders,
+            values,
+            rowTypes,
+            columnTypes,
+            subtotalRows: subtotalRows.length > 0 ? subtotalRows : undefined,
+            subtotalColumns: subtotalColumns.length > 0 ? subtotalColumns : undefined,
+            rowGroups: rowGroupsInfo.length > 0 ? rowGroupsInfo : undefined,
+            columnGroups: columnGroupsInfo.length > 0 ? columnGroupsInfo : undefined,
+            rowLevelMap: Object.keys(rowLevelMap).length > 0 ? rowLevelMap : undefined,
+            columnLevelMap: Object.keys(columnLevelMap).length > 0 ? columnLevelMap : undefined,
+        };
+    }
+
+    /**
+     * Build Cross-Tabulation with value fields as row headers
+     * When valuePosition === ROW, value fields become part of the row structure
+     *
+     * In this layout:
+     * - Each original row group generates rows for each value field
+     * - Value field names are appended to row headers as an additional level
+     * - Column headers remain from column fields only
+     * - This creates a layout where values are spread across rows instead of columns
+     *
+     * Example structure with 2 regions and 1 value field:
+     * Row Headers: [Region, ValueFieldName]
+     * Values:      [[100, 200], [150, 250]]  (North-A: 100, North-B: 200, etc.)
+     */
+    private _buildCrossTabResultWithRowValues(
+        rowGroups: Map<string, ICellData[][]>,
+        columnCombos: string[][],
+        rowIndices: number[],
+        columnIndices: number[],
+        valueIndices: number[]
+    ): IPivotTableCrossTabData['structure'] {
+        const rowHeaders: string[][] = [];
+        const columnHeaders: string[][] = [];
+        const values: (number | string | null)[][][] = [];
+        const rowTypes: ('data' | 'subtotal')[] = [];
+        const columnTypes: ('data' | 'subtotal')[] = [];
+        const subtotalRows: IPivotSubtotalInfo[] = [];
+        const subtotalColumns: IPivotSubtotalInfo[] = [];
+        const rowGroupsInfo: IPivotGroupInfo[] = [];
+        const columnGroupsInfo: IPivotGroupInfo[] = [];
+        const rowLevelMap: Record<number, string[]> = {};
+        const columnLevelMap: Record<number, string[]> = {};
+
+        // Build column headers (only from column fields, NOT value fields)
+        for (const combo of columnCombos) {
+            columnHeaders.push(combo.map((v) => v === BLANK_VALUE_PLACEHOLDER ? '' : v));
+            columnTypes.push('data');
+        }
+
+        // Add grand total column if first column field has showSubTotals
+        if (columnIndices.length > 0 && this._columnFields[0]?.showSubTotals) {
+            columnHeaders.push(['总计']);
+            columnTypes.push('subtotal');
+            subtotalColumns.push({
+                columnIndex: columnHeaders.length - 1,
+                level: 0,
+                fieldIndex: 0,
+                value: '',
+                label: '总计',
+            });
+        }
+
+        // Process row groups
+        const sortedRowKeys = Array.from(rowGroups.keys()).sort();
+        let currentRowIndex = 0;
+
+        for (const rowKey of sortedRowKeys) {
+            const groupRows = rowGroups.get(rowKey);
+            if (!groupRows) continue;
+
+            const rowFieldValues = this._parseGroupKey(rowKey);
+            const groupId = this._generateGroupId('row', rowFieldValues, 0);
+
+            // Track group start
+            const groupStartIndex = currentRowIndex;
+
+            // For each value field, add a row
+            for (let valueIdx = 0; valueIdx < this._valueFields.length; valueIdx++) {
+                const valueField = this._valueFields[valueIdx];
+                const valueIndex = valueIndices[valueIdx];
+                const aggregation = valueField.aggregation || AggregationType.SUM;
+
+                // Create row header: original row fields + value field name
+                const valueHeader = [...rowFieldValues];
+                // Append value field label as an additional level
+                const aggregationLabel = this._getAggregationLabel(aggregation, valueField.name);
+                valueHeader.push(aggregationLabel);
+
+                // Calculate values for each column
+                const rowValues: (number | string | null)[][] = [];
+                if (columnIndices.length > 0) {
+                    // For each column combination
+                    for (const columnCombo of columnCombos) {
+                        const filteredRows = this._filterByColumnCombo(groupRows, columnIndices, columnCombo);
+                        const aggregatedValue = this._aggregateSingleValue(filteredRows, valueIndex, aggregation);
+                        rowValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    }
+
+                    // Add grand total column if needed
+                    if (columnHeaders.length > columnCombos.length) {
+                        const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
+                        rowValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    }
+                } else {
+                    // Row-only: single column
+                    const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
+                    rowValues.push([this._normalizeValue(aggregatedValue.v)]);
+                }
+
+                rowHeaders.push(valueHeader);
+                rowTypes.push('data');
+                values.push(rowValues);
+
+                // Update row level map
+                rowLevelMap[currentRowIndex] = [groupId];
+                currentRowIndex++;
+            }
+
+            // Add subtotal row if first row field has showSubTotals
+            if (rowIndices.length > 0 && this._rowFields[0]?.showSubTotals) {
+                const subtotalHeader = [...rowFieldValues];
+                subtotalHeader[0] = ''; // Empty for subtotal row
+                subtotalHeader.push('小计'); // Add subtotal marker
+
+                const subtotalValues: (number | string | null)[][] = [];
+                if (columnIndices.length > 0) {
+                    // Calculate subtotal for each column (across all value fields)
+                    for (const columnCombo of columnCombos) {
+                        const filteredRows = this._filterByColumnCombo(groupRows, columnIndices, columnCombo);
+                        // For ROW position, subtotals sum across value fields would be less meaningful
+                        // So we just aggregate the first value field as representative
+                        const firstValueIndex = valueIndices[0];
+                        const firstField = this._valueFields[0];
+                        const aggregation = firstField.aggregation || AggregationType.SUM;
+                        const aggregatedValue = this._aggregateSingleValue(filteredRows, firstValueIndex, aggregation);
+                        subtotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    }
+
+                    // Add grand total column if needed
+                    if (columnHeaders.length > columnCombos.length) {
+                        const firstValueIndex = valueIndices[0];
+                        const firstField = this._valueFields[0];
+                        const aggregation = firstField.aggregation || AggregationType.SUM;
+                        const aggregatedValue = this._aggregateSingleValue(groupRows, firstValueIndex, aggregation);
+                        subtotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    }
+                } else {
+                    // Row-only
+                    const firstValueIndex = valueIndices[0];
+                    const firstField = this._valueFields[0];
+                    const aggregation = firstField.aggregation || AggregationType.SUM;
+                    const aggregatedValue = this._aggregateSingleValue(groupRows, firstValueIndex, aggregation);
+                    subtotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                }
+
+                rowHeaders.push(subtotalHeader);
+                rowTypes.push('subtotal');
+                values.push(subtotalValues);
+
+                subtotalRows.push({
+                    rowIndex: currentRowIndex,
+                    level: 0,
+                    fieldIndex: 0,
+                    value: rowFieldValues[0] || '',
+                    label: `${rowFieldValues[0] || ''} 小计`,
+                });
+
+                // Update row level map for subtotal row
+                rowLevelMap[currentRowIndex] = [groupId];
+
+                // Update group info
+                rowGroupsInfo.push({
+                    groupId,
+                    firstRowIndex: groupStartIndex,
+                    lastRowIndex: currentRowIndex,
+                    level: 0,
+                    fieldIndex: 0,
+                    value: rowFieldValues[0] || '',
+                    expanded: true,
+                });
+
+                currentRowIndex++;
+            } else if (rowIndices.length > 0) {
+                // No subtotal, but still track group
+                rowGroupsInfo.push({
+                    groupId,
+                    firstRowIndex: groupStartIndex,
+                    lastRowIndex: currentRowIndex - 1,
+                    level: 0,
+                    fieldIndex: 0,
+                    value: rowFieldValues[0] || '',
+                    expanded: true,
+                });
+            }
+        }
+
+        // Add grand total row if first row field has showSubTotals
+        if (rowIndices.length > 0 && this._rowFields[0]?.showSubTotals) {
+            // Add one grand total row for each value field
+            for (let valueIdx = 0; valueIdx < this._valueFields.length; valueIdx++) {
+                const valueField = this._valueFields[valueIdx];
+                const valueIndex = valueIndices[valueIdx];
+                const aggregation = valueField.aggregation || AggregationType.SUM;
+
+                const grandTotalHeader: string[] = [];
+                for (let i = 0; i < rowIndices.length; i++) {
+                    grandTotalHeader.push(i === 0 ? '总计' : '');
+                }
+                const aggregationLabel = this._getAggregationLabel(aggregation, valueField.name);
+                grandTotalHeader.push(aggregationLabel);
+
+                const grandTotalValues: (number | string | null)[][] = [];
+                if (columnIndices.length > 0) {
+                    // Calculate grand total for each column
+                    for (const columnCombo of columnCombos) {
+                        const allRowsForColumn = Array.from(rowGroups.values())
+                            .flat()
+                            .filter((row) => {
+                                for (let i = 0; i < columnIndices.length; i++) {
+                                    const fieldIndex = columnIndices[i];
+                                    const expectedValue = columnCombo[i];
+                                    const actualValue = row[fieldIndex]?.v?.toString() || BLANK_VALUE_PLACEHOLDER;
+                                    if (actualValue !== expectedValue) {
+                                        return false;
+                                    }
+                                }
+                                return true;
+                            });
+
+                        const aggregatedValue = this._aggregateSingleValue(allRowsForColumn, valueIndex, aggregation);
+                        grandTotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    }
+
+                    // Add grand total column value
+                    if (columnHeaders.length > columnCombos.length) {
+                        const allRows = Array.from(rowGroups.values()).flat();
+                        const aggregatedValue = this._aggregateSingleValue(allRows, valueIndex, aggregation);
+                        grandTotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    }
+                } else {
+                    // Row-only: single column
+                    const allRows = Array.from(rowGroups.values()).flat();
+                    const aggregatedValue = this._aggregateSingleValue(allRows, valueIndex, aggregation);
+                    grandTotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                }
+
+                rowHeaders.push(grandTotalHeader);
+                rowTypes.push('subtotal');
+                values.push(grandTotalValues);
+
+                subtotalRows.push({
+                    rowIndex: currentRowIndex,
+                    level: 0,
+                    fieldIndex: 0,
+                    value: '',
+                    label: `总计 - ${aggregationLabel}`,
+                });
+
+                rowLevelMap[currentRowIndex] = [];
+                currentRowIndex++;
+            }
+        }
+
+        // Build column groups and level map
+        if (columnIndices.length > 0) {
+            // Group columns by their values
+            const columnGroupMap = new Map<string, number[]>();
+            for (let i = 0; i < columnCombos.length; i++) {
+                const combo = columnCombos[i];
+                const groupId = this._generateGroupId('col', combo, 0);
+
+                if (!columnGroupMap.has(groupId)) {
+                    columnGroupMap.set(groupId, []);
+                }
+                columnGroupMap.get(groupId)!.push(i);
+            }
+
+            // Create column group info
+            for (const [groupId, indices] of columnGroupMap.entries()) {
+                if (indices.length > 0) {
+                    const combo = columnCombos[indices[0]];
+                    columnGroupsInfo.push({
+                        groupId,
+                        firstColumnIndex: indices[0],
+                        lastColumnIndex: indices[indices.length - 1],
+                        level: 0,
+                        fieldIndex: 0,
+                        value: combo[0] || '',
+                        expanded: true,
+                    });
+                }
+            }
+
+            // Build column level map
+            for (let i = 0; i < columnHeaders.length; i++) {
+                if (i < columnCombos.length) {
+                    const combo = columnCombos[i];
+                    const groupId = this._generateGroupId('col', combo, 0);
+                    columnLevelMap[i] = [groupId];
+                } else {
+                    columnLevelMap[i] = [];
+                }
+            }
+        } else {
+            // No column fields, all columns belong to empty group
+            for (let i = 0; i < columnHeaders.length; i++) {
+                columnLevelMap[i] = [];
+            }
+        }
+
+        return {
+            rowHeaders,
+            columnHeaders,
+            valueFieldHeaders: undefined, // Not used when values are rows
             values,
             rowTypes,
             columnTypes,
