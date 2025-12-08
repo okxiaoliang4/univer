@@ -44,6 +44,7 @@ const locale: typeof enUS = {
             values: 'Giá trị',
             dragFieldsHere: 'Kéo các trường vào đây',
             remove: 'Xóa',
+            add: 'Thêm',
             aggregationMethodLabel: 'Phương thức tổng hợp',
             aggregationType: {
                 sum: 'Tổng',

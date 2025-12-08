@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import type { Dependency } from '@univerjs/core';
 import type { IUniverSheetsPivotTableUIConfig } from './controllers/config.schema';
-import { DependentOn, IConfigService, Inject, Injector, merge, Plugin, UniverInstanceType } from '@univerjs/core';
+import { DependentOn, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
 import { UniverSheetsPivotTablePlugin } from '@univerjs/sheets-pivot-table';
 import { ComponentManager } from '@univerjs/ui';
 import { PLUGIN_NAME } from './const/const';
@@ -24,6 +23,8 @@ import { defaultPluginConfig, SHEETS_PIVOT_TABLE_UI_PLUGIN_CONFIG_KEY } from './
 import { PivotTablePermissionUIController } from './controllers/pivot-table-permission-ui.controller';
 import { PivotTableRenderController } from './controllers/pivot-table-render.controller';
 import { PivotTableUIDesktopController } from './controllers/pivot-table-ui-desktop.controller';
+import { PivotTableController } from './controllers/pivot-table.controller';
+import { IntelligentFieldPlacementService } from './services/intelligent-field-placement.service';
 import { ISheetsPivotTablePanelService, SheetsPivotTablePanelService } from './services/pivot-table-panel.service';
 import { IPivotTableStyleService, PivotTableStyleService } from './services/pivot-table-style.service';
 import { registerPivotTableComponents } from './views/menu';
@@ -57,13 +58,10 @@ export class UniverSheetsPivotTableUIPlugin extends Plugin {
 
     override onStarting(): void {
         // Register services and controllers
-        const dependencies: Dependency[] = [
+        registerDependencies(this._injector, [
             [ISheetsPivotTablePanelService, { useClass: SheetsPivotTablePanelService }],
             [IPivotTableStyleService, { useClass: PivotTableStyleService }],
-        ];
-        dependencies.forEach((d) => {
-            this._injector.add(d);
-        });
+        ]);
     }
 
     override onReady(): void {
@@ -76,18 +74,20 @@ export class UniverSheetsPivotTableUIPlugin extends Plugin {
         registerPivotTableComponents(this._componentManager);
 
         // Register desktop controller and permission UI controller
-        const controllers: Dependency[] = [
+        registerDependencies(this._injector, [
+            [IntelligentFieldPlacementService],
+            [PivotTableController],
             [PivotTableUIDesktopController],
             [PivotTablePermissionUIController],
             [PivotTableRenderController],
-        ];
-        controllers.forEach((d) => {
-            this._injector.add(d);
-        });
+        ]);
 
-        // Touch controllers to ensure initialization
-        this._injector.get(PivotTableUIDesktopController);
-        this._injector.get(PivotTablePermissionUIController);
-        this._injector.get(PivotTableRenderController);
+      // Touch controllers to ensure initialization
+        touchDependencies(this._injector, [
+            [PivotTableController],
+            [PivotTableUIDesktopController],
+            [PivotTablePermissionUIController],
+            [PivotTableRenderController],
+        ]);
     }
 }

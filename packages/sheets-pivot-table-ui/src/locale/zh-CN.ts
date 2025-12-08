@@ -42,6 +42,7 @@ const locale = {
             values: '值',
             dragFieldsHere: '将字段拖到此处',
             remove: '移除',
+            add: '添加',
             aggregationMethodLabel: '汇总方式',
             aggregationType: {
                 sum: '求和',

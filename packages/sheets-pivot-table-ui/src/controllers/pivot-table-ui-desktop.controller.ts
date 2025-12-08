@@ -21,8 +21,8 @@ import { Disposable, ICommandService, Inject, Injector } from '@univerjs/core';
 import { PivotTableIcon } from '@univerjs/icons';
 import { SetSelectionsOperation } from '@univerjs/sheets';
 import { ISheetsPivotTableService, RemovePivotTableMutation } from '@univerjs/sheets-pivot-table';
-import { ComponentManager, IMenuManagerService, IShortcutService } from '@univerjs/ui';
-import { HidePivotTablePanelOperation, OpenCreatePivotTableDialogOperation, ShowPivotTablePanelOperation } from '../commands/operations/pivot-table.operation';
+import { ComponentManager, IMenuManagerService, IShortcutService, ISidebarService } from '@univerjs/ui';
+import { HidePivotTablePanelOperation, OpenCreatePivotTableDialogOperation, PIVOT_TABLE_PANEL_ID, ShowPivotTablePanelOperation } from '../commands/operations/pivot-table.operation';
 import { PivotTablePanel } from '../views/components/PivotTablePanel';
 import { menuSchema } from './menu.schema';
 import { CreatePivotTableShortcut } from './pivot-table.shortcut';
@@ -37,6 +37,7 @@ export class PivotTableUIDesktopController extends Disposable {
         @ICommandService private readonly _commandService: ICommandService,
         @IMenuManagerService private readonly _menuManagerService: IMenuManagerService,
         @IShortcutService private readonly _shortcutService: IShortcutService,
+        @ISidebarService private readonly _sidebarService: ISidebarService,
         @Inject(ComponentManager) private readonly _componentManager: ComponentManager
     ) {
         super();
@@ -98,6 +99,12 @@ export class PivotTableUIDesktopController extends Disposable {
                     }
                     const pivotTable = pivotTableService.getPivotTableByTargetRange(params.unitId, params.subUnitId, primarySelection.range);
                     if (!pivotTable) {
+                        if (this._sidebarService.visible && this._sidebarService.options.id === PIVOT_TABLE_PANEL_ID) {
+                            this._commandService.executeCommand(HidePivotTablePanelOperation.id, {
+                                unitId: params.unitId,
+                                subUnitId: params.subUnitId,
+                            });
+                        }
                         return;
                     }
                     this._commandService.executeCommand(ShowPivotTablePanelOperation.id, {

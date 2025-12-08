@@ -44,6 +44,7 @@ const locale: typeof enUS = {
             values: 'مقادیر',
             dragFieldsHere: 'فیلدها را اینجا بکشید',
             remove: 'حذف',
+            add: 'اضافه کردن',
             aggregationMethodLabel: 'روش تجمیع',
             aggregationType: {
                 sum: 'جمع',

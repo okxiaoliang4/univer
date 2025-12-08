@@ -42,6 +42,7 @@ const locale = {
             values: 'Values',
             dragFieldsHere: 'Drag fields here',
             remove: 'Remove',
+            add: 'Add',
             aggregationMethodLabel: 'Aggregation Method',
             aggregationType: {
                 sum: 'Sum',

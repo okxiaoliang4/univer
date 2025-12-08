@@ -56,12 +56,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { generateRandomId, ICommandService, LocaleService } from '@univerjs/core';
-import { Select } from '@univerjs/design';
+import { Button, Dropdown, Select, SelectList } from '@univerjs/design';
 import { AggregationType, UpdatePivotTableFieldsCommand } from '@univerjs/sheets-pivot-table';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { coordinateGetter as multipleContainersCoordinateGetter } from '../../common/multiple-containers-keyboard-coordinates';
+import { IntelligentFieldPlacementService } from '../../services/intelligent-field-placement.service';
 import { FieldItem } from './FieldItem';
 import { FieldItemsContainer } from './FieldItemsContainer';
 import { FieldRender } from './FieldRender';
@@ -194,6 +195,159 @@ export function PivotTableEditor({
 
     const commandService = useDependency(ICommandService);
     const localeService = useDependency(LocaleService);
+    const intelligentPlacementService = useDependency(IntelligentFieldPlacementService);
+
+    // Get source data for field type detection
+    const sourceData = useMemo(() => pivotTable.getSourceData(), [pivotTable]);
+
+    // Helper function to check if a field is already added to any area
+    const isFieldAdded = useCallback((sourceColumnIndex: number): boolean => {
+        return (
+            rowFields.some((f) => f.sourceColumnIndex === sourceColumnIndex) ||
+            columnFields.some((f) => f.sourceColumnIndex === sourceColumnIndex) ||
+            valueFields.some((f) => f.sourceColumnIndex === sourceColumnIndex) ||
+            filterFields.some((f) => f.sourceColumnIndex === sourceColumnIndex)
+        );
+    }, [rowFields, columnFields, valueFields, filterFields]);
+
+    // Helper function to add a field with intelligent placement
+    const addFieldWithIntelligentPlacement = useCallback((field: IPivotField) => {
+        const placement = intelligentPlacementService.determinePlacement(
+            field.name,
+            field.sourceColumnIndex,
+            sourceData
+        );
+
+        const targetCellInfo = pivotTable.getTargetCellInfo();
+        let newValueFields = [...valueFields];
+        let newRowFields = [...rowFields];
+        let newColumnFields = [...columnFields];
+        let newFilterFields = [...filterFields];
+
+        const newField: IPivotField = {
+            ...field,
+            id: `${generateRandomId(6)}_${field.id}`,
+            aggregation: placement.aggregation,
+        };
+
+        // Remove from other areas if it exists (exclusive rule for rowFields/columnFields)
+        if (placement.area === 'rowFields' || placement.area === 'columnFields') {
+            newColumnFields = newColumnFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex);
+            newRowFields = newRowFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex);
+        }
+
+        // Add to target area
+        if (placement.area === 'valueFields') {
+            newValueFields = [...newValueFields, newField];
+        } else if (placement.area === 'rowFields') {
+            newRowFields = [...newRowFields, newField];
+        } else if (placement.area === 'columnFields') {
+            newColumnFields = [...newColumnFields, newField];
+        } else if (placement.area === 'filterFields') {
+            newFilterFields = [...newFilterFields, newField];
+        }
+
+        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+            unitId: targetCellInfo.unitId,
+            subUnitId: targetCellInfo.subUnitId,
+            pivotTableId: pivotTable.getId(),
+            fieldsConfig: {
+                valueFields: newValueFields,
+                rowFields: newRowFields,
+                columnFields: newColumnFields,
+                filterFields: newFilterFields,
+                valuePosition: pivotTable.getValuePosition(),
+            } satisfies IFieldsConfig,
+        } satisfies IUpdatePivotTableFieldsCommandParams);
+    }, [intelligentPlacementService, sourceData, pivotTable, commandService, valueFields, rowFields, columnFields, filterFields]);
+
+    // Helper function to remove a field from all areas
+    const removeFieldFromAllAreas = useCallback((field: IPivotField) => {
+        const targetCellInfo = pivotTable.getTargetCellInfo();
+
+        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+            unitId: targetCellInfo.unitId,
+            subUnitId: targetCellInfo.subUnitId,
+            pivotTableId: pivotTable.getId(),
+            fieldsConfig: {
+                valueFields: valueFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex),
+                rowFields: rowFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex),
+                columnFields: columnFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex),
+                filterFields: filterFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex),
+                valuePosition: pivotTable.getValuePosition(),
+            } satisfies IFieldsConfig,
+        } satisfies IUpdatePivotTableFieldsCommandParams);
+    }, [intelligentPlacementService, pivotTable, commandService, valueFields, rowFields, columnFields, filterFields]);
+
+    // Helper function to add a field to a specific area
+    const addFieldToArea = useCallback((field: IPivotField, targetArea: 'rowFields' | 'columnFields' | 'valueFields' | 'filterFields') => {
+        const targetCellInfo = pivotTable.getTargetCellInfo();
+        let newValueFields = [...valueFields];
+        let newRowFields = [...rowFields];
+        let newColumnFields = [...columnFields];
+        let newFilterFields = [...filterFields];
+
+        const newField: IPivotField = {
+            ...field,
+            id: `${generateRandomId(6)}_${field.id}`,
+            aggregation: targetArea === 'valueFields' ? AggregationType.SUM : undefined,
+        };
+
+        // Remove from other areas if it exists (exclusive rule for rowFields/columnFields)
+        if (targetArea === 'rowFields' || targetArea === 'columnFields') {
+            newColumnFields = newColumnFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex);
+            newRowFields = newRowFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex);
+        }
+
+        // Add to target area
+        if (targetArea === 'valueFields') {
+            newValueFields = [...newValueFields, newField];
+        } else if (targetArea === 'rowFields') {
+            newRowFields = [...newRowFields, newField];
+        } else if (targetArea === 'columnFields') {
+            newColumnFields = [...newColumnFields, newField];
+        } else if (targetArea === 'filterFields') {
+            newFilterFields = [...newFilterFields, newField];
+        }
+
+        commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+            unitId: targetCellInfo.unitId,
+            subUnitId: targetCellInfo.subUnitId,
+            pivotTableId: pivotTable.getId(),
+            fieldsConfig: {
+                valueFields: newValueFields,
+                rowFields: newRowFields,
+                columnFields: newColumnFields,
+                filterFields: newFilterFields,
+                valuePosition: pivotTable.getValuePosition(),
+            } satisfies IFieldsConfig,
+        } satisfies IUpdatePivotTableFieldsCommandParams);
+    }, [pivotTable, commandService, valueFields, rowFields, columnFields, filterFields]);
+
+    // Helper function to get filtered fields for dropdown
+    const getFilteredFieldsForArea = useCallback((area: 'rowFields' | 'columnFields' | 'valueFields' | 'filterFields'): IPivotField[] => {
+        if (area === 'valueFields') {
+            // valueFields shows all fields (allowing duplicates)
+            return sourceFields;
+        }
+
+        // For rowFields and columnFields, exclude fields already in rowFields or columnFields
+        if (area === 'rowFields' || area === 'columnFields') {
+            const exclusiveFields = new Set([
+                ...rowFields.map((f) => f.sourceColumnIndex),
+                ...columnFields.map((f) => f.sourceColumnIndex),
+            ]);
+            return sourceFields.filter((f) => !exclusiveFields.has(f.sourceColumnIndex));
+        }
+
+        // For filterFields, exclude fields already in filterFields
+        if (area === 'filterFields') {
+            const filterFieldIndices = new Set(filterFields.map((f) => f.sourceColumnIndex));
+            return sourceFields.filter((f) => !filterFieldIndices.has(f.sourceColumnIndex));
+        }
+
+        return sourceFields;
+    }, [sourceFields, rowFields, columnFields, filterFields]);
 
     // Memoized containers structure directly from pivotTable data
     const items: Record<string, IPivotField[]> = useMemo(() => ({
@@ -208,7 +362,23 @@ export function PivotTableEditor({
         sourceFields: {
             renderItem: (props) => {
                 const { ref, field, ...restProps } = props;
-                return <FieldRender {...restProps} field={field} ref={ref as React.Ref<HTMLDivElement>} />;
+                const isChecked = isFieldAdded(field.sourceColumnIndex);
+                return (
+                    <FieldRender
+                        {...restProps}
+                        field={field}
+                        ref={ref as React.Ref<HTMLDivElement>}
+                        showCheckbox={true}
+                        checkboxChecked={isChecked}
+                        onCheckboxChange={(checked) => {
+                            if (checked) {
+                                addFieldWithIntelligentPlacement(field);
+                            } else {
+                                removeFieldFromAllAreas(field);
+                            }
+                        }}
+                    />
+                );
             },
         },
         filterFields: {
@@ -433,10 +603,27 @@ export function PivotTableEditor({
         Object.keys(items) as UniqueIdentifier[], [items]);
 
     const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+    const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
     const lastOverId = useRef<UniqueIdentifier | null>(null);
     const recentlyMovedToNewContainer = useRef(false);
     const isSortingContainer =
         activeId != null ? containers.includes(activeId) : false;
+
+    // Toggle dropdown for a container
+    const toggleDropdown = useCallback((containerId: string) => {
+        setOpenDropdowns((prev) => ({
+            ...prev,
+            [containerId]: !prev[containerId],
+        }));
+    }, []);
+
+    // Close dropdown for a container
+    const closeDropdown = useCallback((containerId: string) => {
+        setOpenDropdowns((prev) => ({
+            ...prev,
+            [containerId]: false,
+        }));
+    }, []);
 
     // Track active container for drag operations
     const activeContainerRef = useRef<UniqueIdentifier | null>(null);
@@ -728,6 +915,22 @@ export function PivotTableEditor({
 
         const targetCellInfo = pivotTable.getTargetCellInfo();
 
+        // Update user preferences when fields are moved between areas
+        if (activeContainer !== 'sourceFields' && overContainer && overContainer !== 'sourceFields') {
+            const movedField = [...valueFields, ...rowFields, ...columnFields, ...filterFields].find(
+                (f) => f.sourceColumnIndex === activeSourceColumnIndex
+            );
+            if (movedField) {
+                const sourceField = getSourceField(activeSourceColumnIndex);
+                if (sourceField) {
+                    intelligentPlacementService.updatePreference(
+                        sourceField.name,
+                        overContainer as 'rowFields' | 'columnFields' | 'valueFields' | 'filterFields'
+                    );
+                }
+            }
+        }
+
         commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
             unitId: targetCellInfo.unitId,
             subUnitId: targetCellInfo.subUnitId,
@@ -772,44 +975,88 @@ export function PivotTableEditor({
             modifiers={modifiers}
         >
             <div className="univer-grid univer-grid-cols-2 univer-gap-2">
-                {containers.map((containerId) => (
-                    <DroppableContainer
-                        className={containerId === 'rowFields' || containerId === 'columnFields'
-                            ? 'univer-col-span-1'
-                            : 'univer-col-span-2'}
-                        key={containerId}
-                        id={containerId}
-                        label={minimal ? undefined : localeService.t(`pivotTable.editor.containerLabels.${String(containerId)}`)}
-                        columns={columns}
-                        items={items[containerId].map((field) => field.id)}
-                        scrollable={scrollable}
-                        style={containerStyle}
-                        unstyled={minimal}
-                    >
-                        <SortableContext items={items[containerId].map((field) => field.id)} strategy={strategy}>
-                            {items[containerId]?.map((field: IPivotField, index: number) => {
-                                return (
-                                    <SortableItem
-                                        disabled={isSortingContainer}
-                                        key={field.id}
-                                        id={field.id}
-                                        index={index}
-                                        handle={handle}
-                                        style={getItemStyles}
-                                        wrapperStyle={wrapperStyle}
-                                        renderItem={(props) => config[containerId as keyof typeof config].renderItem({
-                                            ...props,
-                                            field,
-                                        })}
-                                        containerId={containerId}
-                                        getIndex={getIndex}
-                                        value={field.name}
-                                    />
-                                );
-                            })}
-                        </SortableContext>
-                    </DroppableContainer>
-                ))}
+                {containers.map((containerId) => {
+                    // Don't show Add button for sourceFields
+                    const showAddButton = containerId !== 'sourceFields';
+                    const filteredFields = showAddButton ? getFilteredFieldsForArea(containerId as 'rowFields' | 'columnFields' | 'valueFields' | 'filterFields') : [];
+                    const isDropdownOpen = openDropdowns[String(containerId)] ?? false;
+
+                    return (
+                        <DroppableContainer
+                            className={containerId === 'rowFields' || containerId === 'columnFields'
+                                ? 'univer-col-span-1'
+                                : 'univer-col-span-2'}
+                            key={containerId}
+                            id={containerId}
+                            label={minimal ? undefined : localeService.t(`pivotTable.editor.containerLabels.${String(containerId)}`)}
+                            columns={columns}
+                            items={items[containerId].map((field) => field.id)}
+                            scrollable={scrollable}
+                            style={containerStyle}
+                            unstyled={minimal}
+                            showAddButton={showAddButton}
+                            addButtonLabel={localeService.t('pivotTable.editor.add')}
+                            addButtonOverlay={showAddButton && filteredFields.length > 0
+                                ? (
+                                    <Dropdown
+                                        open={isDropdownOpen}
+                                        onOpenChange={(open) => {
+                                            if (open) {
+                                                toggleDropdown(String(containerId));
+                                            } else {
+                                                closeDropdown(String(containerId));
+                                            }
+                                        }}
+                                        overlay={(
+                                            <SelectList
+                                                value=""
+                                                options={filteredFields.map((field) => ({
+                                                    label: field.name,
+                                                    value: String(field.sourceColumnIndex),
+                                                }))}
+                                                onChange={(value) => {
+                                                    if (value) {
+                                                        const fieldIndex = Number.parseInt(Array.isArray(value) ? value[0] : value, 10);
+                                                        const field = sourceFields.find((f) => f.sourceColumnIndex === fieldIndex);
+                                                        if (field) {
+                                                            addFieldToArea(field, containerId as 'rowFields' | 'columnFields' | 'valueFields' | 'filterFields');
+                                                            closeDropdown(String(containerId));
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                        )}
+                                    >
+                                        <Button size="small">{localeService.t('pivotTable.editor.add')}</Button>
+                                    </Dropdown>
+                                )
+                                : undefined}
+                        >
+                            <SortableContext items={items[containerId].map((field) => field.id)} strategy={strategy}>
+                                {items[containerId]?.map((field: IPivotField, index: number) => {
+                                    return (
+                                        <SortableItem
+                                            disabled={isSortingContainer}
+                                            key={field.id}
+                                            id={field.id}
+                                            index={index}
+                                            handle={handle}
+                                            style={getItemStyles}
+                                            wrapperStyle={wrapperStyle}
+                                            renderItem={(props) => config[containerId as keyof typeof config].renderItem({
+                                                ...props,
+                                                field,
+                                            })}
+                                            containerId={containerId}
+                                            getIndex={getIndex}
+                                            value={field.name}
+                                        />
+                                    );
+                                })}
+                            </SortableContext>
+                        </DroppableContainer>
+                    );
+                })}
             </div>
             {createPortal(
                 <DragOverlay adjustScale={adjustScale} dropAnimation={dropAnimation}>

@@ -18,7 +18,7 @@ import type { DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { Transform } from '@dnd-kit/utilities';
 import type { IPivotField } from '@univerjs/sheets-pivot-table';
 import { CSS } from '@dnd-kit/utilities';
-import { clsx } from '@univerjs/design';
+import { Checkbox, clsx } from '@univerjs/design';
 import { CloseIcon, SequenceIcon } from '@univerjs/icons';
 import { forwardRef } from 'react';
 
@@ -26,6 +26,10 @@ export interface IFieldRenderProps {
     field: IPivotField;
     renderFooter?: () => React.ReactNode;
     onRemove?: () => void;
+    // Checkbox props for source fields
+    showCheckbox?: boolean;
+    checkboxChecked?: boolean;
+    onCheckboxChange?: (checked: boolean) => void;
 
     dragOverlay: boolean;
     dragging: boolean;
@@ -40,7 +44,26 @@ export interface IFieldRenderProps {
 }
 
 export const FieldRender = forwardRef<HTMLDivElement, IFieldRenderProps>((props, ref) => {
-    const { dragging, fadeIn, dragOverlay, sorting, style, transform, listeners, value, onRemove, renderFooter } = props;
+    const {
+        dragging,
+        fadeIn,
+        dragOverlay,
+        sorting,
+        style,
+        transform,
+        listeners,
+        value,
+        onRemove,
+        renderFooter,
+        showCheckbox,
+        checkboxChecked,
+        onCheckboxChange,
+    } = props;
+
+    const handleCheckboxChange = (checked: boolean) => {
+        onCheckboxChange?.(checked);
+    };
+
     return (
         <div
             className={`
@@ -65,6 +88,15 @@ export const FieldRender = forwardRef<HTMLDivElement, IFieldRenderProps>((props,
                 data-cypress="draggable-item"
             >
                 <span className="univer-flex univer-items-center univer-gap-2 univer-font-bold">
+                    {showCheckbox && (
+                        <Checkbox
+                            checked={checkboxChecked ?? false}
+                            onChange={handleCheckboxChange}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                            }}
+                        />
+                    )}
                     <SequenceIcon className="univer-cursor-move" {...listeners} />
                     {value}
                 </span>

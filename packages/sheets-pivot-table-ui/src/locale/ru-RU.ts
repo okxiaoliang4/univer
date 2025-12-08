@@ -44,6 +44,7 @@ const locale: typeof enUS = {
             values: 'Значения',
             dragFieldsHere: 'Перетащите поля сюда',
             remove: 'Удалить',
+            add: 'Добавить',
             aggregationMethodLabel: 'Метод агрегации',
             aggregationType: {
                 sum: 'Сумма',

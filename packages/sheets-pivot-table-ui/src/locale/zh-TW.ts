@@ -44,6 +44,7 @@ const locale: typeof enUS = {
             values: '值',
             dragFieldsHere: '將欄位拖到此處',
             remove: '移除',
+            add: '新增',
             aggregationMethodLabel: '彙總方式',
             aggregationType: {
                 sum: '求和',

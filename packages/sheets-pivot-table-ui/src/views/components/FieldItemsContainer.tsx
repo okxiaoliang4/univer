@@ -15,7 +15,7 @@
  */
 
 import type React from 'react';
-import { clsx } from '@univerjs/design';
+import { Button, clsx } from '@univerjs/design';
 import { forwardRef } from 'react';
 
 export interface IFieldItemsContainerProps {
@@ -29,6 +29,11 @@ export interface IFieldItemsContainerProps {
     scrollable?: boolean;
     shadow?: boolean;
     unstyled?: boolean;
+    // Add button props
+    showAddButton?: boolean;
+    addButtonLabel?: string;
+    onAddButtonClick?: () => void;
+    addButtonOverlay?: React.ReactNode;
 }
 
 export const FieldItemsContainer = forwardRef<HTMLDivElement, IFieldItemsContainerProps>(
@@ -44,6 +49,10 @@ export const FieldItemsContainer = forwardRef<HTMLDivElement, IFieldItemsContain
             scrollable,
             shadow,
             unstyled,
+            showAddButton,
+            addButtonLabel = 'Add',
+            onAddButtonClick,
+            addButtonOverlay,
             ...props
         }: IFieldItemsContainerProps,
         ref
@@ -61,11 +70,19 @@ export const FieldItemsContainer = forwardRef<HTMLDivElement, IFieldItemsContain
                     '--columns': columns,
                 } as React.CSSProperties}
             >
-                {label
+                {label || showAddButton
                     ? (
-                        <div className="">
-                            {label}
-                            <div className="" />
+                        <div className="univer-flex univer-items-center univer-justify-between univer-gap-2">
+                            {label && <div className="univer-font-medium">{label}</div>}
+                            {showAddButton && (
+                                <div className="univer-relative">
+                                    {addButtonOverlay || (
+                                        <Button size="small" onClick={onAddButtonClick}>
+                                            {addButtonLabel}
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )
                     : null}

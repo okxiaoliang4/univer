@@ -300,7 +300,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
         }
 
         return Array.from(pivotTables.values()).find((pivotTable) => {
-            const outputRange = pivotTable.getOutputRange();
+            const outputRange = pivotTable.getAbsoluteOutputRange();
             if (!outputRange) {
                 return false;
             }

@@ -44,6 +44,7 @@ const locale: typeof enUS = {
             values: '값',
             dragFieldsHere: '필드를 여기로 끌어오세요',
             remove: '제거',
+            add: '추가',
             aggregationMethodLabel: '집계 방법',
             aggregationType: {
                 sum: '합계',

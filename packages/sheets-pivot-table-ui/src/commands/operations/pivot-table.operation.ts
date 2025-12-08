@@ -33,7 +33,7 @@ export interface IShowPivotTablePanelOperationParams {
     pivotTableId: string;
 }
 
-const PIVOT_TABLE_PANEL_ID = 'pivot-table-panel';
+export const PIVOT_TABLE_PANEL_ID = 'pivot-table-panel';
 
 export const ShowPivotTablePanelOperation: IOperation<IShowPivotTablePanelOperationParams> = {
     type: CommandType.OPERATION,

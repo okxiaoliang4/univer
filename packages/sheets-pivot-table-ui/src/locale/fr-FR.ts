@@ -44,6 +44,7 @@ const locale: typeof enUS = {
             values: 'Valeurs',
             dragFieldsHere: 'Faites glisser les champs ici',
             remove: 'Supprimer',
+            add: 'Ajouter',
             aggregationMethodLabel: 'Méthode d\'agrégation',
             aggregationType: {
                 sum: 'Somme',

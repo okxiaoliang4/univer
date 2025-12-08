@@ -128,7 +128,7 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
     }, [pivotTable, commandService.executeCommand]);
 
     return (
-        <div className="univer-space-y-4">
+        <div className="univer-space-y-4 univer-py-4">
             <div className="univer-flex univer-flex-col univer-gap-2">
                 <label
                     className={`
