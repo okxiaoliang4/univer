@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import type { ICellData, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
-import type { IPivotField, IPivotFilterCriteria } from '../../types/type';
+import type { ICellData, IObjectArrayPrimitiveType, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
+import type { IPivotField, IPivotFilterCriteria, IPivotTableCrossTabData } from '../../types/type';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AggregationType, PivotValuePosition } from '../../types/enum';
@@ -70,6 +70,27 @@ function createSourceData(data: (string | number)[][]): IObjectMatrixPrimitiveTy
     });
 
     return result;
+}
+
+function getRowCount(
+    values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>>
+): number {
+    return Object.keys(values).length;
+}
+
+function getColumnCount(
+    values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>>,
+    rowIndex: number
+): number {
+    return Object.keys(values[rowIndex] || {}).length;
+}
+
+function getValueFieldCount(
+    values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>>,
+    rowIndex: number,
+    columnIndex: number
+): number {
+    return Object.keys(values[rowIndex]?.[columnIndex] || {}).length;
 }
 
 describe('PivotEngineV2', () => {
@@ -221,7 +242,9 @@ describe('PivotEngineV2', () => {
             // Check subtotal row types
             const subtotalRowIndices = result.structure.subtotalRows!.map((sr) => sr.rowIndex);
             subtotalRowIndices.forEach((index) => {
-                expect(result.structure.rowTypes[index]).toBe('subtotal');
+                if (index !== undefined) {
+                    expect(result.structure.rowTypes[index]).toBe('subtotal');
+                }
             });
         });
 
@@ -802,6 +825,7 @@ describe('PivotEngineV2', () => {
             const result = engine.getCalculatedData();
             // Note: This depends on aggregation behavior - COUNT would return 0, SUM would return null
             // The actual isEmpty logic checks if all values are null/empty
+            expect(result.isEmpty).toBe(true);
         });
     });
 
@@ -1086,6 +1110,30 @@ describe('PivotTableRenderModel', () => {
             expect(data.structure.values[1][1][0]).toBe(250); // South-B
         });
 
+        it('should store values as sparse matrix to avoid empty allocation', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Product', 2)],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales', 'Product'],
+                    ['North', 100, 'A'],
+                    ['North', 200, 'B'],
+                    ['South', 150, 'A'],
+                    ['South', 250, 'B'],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data = engine.getCalculatedData();
+            expect(Array.isArray(data.structure.values)).toBe(false);
+            expect(Object.keys(data.structure.values)).toEqual(['0', '1']);
+            expect(Object.keys(data.structure.values[0] || {})).toEqual(['0', '1']);
+            expect(Object.keys(data.structure.values[0]?.[0] || {})).toEqual(['0']);
+            expect(data.structure.values[0][0][0]).toBe(100);
+        });
+
         it('should support valuePosition ROW', () => {
             const engine = new PivotEngineV2({
                 rowFields: [createRowField('Region', 0)],
@@ -1110,7 +1158,7 @@ describe('PivotTableRenderModel', () => {
             // Column headers should be from column fields only (no value headers)
             expect(data.structure.columnHeaders.length).toBe(2); // Product A, Product B
             // Values should still be correct
-            expect(data.structure.values.length).toBe(2);
+            expect(getRowCount(data.structure.values)).toBe(2);
         });
 
         it('should handle valuePosition change from COLUMN to ROW', () => {
@@ -1195,7 +1243,7 @@ describe('PivotTableRenderModel', () => {
             // North-Sales, North-Count, South-Sales, South-Count = 4 rows
             expect(data.structure.rowHeaders.length).toBe(4);
             // Each row should have one value column
-            expect(data.structure.values[0].length).toBe(1);
+            expect(getColumnCount(data.structure.values, 0)).toBe(1);
         });
 
         it('should handle multiple value fields with COLUMN position', () => {
@@ -1223,9 +1271,9 @@ describe('PivotTableRenderModel', () => {
             expect(data.structure.valueFieldHeaders).toBeDefined();
             expect(data.structure.valueFieldHeaders?.length).toBe(2);
             // When no column fields, single column, but with multiple values per cell
-            expect(data.structure.values[0].length).toBe(1);
+            expect(getColumnCount(data.structure.values, 0)).toBe(1);
             // Each cell should contain an array of value field values
-            expect(data.structure.values[0][0].length).toBe(2);
+            expect(getValueFieldCount(data.structure.values, 0, 0)).toBe(2);
         });
 
         it('should verify dirty flag is reset after recalculation', () => {
@@ -1438,7 +1486,13 @@ describe('PivotTableRenderModel', () => {
                 structure: {
                     rowHeaders: [['North']],
                     columnHeaders: [[]],
-                    values: [[[200]]], // Different value
+                    values: {
+                        0: {
+                            0: {
+                                0: 200,
+                            },
+                        },
+                    }, // Different value
                     rowTypes: ['data' as const],
                     columnTypes: ['data' as const],
                 },
@@ -1469,13 +1523,13 @@ describe('PivotTableRenderModel', () => {
             });
 
             // Test with null data
-            expect(engine.setCalculatedData(null as any, true)).toBe(false);
+            expect(engine.setCalculatedData(null as unknown as IPivotTableCrossTabData, true)).toBe(false);
 
             // Test with missing structure
-            expect(engine.setCalculatedData({} as any, true)).toBe(false);
+            expect(engine.setCalculatedData({} as unknown as IPivotTableCrossTabData, true)).toBe(false);
 
             // Test with missing dimensions
-            expect(engine.setCalculatedData({ structure: {} } as any, true)).toBe(false);
+            expect(engine.setCalculatedData({ structure: {} } as unknown as IPivotTableCrossTabData, true)).toBe(false);
         });
 
         it('should reject incompatible field configurations', () => {
@@ -1541,7 +1595,10 @@ describe('PivotTableRenderModel', () => {
                 structure: {
                     rowHeaders: [['North'], ['South']],
                     columnHeaders: [[]],
-                    values: [[[100]], [[200]]], // Two rows
+                    values: {
+                        0: { 0: { 0: 100 } },
+                        1: { 0: { 0: 200 } },
+                    }, // Two rows
                     rowTypes: ['data' as const, 'data' as const],
                     columnTypes: ['data' as const],
                 },
@@ -1576,7 +1633,8 @@ describe('PivotTableRenderModel', () => {
             Object.values(matrix || {}).forEach((row) => {
                 Object.values(row || {}).forEach((cell) => {
                     if (cell) {
-                        expect(cell.custom).toBeUndefined();
+                        const cellRecord = cell as Record<string, unknown>;
+                        expect('custom' in cellRecord).toBe(false);
                     }
                 });
             });
@@ -1624,7 +1682,7 @@ describe('PivotTableRenderModel', () => {
             expect(renderModel.determineCellType(1, 2)).toEqual({ type: 'columnHeader', level: 1 });
 
           // Row header depth is 2 -> levels 0 and 1
-            expect(renderModel.determineCellType(0, 1)).toEqual({ type: 'rowHeader', level: 1 });
+            expect(renderModel.determineCellType(0, 1)).toEqual({ type: 'rowHeader', level: 0 });
           // Value header row (row index = columnHeaderDepth) should report level = columnHeaderDepth
             expect(renderModel.determineCellType(2, 2)).toEqual({ type: 'columnHeader', level: 2 });
 

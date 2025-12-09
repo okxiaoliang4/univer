@@ -311,15 +311,19 @@ export class PivotEngineV2 extends Disposable {
             }
 
             // Add values
-            if (structure.values[rowIdx]) {
-                for (let colIdx = 0; colIdx < structure.values[rowIdx].length; colIdx++) {
-                    const valueRow = structure.values[rowIdx][colIdx];
-                    for (let vfIdx = 0; vfIdx < valueRow.length; vfIdx++) {
-                        const value = valueRow[vfIdx];
-                        row.push({
-                            v: value,
-                        });
-                    }
+            const rowValues = structure.values[rowIdx];
+            const columnCount = structure.columnHeaders.length;
+            const valueFieldCount = this.valuePosition === PivotValuePosition.ROW
+                ? 1
+                : Math.max(this._valueFields.length, structure.valueFieldHeaders?.length || 0, 1);
+
+            for (let colIdx = 0; colIdx < columnCount; colIdx++) {
+                const columnValues = rowValues?.[colIdx];
+                for (let vfIdx = 0; vfIdx < valueFieldCount; vfIdx++) {
+                    const value = columnValues?.[vfIdx] ?? null;
+                    row.push({
+                        v: value,
+                    });
                 }
             }
 
@@ -545,7 +549,7 @@ export class PivotEngineV2 extends Disposable {
             structure: {
                 rowHeaders: [],
                 columnHeaders: [],
-                values: [],
+                values: {},
                 rowTypes: [],
                 columnTypes: [],
             },
@@ -649,7 +653,7 @@ export class PivotEngineV2 extends Disposable {
     ): IPivotTableCrossTabData['structure'] {
         const rowHeaders: string[][] = [];
         const columnHeaders: string[][] = [];
-        const values: (number | string | null)[][][] = [];
+        const values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
         const rowTypes: ('data' | 'subtotal')[] = [];
         const columnTypes: ('data' | 'subtotal')[] = [];
         const subtotalRows: IPivotSubtotalInfo[] = [];
@@ -709,54 +713,55 @@ export class PivotEngineV2 extends Disposable {
             // Add data rows for this group
             if (columnIndices.length > 0) {
                 // 2D pivot: calculate values for each column combination
-                const rowValues: (number | string | null)[][] = [];
-                for (const columnCombo of columnCombos) {
+                const rowValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
+                for (let columnIdx = 0; columnIdx < columnCombos.length; columnIdx++) {
+                    const columnCombo = columnCombos[columnIdx];
                     const filteredRows = this._filterByColumnCombo(groupRows, columnIndices, columnCombo);
-                    const cellValues: (number | string | null)[] = [];
+                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                     for (let i = 0; i < valueIndices.length; i++) {
                         const valueIndex = valueIndices[i];
                         const field = this._valueFields[i];
                         const aggregation = field.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(filteredRows, valueIndex, aggregation);
-                        cellValues.push(this._normalizeValue(aggregatedValue.v));
+                        cellValues[i] = this._normalizeValue(aggregatedValue.v);
                     }
-                    rowValues.push(cellValues);
+                    rowValues[columnIdx] = cellValues;
                 }
 
                 // Add grand total column value if needed
                 if (columnHeaders.length > columnCombos.length) {
-                    const grandTotalValues: (number | string | null)[] = [];
+                    const grandTotalValues: IObjectArrayPrimitiveType<number | string | null> = {};
                     for (let i = 0; i < valueIndices.length; i++) {
                         const valueIndex = valueIndices[i];
                         const field = this._valueFields[i];
                         const aggregation = field.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                        grandTotalValues.push(this._normalizeValue(aggregatedValue.v));
+                        grandTotalValues[i] = this._normalizeValue(aggregatedValue.v);
                     }
-                    rowValues.push(grandTotalValues);
+                    rowValues[columnCombos.length] = grandTotalValues;
                 }
 
                 rowHeaders.push(rowFieldValues);
                 rowTypes.push('data');
-                values.push(rowValues);
+                values[currentRowIndex] = rowValues;
                 currentRowIndex++;
 
                 // Update row level map
                 rowLevelMap[currentRowIndex - 1] = [groupId];
             } else {
                 // Row-only pivot: aggregate all values
-                const cellValues: (number | string | null)[] = [];
+                const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                 for (let i = 0; i < valueIndices.length; i++) {
                     const valueIndex = valueIndices[i];
                     const field = this._valueFields[i];
                     const aggregation = field.aggregation || AggregationType.SUM;
                     const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                    cellValues.push(this._normalizeValue(aggregatedValue.v));
+                    cellValues[i] = this._normalizeValue(aggregatedValue.v);
                 }
 
                 rowHeaders.push(rowFieldValues);
                 rowTypes.push('data');
-                values.push([cellValues]);
+                values[currentRowIndex] = { 0: cellValues };
                 currentRowIndex++;
 
                 // Update row level map
@@ -768,50 +773,51 @@ export class PivotEngineV2 extends Disposable {
                 const subtotalHeader = [...rowFieldValues];
                 subtotalHeader[0] = ''; // Empty for subtotal row
 
-                const subtotalValues: (number | string | null)[][] = [];
+                const subtotalValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
                 if (columnIndices.length > 0) {
                     // Calculate subtotal for each column
-                    for (const columnCombo of columnCombos) {
+                    for (let columnIdx = 0; columnIdx < columnCombos.length; columnIdx++) {
+                        const columnCombo = columnCombos[columnIdx];
                         const filteredRows = this._filterByColumnCombo(groupRows, columnIndices, columnCombo);
-                        const cellValues: (number | string | null)[] = [];
+                        const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                         for (let i = 0; i < valueIndices.length; i++) {
                             const valueIndex = valueIndices[i];
                             const field = this._valueFields[i];
                             const aggregation = field.aggregation || AggregationType.SUM;
                             const aggregatedValue = this._aggregateSingleValue(filteredRows, valueIndex, aggregation);
-                            cellValues.push(this._normalizeValue(aggregatedValue.v));
+                            cellValues[i] = this._normalizeValue(aggregatedValue.v);
                         }
-                        subtotalValues.push(cellValues);
+                        subtotalValues[columnIdx] = cellValues;
                     }
 
                     // Add grand total column value
                     if (columnHeaders.length > columnCombos.length) {
-                        const grandTotalValues: (number | string | null)[] = [];
+                        const grandTotalValues: IObjectArrayPrimitiveType<number | string | null> = {};
                         for (let i = 0; i < valueIndices.length; i++) {
                             const valueIndex = valueIndices[i];
                             const field = this._valueFields[i];
                             const aggregation = field.aggregation || AggregationType.SUM;
                             const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                            grandTotalValues.push(this._normalizeValue(aggregatedValue.v));
+                            grandTotalValues[i] = this._normalizeValue(aggregatedValue.v);
                         }
-                        subtotalValues.push(grandTotalValues);
+                        subtotalValues[columnCombos.length] = grandTotalValues;
                     }
                 } else {
                     // Row-only: single column of values
-                    const cellValues: (number | string | null)[] = [];
+                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                     for (let i = 0; i < valueIndices.length; i++) {
                         const valueIndex = valueIndices[i];
                         const field = this._valueFields[i];
                         const aggregation = field.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                        cellValues.push(this._normalizeValue(aggregatedValue.v));
+                        cellValues[i] = this._normalizeValue(aggregatedValue.v);
                     }
-                    subtotalValues.push(cellValues);
+                    subtotalValues[0] = cellValues;
                 }
 
                 rowHeaders.push(subtotalHeader);
                 rowTypes.push('subtotal');
-                values.push(subtotalValues);
+                values[currentRowIndex] = subtotalValues;
 
                 subtotalRows.push({
                     rowIndex: currentRowIndex,
@@ -857,10 +863,11 @@ export class PivotEngineV2 extends Disposable {
                 grandTotalHeader.push(i === 0 ? '总计' : '');
             }
 
-            const grandTotalValues: (number | string | null)[][] = [];
+            const grandTotalValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
             if (columnIndices.length > 0) {
                 // Calculate grand total for each column
-                for (const columnCombo of columnCombos) {
+                for (let columnIdx = 0; columnIdx < columnCombos.length; columnIdx++) {
+                    const columnCombo = columnCombos[columnIdx];
                     const allRowsForColumn = Array.from(rowGroups.values())
                         .flat()
                         .filter((row) => {
@@ -875,47 +882,47 @@ export class PivotEngineV2 extends Disposable {
                             return true;
                         });
 
-                    const cellValues: (number | string | null)[] = [];
+                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                     for (let i = 0; i < valueIndices.length; i++) {
                         const valueIndex = valueIndices[i];
                         const field = this._valueFields[i];
                         const aggregation = field.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(allRowsForColumn, valueIndex, aggregation);
-                        cellValues.push(this._normalizeValue(aggregatedValue.v));
+                        cellValues[i] = this._normalizeValue(aggregatedValue.v);
                     }
-                    grandTotalValues.push(cellValues);
+                    grandTotalValues[columnIdx] = cellValues;
                 }
 
                 // Add grand total column value
                 if (columnHeaders.length > columnCombos.length) {
                     const allRows = Array.from(rowGroups.values()).flat();
-                    const cellValues: (number | string | null)[] = [];
+                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                     for (let i = 0; i < valueIndices.length; i++) {
                         const valueIndex = valueIndices[i];
                         const field = this._valueFields[i];
                         const aggregation = field.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(allRows, valueIndex, aggregation);
-                        cellValues.push(this._normalizeValue(aggregatedValue.v));
+                        cellValues[i] = this._normalizeValue(aggregatedValue.v);
                     }
-                    grandTotalValues.push(cellValues);
+                    grandTotalValues[columnCombos.length] = cellValues;
                 }
             } else {
                 // Row-only: single column
                 const allRows = Array.from(rowGroups.values()).flat();
-                const cellValues: (number | string | null)[] = [];
+                const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                 for (let i = 0; i < valueIndices.length; i++) {
                     const valueIndex = valueIndices[i];
                     const field = this._valueFields[i];
                     const aggregation = field.aggregation || AggregationType.SUM;
                     const aggregatedValue = this._aggregateSingleValue(allRows, valueIndex, aggregation);
-                    cellValues.push(this._normalizeValue(aggregatedValue.v));
+                    cellValues[i] = this._normalizeValue(aggregatedValue.v);
                 }
-                grandTotalValues.push(cellValues);
+                grandTotalValues[0] = cellValues;
             }
 
             rowHeaders.push(grandTotalHeader);
             rowTypes.push('subtotal');
-            values.push(grandTotalValues);
+            values[currentRowIndex] = grandTotalValues;
 
             subtotalRows.push({
                 rowIndex: currentRowIndex,
@@ -1079,29 +1086,36 @@ export class PivotEngineV2 extends Disposable {
                 valueHeader.push(aggregationLabel);
 
                 // Calculate values for each column
-                const rowValues: (number | string | null)[][] = [];
+                const rowValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
                 if (columnIndices.length > 0) {
                     // For each column combination
-                    for (const columnCombo of columnCombos) {
+                    for (let columnIdx = 0; columnIdx < columnCombos.length; columnIdx++) {
+                        const columnCombo = columnCombos[columnIdx];
                         const filteredRows = this._filterByColumnCombo(groupRows, columnIndices, columnCombo);
                         const aggregatedValue = this._aggregateSingleValue(filteredRows, valueIndex, aggregation);
-                        rowValues.push([this._normalizeValue(aggregatedValue.v)]);
+                        rowValues[columnIdx] = {
+                            0: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
 
                     // Add grand total column if needed
                     if (columnHeaders.length > columnCombos.length) {
                         const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                        rowValues.push([this._normalizeValue(aggregatedValue.v)]);
+                        rowValues[columnCombos.length] = {
+                            0: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
                 } else {
                     // Row-only: single column
                     const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                    rowValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    rowValues[0] = {
+                        0: this._normalizeValue(aggregatedValue.v),
+                    };
                 }
 
                 rowHeaders.push(valueHeader);
                 rowTypes.push('data');
-                values.push(rowValues);
+                values[currentRowIndex] = rowValues;
 
                 // Update row level map
                 rowLevelMap[currentRowIndex] = [groupId];
@@ -1114,10 +1128,11 @@ export class PivotEngineV2 extends Disposable {
                 subtotalHeader[0] = ''; // Empty for subtotal row
                 subtotalHeader.push('小计'); // Add subtotal marker
 
-                const subtotalValues: (number | string | null)[][] = [];
+                const subtotalValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
                 if (columnIndices.length > 0) {
                     // Calculate subtotal for each column (across all value fields)
-                    for (const columnCombo of columnCombos) {
+                    for (let columnIdx = 0; columnIdx < columnCombos.length; columnIdx++) {
+                        const columnCombo = columnCombos[columnIdx];
                         const filteredRows = this._filterByColumnCombo(groupRows, columnIndices, columnCombo);
                         // For ROW position, subtotals sum across value fields would be less meaningful
                         // So we just aggregate the first value field as representative
@@ -1125,7 +1140,9 @@ export class PivotEngineV2 extends Disposable {
                         const firstField = this._valueFields[0];
                         const aggregation = firstField.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(filteredRows, firstValueIndex, aggregation);
-                        subtotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                        subtotalValues[columnIdx] = {
+                            0: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
 
                     // Add grand total column if needed
@@ -1134,7 +1151,9 @@ export class PivotEngineV2 extends Disposable {
                         const firstField = this._valueFields[0];
                         const aggregation = firstField.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(groupRows, firstValueIndex, aggregation);
-                        subtotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                        subtotalValues[columnCombos.length] = {
+                            0: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
                 } else {
                     // Row-only
@@ -1142,12 +1161,14 @@ export class PivotEngineV2 extends Disposable {
                     const firstField = this._valueFields[0];
                     const aggregation = firstField.aggregation || AggregationType.SUM;
                     const aggregatedValue = this._aggregateSingleValue(groupRows, firstValueIndex, aggregation);
-                    subtotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    subtotalValues[0] = {
+                        0: this._normalizeValue(aggregatedValue.v),
+                    };
                 }
 
                 rowHeaders.push(subtotalHeader);
                 rowTypes.push('subtotal');
-                values.push(subtotalValues);
+                values[currentRowIndex] = subtotalValues;
 
                 subtotalRows.push({
                     rowIndex: currentRowIndex,
@@ -1201,10 +1222,11 @@ export class PivotEngineV2 extends Disposable {
                 const aggregationLabel = this._getAggregationLabel(aggregation, valueField.name);
                 grandTotalHeader.push(aggregationLabel);
 
-                const grandTotalValues: (number | string | null)[][] = [];
+                const grandTotalValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
                 if (columnIndices.length > 0) {
                     // Calculate grand total for each column
-                    for (const columnCombo of columnCombos) {
+                    for (let columnIdx = 0; columnIdx < columnCombos.length; columnIdx++) {
+                        const columnCombo = columnCombos[columnIdx];
                         const allRowsForColumn = Array.from(rowGroups.values())
                             .flat()
                             .filter((row) => {
@@ -1220,25 +1242,31 @@ export class PivotEngineV2 extends Disposable {
                             });
 
                         const aggregatedValue = this._aggregateSingleValue(allRowsForColumn, valueIndex, aggregation);
-                        grandTotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                        grandTotalValues[columnIdx] = {
+                            0: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
 
                     // Add grand total column value
                     if (columnHeaders.length > columnCombos.length) {
                         const allRows = Array.from(rowGroups.values()).flat();
                         const aggregatedValue = this._aggregateSingleValue(allRows, valueIndex, aggregation);
-                        grandTotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                        grandTotalValues[columnCombos.length] = {
+                            0: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
                 } else {
                     // Row-only: single column
                     const allRows = Array.from(rowGroups.values()).flat();
                     const aggregatedValue = this._aggregateSingleValue(allRows, valueIndex, aggregation);
-                    grandTotalValues.push([this._normalizeValue(aggregatedValue.v)]);
+                    grandTotalValues[0] = {
+                        0: this._normalizeValue(aggregatedValue.v),
+                    };
                 }
 
                 rowHeaders.push(grandTotalHeader);
                 rowTypes.push('subtotal');
-                values.push(grandTotalValues);
+                values[currentRowIndex] = grandTotalValues;
 
                 subtotalRows.push({
                     rowIndex: currentRowIndex,
@@ -1338,13 +1366,20 @@ export class PivotEngineV2 extends Disposable {
         }
 
         // Check if all values are null/empty
-        if (result.values.length === 0) {
+        if (Object.keys(result.values).length === 0) {
             return true;
         }
 
-        for (const row of result.values) {
-            for (const col of row) {
-                for (const val of col) {
+        for (const rowKey of Object.keys(result.values)) {
+            const row = result.values[Number(rowKey)];
+            if (!row) continue;
+
+            for (const colKey of Object.keys(row)) {
+                const col = row[Number(colKey)];
+                if (!col) continue;
+
+                for (const valKey of Object.keys(col)) {
+                    const val = col[Number(valKey)];
                     if (val !== null && val !== undefined && val !== '') {
                         return false;
                     }

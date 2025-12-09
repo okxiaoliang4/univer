@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable } from '@univerjs/core';
+import type { ICellData, IObjectArrayPrimitiveType, IObjectMatrixPrimitiveType, IRange, Nullable } from '@univerjs/core';
 import type { AggregationType, PivotValuePosition } from './enum';
 
 /**
@@ -301,7 +301,7 @@ export interface IPivotTableCrossTabData {
         /** Value field headers (when multiple value fields exist) */
         valueFieldHeaders?: string[];
         /** Values matrix: [rowIndex][columnIndex][valueFieldIndex] */
-        values: (number | string | null)[][][];
+        values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>>;
         /** Row type markers: 'data' | 'subtotal' */
         rowTypes: ('data' | 'subtotal')[];
         /** Column type markers: 'data' | 'subtotal' */
