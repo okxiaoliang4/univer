@@ -85,6 +85,7 @@ describe('PivotEngineV2', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData: {},
+                valuePosition: PivotValuePosition.COLUMN,
             });
             expect(engine).toBeDefined();
         });
@@ -99,6 +100,7 @@ describe('PivotEngineV2', () => {
                     ['Region', 'Sales'],
                     ['North', 100],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -113,6 +115,7 @@ describe('PivotEngineV2', () => {
                 valueFields: [createValueField('Sales', 1)],
                 filterFields: [],
                 sourceData: {},
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -133,6 +136,7 @@ describe('PivotEngineV2', () => {
                     ['South', 200],
                     ['North', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -162,6 +166,7 @@ describe('PivotEngineV2', () => {
                     ['South', 'Q1', 200],
                     ['South', 'Q2', 250],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -202,6 +207,7 @@ describe('PivotEngineV2', () => {
                     ['North', 150],
                     ['South', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -230,6 +236,7 @@ describe('PivotEngineV2', () => {
                     ['North', 100],
                     ['South', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -252,6 +259,7 @@ describe('PivotEngineV2', () => {
                     ['North', 'Q1', 100],
                     ['North', 'Q2', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -281,6 +289,7 @@ describe('PivotEngineV2', () => {
                     ['North', 150],
                     ['South', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -317,6 +326,7 @@ describe('PivotEngineV2', () => {
                     ['华南', '笔记本电脑', 'Q2', 14000],
                     ['华南', '配件', 'Q3', 3000],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const matrix = engine.getCalculatedCellMatrix();
@@ -366,6 +376,7 @@ describe('PivotEngineV2', () => {
                     ['North', 'Q2', 150, 8],
                     ['South', 'Q1', 200, 10],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const matrix = engine.getCalculatedCellMatrix();
@@ -415,6 +426,7 @@ describe('PivotEngineV2', () => {
                     ['South', 200],
                     ['North', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -444,6 +456,7 @@ describe('PivotEngineV2', () => {
                     ['South', 200],
                     ['North', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -469,6 +482,7 @@ describe('PivotEngineV2', () => {
                     ['North', 'B', 200],
                     ['South', 'A', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -493,6 +507,7 @@ describe('PivotEngineV2', () => {
                     ['2023', 'Q1', 100],
                     ['2023', 'Q2', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -522,6 +537,7 @@ describe('PivotEngineV2', () => {
                     ['华东', '手机', 'Q2', '线下门店', 10000],
                     ['华东', '手机', 'Q2', '线上商店', 11000],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const matrix = engine.getCalculatedCellMatrix();
@@ -605,6 +621,7 @@ describe('PivotEngineV2', () => {
                     ['华东', 'Q2', '线上商店', 'A', 14000],
                     ['华东', 'Q2', '线上商店', 'B', 15000],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const matrix = engine.getCalculatedCellMatrix();
@@ -698,6 +715,7 @@ describe('PivotEngineV2', () => {
                     ['North', 100],
                     ['North', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -715,6 +733,7 @@ describe('PivotEngineV2', () => {
                     ['North', 100],
                     ['North', 150],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -732,6 +751,7 @@ describe('PivotEngineV2', () => {
                     ['North', 100],
                     ['North', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -751,6 +771,7 @@ describe('PivotEngineV2', () => {
                     ['North', 'Q1', 100],
                     ['South', 'Q1', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -775,6 +796,7 @@ describe('PivotEngineV2', () => {
                 valueFields: [createValueField('Sales', 1)],
                 filterFields: [],
                 sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -795,6 +817,7 @@ describe('PivotEngineV2', () => {
                     ['North', 100],
                     ['South', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -814,6 +837,7 @@ describe('PivotEngineV2', () => {
                     ['Q1', 100],
                     ['Q2', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedData();
@@ -833,6 +857,7 @@ describe('PivotEngineV2', () => {
                     ['Region', 'Sales'],
                     ['North', 100],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             engine.getCalculatedData(); // Calculate once
@@ -849,6 +874,7 @@ describe('PivotEngineV2', () => {
                 valueFields: [createValueField('Sales', 1)],
                 filterFields: [],
                 sourceData: createSourceData([['Sales'], [100]]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             engine.getCalculatedData();
@@ -865,6 +891,7 @@ describe('PivotEngineV2', () => {
                 valueFields: [createValueField('Sales', 1)],
                 filterFields: [],
                 sourceData: createSourceData([['Sales'], [100]]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             engine.getCalculatedData();
@@ -881,6 +908,7 @@ describe('PivotEngineV2', () => {
                 valueFields: [createValueField('Sales', 1)],
                 filterFields: [],
                 sourceData: createSourceData([['Sales'], [100]]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             engine.getCalculatedData();
@@ -904,6 +932,7 @@ describe('PivotTableRenderModel', () => {
                     ['Region', 'Sales'],
                     ['North', 100],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const data = engine.getCalculatedData();
@@ -924,6 +953,7 @@ describe('PivotTableRenderModel', () => {
                     ['North', 100],
                     ['South', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const data = engine.getCalculatedData();
@@ -943,6 +973,7 @@ describe('PivotTableRenderModel', () => {
                     ['Region', 'Sales'],
                     ['North', 100],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const data = engine.getCalculatedData();
@@ -968,6 +999,7 @@ describe('PivotTableRenderModel', () => {
                     ['North', 100],
                     ['South', 200],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const data = engine.getCalculatedData();
@@ -994,6 +1026,7 @@ describe('PivotTableRenderModel', () => {
                     ['Region', 'Sales'],
                     ['North', 100],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const data = engine.getCalculatedData();
@@ -1013,6 +1046,7 @@ describe('PivotTableRenderModel', () => {
                     ['Region', 'Sales'],
                     ['North', 100],
                 ]),
+                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const data = engine.getCalculatedData();
@@ -1345,6 +1379,258 @@ describe('PivotTableRenderModel', () => {
 
             // Value field count should remain same
             expect(dimsRow.valueFieldCount).toBe(dimsColumn.valueFieldCount);
+        });
+    });
+
+    describe('setCalculatedData', () => {
+        it('should set calculated data with isDirty = true for warm start', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            // Get fresh calculated data first
+            const originalData = engine.getCalculatedData();
+            expect(engine.isDirty()).toBe(false);
+
+            // Set the same data back with isDirty = true (simulating warm start)
+            // This tests that data can be set and engine remains dirty
+            const success = engine.setCalculatedData(originalData, true);
+            expect(success).toBe(true);
+            expect(engine.isDirty()).toBe(true); // Should be marked dirty
+
+            // Get data again - should recalculate because engine is dirty
+            const newData = engine.getCalculatedData();
+            expect(newData.structure.values[0][0][0]).toBe(100);
+            expect(engine.isDirty()).toBe(false); // Should be clean after recalculation
+        });
+
+        it('should set calculated data with isDirty = false as authoritative', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            // Create mock calculated data
+            const mockData = {
+                isEmpty: false,
+                dimensions: {
+                    totalRows: 1,
+                    totalColumns: 2,
+                    dataRowCount: 1,
+                    dataColumnCount: 1,
+                    valueFieldCount: 1,
+                },
+                structure: {
+                    rowHeaders: [['North']],
+                    columnHeaders: [[]],
+                    values: [[[200]]], // Different value
+                    rowTypes: ['data' as const],
+                    columnTypes: ['data' as const],
+                },
+            };
+
+            // Set calculated data with isDirty = false (authoritative)
+            const success = engine.setCalculatedData(mockData, false);
+            expect(success).toBe(true);
+            expect(engine.isDirty()).toBe(false); // Should be clean
+
+            // Get data - should return the set data without recalculation
+            const cachedData = engine.getCalculatedData();
+            expect(cachedData.structure.values[0][0][0]).toBe(200);
+            expect(engine.isDirty()).toBe(false); // Should remain clean
+        });
+
+        it('should reject invalid data structures', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            // Test with null data
+            expect(engine.setCalculatedData(null as any, true)).toBe(false);
+
+            // Test with missing structure
+            expect(engine.setCalculatedData({} as any, true)).toBe(false);
+
+            // Test with missing dimensions
+            expect(engine.setCalculatedData({ structure: {} } as any, true)).toBe(false);
+        });
+
+        it('should reject incompatible field configurations', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            // Get valid data first
+            const validData = engine.getCalculatedData();
+
+            // Test with wrong value field count
+            const invalidData = {
+                ...validData,
+                dimensions: {
+                    ...validData.dimensions,
+                    valueFieldCount: 2, // Wrong count
+                },
+            };
+            expect(engine.setCalculatedData(invalidData, true)).toBe(false);
+
+            // Test with wrong row depth
+            const invalidRowData = {
+                ...validData,
+                structure: {
+                    ...validData.structure,
+                    rowHeaders: [['North', 'Extra']], // Wrong depth
+                },
+            };
+            expect(engine.setCalculatedData(invalidRowData, true)).toBe(false);
+        });
+
+        it('should accept compatible data with different row counts', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 1)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Sales'],
+                    ['North', 100],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            // Create data with different row count but same structure
+            const compatibleData = {
+                isEmpty: false,
+                dimensions: {
+                    totalRows: 2,
+                    totalColumns: 2,
+                    dataRowCount: 2,
+                    dataColumnCount: 1,
+                    valueFieldCount: 1,
+                },
+                structure: {
+                    rowHeaders: [['North'], ['South']],
+                    columnHeaders: [[]],
+                    values: [[[100]], [[200]]], // Two rows
+                    rowTypes: ['data' as const, 'data' as const],
+                    columnTypes: ['data' as const],
+                },
+            };
+
+            // Should accept compatible data
+            expect(engine.setCalculatedData(compatibleData, true)).toBe(true);
+            expect(engine.isDirty()).toBe(true);
+        });
+    });
+
+    describe('determineCellType and cell metadata', () => {
+        it('should infer cell types without relying on custom payloads and omit custom fields', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0, true)],
+                columnFields: [createColumnField('Quarter', 1, true)],
+                valueFields: [createValueField('Sales', 2)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Quarter', 'Sales'],
+                    ['North', 'Q1', 100],
+                    ['North', 'Q2', 150],
+                    ['South', 'Q1', 200],
+                    ['South', 'Q2', 250],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const matrix = engine.getCalculatedCellMatrix();
+            expect(matrix).not.toBeNull();
+
+            Object.values(matrix || {}).forEach((row) => {
+                Object.values(row || {}).forEach((cell) => {
+                    if (cell) {
+                        expect(cell.custom).toBeUndefined();
+                    }
+                });
+            });
+
+            const renderModel = new PivotTableRenderModel(engine.getCalculatedData());
+
+            expect(renderModel.determineCellType(0, 1)).toEqual({ type: 'columnHeader', level: 0 });
+            expect(renderModel.determineCellType(0, 3)).toEqual({ type: 'grandTotal', level: 0 });
+            expect(renderModel.determineCellType(1, 0)).toEqual({ type: 'rowHeader', level: 0 });
+            expect(renderModel.determineCellType(1, 3)).toEqual({ type: 'grandTotal', level: 0 });
+            expect(renderModel.determineCellType(2, 0)).toEqual({ type: 'rowHeader', level: 0 });
+            expect(renderModel.determineCellType(2, 1)).toEqual({ type: 'data', level: 0 });
+            expect(renderModel.determineCellType(2, 3)).toEqual({ type: 'grandTotal', level: 0 });
+            // Data row (second data row, column 1) should be data, not grand total
+            expect(renderModel.determineCellType(4, 1)).toEqual({ type: 'data', level: 0 });
+            // Last row should be grand total
+            expect(renderModel.determineCellType(6, 1)).toEqual({ type: 'grandTotal', level: 0 });
+        });
+
+        it('should return correct header levels for multi-level rows and columns', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [
+                    createRowField('Region', 0, true),
+                    createRowField('City', 1, true),
+                ],
+                columnFields: [
+                    createColumnField('Year', 2, true),
+                    createColumnField('Quarter', 3, true),
+                ],
+                valueFields: [createValueField('Sales', 4)],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'City', 'Year', 'Quarter', 'Sales'],
+                    ['North', 'A', '2024', 'Q1', 100],
+                    ['North', 'A', '2024', 'Q2', 150],
+                    ['South', 'B', '2024', 'Q1', 200],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const renderModel = new PivotTableRenderModel(engine.getCalculatedData());
+
+          // Column headers span 2 levels -> levels 0 and 1
+            expect(renderModel.determineCellType(0, 2)).toEqual({ type: 'columnHeader', level: 0 });
+            expect(renderModel.determineCellType(1, 2)).toEqual({ type: 'columnHeader', level: 1 });
+
+          // Row header depth is 2 -> levels 0 and 1
+            expect(renderModel.determineCellType(0, 1)).toEqual({ type: 'rowHeader', level: 1 });
+          // Value header row (row index = columnHeaderDepth) should report level = columnHeaderDepth
+            expect(renderModel.determineCellType(2, 2)).toEqual({ type: 'columnHeader', level: 2 });
+
+          // Data row row-header column 1 should still carry level 1
+          // Data rows start after columnHeaderDepth + 1 (value header row)
+            expect(renderModel.determineCellType(3, 1)).toEqual({ type: 'rowHeader', level: 1 });
         });
     });
 });

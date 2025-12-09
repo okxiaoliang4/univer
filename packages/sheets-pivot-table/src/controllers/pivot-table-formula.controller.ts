@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import type { ICellData, IObjectMatrixPrimitiveType, IRange, IUnitRange, Nullable, Workbook } from '@univerjs/core';
+import type { ICellData, IRange, IUnitRange, Workbook } from '@univerjs/core';
 import type { IFeatureCalculationManagerParam, IFeatureDirtyRangeType, IRuntimeUnitDataType } from '@univerjs/engine-formula';
 import type { ISetPivotTableCalculatedDataMutationParams } from '../commands/mutations/pivot-table.mutation';
 import type { PivotTable } from '../models/pivot-table';
 import { Disposable, ICommandService, Inject, IUniverInstanceService, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { IFeatureCalculationManagerService, SetFormulaCalculationStartMutation } from '@univerjs/engine-formula';
-import { skip } from 'rxjs';
 import { SetPivotTableCalculatedDataMutation } from '../commands/mutations/pivot-table.mutation';
 import { SheetsPivotDataSourceModel } from '../models/sheets-pivot-data-source-model';
 import { ISheetsPivotTableService } from '../services/pivot-table.service';
@@ -210,27 +209,25 @@ export class PivotTableFormulaController extends Disposable {
         // Clean up any existing subscription
         this._cleanupPivotTableSubscription(unitId, subUnitId, pivotTableId);
 
-        // Listen to calculatedData changes (skip the first emission which is the initial null value)
-        const subscription = pivotTable.calculatedData$.pipe(skip(1)).subscribe((newData: IObjectMatrixPrimitiveType<Nullable<ICellData>> | null) => {
-            if (newData) {
-                // Get the current output range (may have changed)
-                // Note: We don't use the _outputRange parameter as it's stale when range changes
-                const currentOutputRange = pivotTable.getAbsoluteOutputRange();
+          // Listen to calculatedData changes (skip the first emission which is the initial null value)
+        const subscription = pivotTable.recalculated$.subscribe(() => {
+            // Get the current output range (may have changed)
+            // Note: We don't use the _outputRange parameter as it's stale when range changes
+            const currentOutputRange = pivotTable.getAbsoluteOutputRange();
 
-                // Sync calculated data to main thread via mutation
-                // In RPC environment, this mutation will be synced from Worker to Main thread
-                // via DataSyncReplicaController, updating the main thread's model
-                const params: ISetPivotTableCalculatedDataMutationParams = {
-                    unitId,
-                    subUnitId,
-                    pivotTableId,
-                    calculatedData: newData,
-                };
-                this._commandService.executeCommand(SetPivotTableCalculatedDataMutation.id, params);
+            // Sync calculated data to main thread via mutation
+            // In RPC environment, this mutation will be synced from Worker to Main thread
+            // via DataSyncReplicaController, updating the main thread's model
+            const params: ISetPivotTableCalculatedDataMutationParams = {
+                unitId,
+                subUnitId,
+                pivotTableId,
+                calculatedData: pivotTable.getEngine().getCalculatedData(),
+            };
+            this._commandService.executeCommand(SetPivotTableCalculatedDataMutation.id, params);
 
                 // Trigger formula recalculation for the current pivot table output range
-                this._triggerFormulaRecalculation(unitId, subUnitId, currentOutputRange);
-            }
+            this._triggerFormulaRecalculation(unitId, subUnitId, currentOutputRange);
         });
 
         // Store the subscription for cleanup
@@ -381,7 +378,8 @@ export class PivotTableFormulaController extends Disposable {
             };
         }
 
-        const outputMatrix = pivotTable.getOutputCellMatrix();
+        const pivotEngine = pivotTable.getEngine();
+        const outputCellMatrix = pivotEngine.getCalculatedCellMatrix() || {};
         const targetCellInfo = pivotTable.getTargetCellInfo();
         const outputRange = pivotTable.getAbsoluteOutputRange();
 
@@ -396,7 +394,7 @@ export class PivotTableFormulaController extends Disposable {
         const unitMatrix = runtimeCellData[unitId]![subUnitId]!;
 
         // Copy data from output matrix to absolute positions
-        for (const [relativeRow, rowData] of Object.entries(outputMatrix)) {
+        for (const [relativeRow, rowData] of Object.entries(outputCellMatrix)) {
             const absoluteRow = Number.parseInt(relativeRow, 10) + targetCellInfo.row;
             for (const [relativeCol, cellData] of Object.entries(rowData)) {
                 const absoluteCol = Number.parseInt(relativeCol, 10) + targetCellInfo.col;

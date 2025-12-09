@@ -17,12 +17,12 @@
 import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { Observable } from 'rxjs';
 import type { PivotValuePosition } from '../types/enum';
-import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceFields, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
+import type { IFieldsConfig, IPivotField, IPivotTableConfig, IPivotTableCrossTabData, ISourceFields, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, pairwise } from 'rxjs';
-import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
 import { PivotEngineV2 } from './pivot-engine-v2';
+import { PivotTableRenderModel } from './pivot-table-render-model';
 
 /**
  * Configuration options for PivotTable
@@ -50,6 +50,8 @@ export class PivotTable extends Disposable {
     private _options: IPivotTableOptions;
 
     private _pivotEngine: PivotEngineV2;
+    private _pivotTableRenderModel: PivotTableRenderModel;
+    private _recalculated$: BehaviorSubject<boolean>;
 
     private _valueFields$: BehaviorSubject<IPivotField[]>;
     private _rowFields$: BehaviorSubject<IPivotField[]>;
@@ -59,8 +61,8 @@ export class PivotTable extends Disposable {
 
     private _sourceData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
     private _sourceFields$: BehaviorSubject<IPivotField[]>;
-    private _calculatedData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
 
+    recalculated$: Observable<boolean>;
     sourceRangeInfo$: Observable<ISourceRangeInfo>;
     valueFields$: Observable<IPivotField[]>;
     rowFields$: Observable<IPivotField[]>;
@@ -70,7 +72,6 @@ export class PivotTable extends Disposable {
 
     sourceData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
     sourceFields$: Observable<IPivotField[]>;
-    calculatedData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>;
 
     constructor(
         id: string,
@@ -95,7 +96,9 @@ export class PivotTable extends Disposable {
             sourceData: {},
             valuePosition: fieldsConfig.valuePosition,
         });
+        this._pivotTableRenderModel = new PivotTableRenderModel(this._pivotEngine.getCalculatedData());
 
+        this._recalculated$ = new BehaviorSubject(false);
         this._valueFields$ = new BehaviorSubject(fieldsConfig.valueFields);
         this._rowFields$ = new BehaviorSubject(fieldsConfig.rowFields);
         this._columnFields$ = new BehaviorSubject(fieldsConfig.columnFields);
@@ -103,8 +106,8 @@ export class PivotTable extends Disposable {
         this._valuePosition$ = new BehaviorSubject(fieldsConfig.valuePosition);
         this._sourceData$ = new BehaviorSubject({});
         this._sourceFields$ = new BehaviorSubject<IPivotField[]>([]);
-        this._calculatedData$ = new BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>> | null>(null);
 
+        this.recalculated$ = this._recalculated$.asObservable();
         this.sourceRangeInfo$ = this._sourceRangeInfo$.asObservable();
         this.valueFields$ = this._valueFields$.asObservable();
         this.rowFields$ = this._rowFields$.asObservable();
@@ -113,7 +116,6 @@ export class PivotTable extends Disposable {
         this.valuePosition$ = this._valuePosition$.asObservable();
         this.sourceData$ = this._sourceData$.asObservable();
         this.sourceFields$ = this._sourceFields$.asObservable();
-        this.calculatedData$ = this._calculatedData$.asObservable();
 
         this._initListeners();
 
@@ -127,7 +129,6 @@ export class PivotTable extends Disposable {
             this._filterFields$.complete();
             this._valuePosition$.complete();
             this._sourceData$.complete();
-            this._calculatedData$.complete();
         });
     }
 
@@ -161,9 +162,9 @@ export class PivotTable extends Disposable {
                     debounceTime(0)
                 )
                 .subscribe(() => {
-                    // Get output cell matrix
-                    const cellValue = this.getOutputCellMatrix();
-                    this._calculatedData$.next(cellValue);
+                    const calculatedData = this._pivotEngine.getCalculatedData();
+                    this._pivotTableRenderModel.setData(calculatedData);
+                    this._recalculated$.next(true);
                 })
         );
     }
@@ -333,8 +334,8 @@ export class PivotTable extends Disposable {
    * @returns Output range or null if not calculated yet
    */
     getOutputRange(): IRange {
-        const outputCellMatrix = this.getOutputCellMatrix();
-        return new ObjectMatrix(outputCellMatrix).getDataRange();
+        const calculatedData = this._pivotEngine.getCalculatedCellMatrix();
+        return new ObjectMatrix(calculatedData || {}).getDataRange();
     }
 
   /**
@@ -352,30 +353,12 @@ export class PivotTable extends Disposable {
         };
     }
 
-  /**
-   * Generate full cell matrix for pivot table output
-   * Includes headers, values, and totals in the correct layout
-   * @returns ObjectMatrix with all cell values in relative position (0-indexed), or null if not calculated
-   */
-    getOutputCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
-        // In RPC environment (skipAutoCalculation: true), the main thread receives
-        // calculated data via mutation (setCalculatedData), so we should use
-        // calculatedData$ instead of relying on _pivotEngine which doesn't auto-calculate
-        if (this._options.skipAutoCalculation) {
-            const calculatedData = this._calculatedData$.value;
-            if (calculatedData) {
-                return calculatedData;
-            }
-            // If no calculated data yet, return placeholder
-            return defaultPlaceholderMatrix;
-        }
+    getEngine(): PivotEngineV2 {
+        return this._pivotEngine;
+    }
 
-        // In non-RPC environment, use engine's calculated matrix
-        const targetMatrix = this._pivotEngine.getCalculatedCellMatrix();
-        if (!targetMatrix) {
-            return defaultPlaceholderMatrix;
-        }
-        return targetMatrix;
+    getRenderModel(): PivotTableRenderModel {
+        return this._pivotTableRenderModel;
     }
 
     setSourceData(sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
@@ -392,22 +375,16 @@ export class PivotTable extends Disposable {
      * This method allows the main thread to receive calculated data from Worker
      * via mutation without triggering recalculation.
      */
-    setCalculatedData(calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
-        this._calculatedData$.next(calculatedData);
+    setCalculatedData(calculatedData: IPivotTableCrossTabData): void {
+        this._pivotEngine.setCalculatedData(calculatedData);
+        this._pivotTableRenderModel.setData(calculatedData);
     }
 
     /**
-     * Get the current calculated data
+     * Calculate pivot table data
+     * @param workbook - The workbook containing source data
+     * @returns Calculated pivot table data
      */
-    getCalculatedData(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
-        return this._calculatedData$.value;
-    }
-
-  /**
-   * Calculate pivot table data
-   * @param workbook - The workbook containing source data
-   * @returns Calculated pivot table data
-   */
     setSourceDataFromWorkbook(workbook: Workbook) {
         const worksheet = workbook.getSheetBySheetId(this.getSourceRangeInfo().subUnitId);
         if (!worksheet) {

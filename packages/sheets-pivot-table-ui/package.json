@@ -84,9 +84,11 @@
         "@univerjs/sheets-formula-ui": "workspace:*",
         "@univerjs/sheets-pivot-table": "workspace:*",
         "@univerjs/sheets-ui": "workspace:*",
-        "@univerjs/ui": "workspace:*"
+        "@univerjs/ui": "workspace:*",
+        "tinycolor2": "^1.6.0"
     },
     "devDependencies": {
+        "@types/tinycolor2": "^1.4.6",
         "@univerjs-infra/shared": "workspace:*",
         "postcss": "^8.5.6",
         "react": "18.3.1",

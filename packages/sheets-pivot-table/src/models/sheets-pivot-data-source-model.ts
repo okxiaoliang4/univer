@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable } from '@univerjs/core';
+import type { IRange } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../controllers/config.schema';
-import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
+import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableCrossTabData, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ICommandService, IConfigService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
 import { Subject } from 'rxjs';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../controllers/config.schema';
@@ -264,7 +264,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
         unitId: string,
         subUnitId: string,
         pivotTableId: string,
-        calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>>
+        calculatedData: IPivotTableCrossTabData
     ): void {
         const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
         if (pivotTable) {
@@ -330,6 +330,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
     toJSON(unitId: string): IPivotTableConfigResource {
         const result: IPivotTableConfigResource = {
             pivotTableConfigs: {},
+            pivotData: {},
         };
 
         const unitConfigMap = this._pivotTableMap.get(unitId);
@@ -338,19 +339,25 @@ export class SheetsPivotDataSourceModel extends Disposable {
         }
 
         const unitResult: Record<string, Record<string, IPivotTableConfig>> = {};
+        const pivotData: Record<string, Record<string, IPivotTableCrossTabData>> = {};
 
         unitConfigMap.forEach((subUnitMap, subUnitId) => {
             const subUnitResult: Record<string, IPivotTableConfig> = {};
+            const subUnitPivotData: Record<string, IPivotTableCrossTabData> = {};
 
             subUnitMap.forEach((pivotTable, pivotTableId) => {
                 subUnitResult[pivotTableId] = pivotTable.toJSON();
+                const calculatedData = pivotTable.getEngine().getCalculatedData();
+                if (calculatedData) {
+                    subUnitPivotData[pivotTableId] = calculatedData;
+                }
             });
-
+            pivotData[subUnitId] = subUnitPivotData;
             unitResult[subUnitId] = subUnitResult;
         });
 
         result.pivotTableConfigs[unitId] = unitResult;
-
+        result.pivotData[unitId] = pivotData;
         return result;
     }
 
@@ -359,6 +366,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
      */
     fromJSON(data: IPivotTableConfigResource): void {
         const pivotConfigs = data.pivotTableConfigs || {};
+        const pivotData = data.pivotData || {};
         const skipAutoCalculation = this._shouldSkipAutoCalculation();
 
         Object.keys(pivotConfigs).forEach((unitId) => {
@@ -369,6 +377,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
 
                 Object.keys(subUnitData).forEach((pivotTableId) => {
                     const config = subUnitData[pivotTableId];
+                    const calculatedData = pivotData[unitId]?.[subUnitId]?.[pivotTableId];
 
                     // Create PivotTable instance with skipAutoCalculation option
                     // In RPC environment (notExecuteFormula: true), main thread skips auto-calculation
@@ -381,6 +390,10 @@ export class SheetsPivotDataSourceModel extends Disposable {
                         config.fieldsConfig,
                         { skipAutoCalculation }
                     );
+
+                    if (calculatedData) {
+                        pivotTable.setCalculatedData(calculatedData);
+                    }
 
                     this.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable);
                 });

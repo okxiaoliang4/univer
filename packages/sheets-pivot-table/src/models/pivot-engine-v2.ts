@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import type { ICellData, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
+import type { ICellData, IObjectArrayPrimitiveType, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
 import type { IPivotField, IPivotFilterCriteria, IPivotGroupInfo, IPivotSubtotalInfo, IPivotTableCrossTabConfig, IPivotTableCrossTabData } from '../types/type';
 import { Disposable } from '@univerjs/core';
 import { createAggregator } from '../common/aggregation/functions';
+import { defaultPlaceholderMatrix } from '../common/default-pivot-table';
 import { AggregationType, PivotValuePosition } from '../types/enum';
 
 // Constants
@@ -42,6 +43,12 @@ export class PivotEngineV2 extends Disposable {
     /** Dirty flag for cache invalidation */
     private _isDirty: boolean = true;
 
+    /** Cached cell matrix result */
+    private _cachedCellMatrix: IObjectMatrixPrimitiveType<Nullable<ICellData>> | null = null;
+
+    /** Reference to the calculated data used for cell matrix cache */
+    private _cellMatrixCacheDataRef: IPivotTableCrossTabData | null = null;
+
     constructor(config: IPivotTableCrossTabConfig) {
         super();
 
@@ -62,7 +69,7 @@ export class PivotEngineV2 extends Disposable {
      */
     getCalculatedData(): IPivotTableCrossTabData {
         if (this._isDirty) {
-            this._calculatedData = this._calculate();
+            this._calculatedData = this.calculate();
             this._isDirty = false;
         }
         if (!this._calculatedData) {
@@ -75,12 +82,22 @@ export class PivotEngineV2 extends Disposable {
      * Get the calculated data as cell matrix format (for backward compatibility with PivotEngine)
      * Converts Cross-Tabulation format to the old matrix format
      * This method is used by PivotTable to get output in the same format as PivotEngine
+     * Uses caching to avoid redundant calculations when _calculatedData hasn't changed
      * @returns Cell matrix or null if empty
      */
+    // eslint-disable-next-line max-lines-per-function
     getCalculatedCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
         const crossTabData = this.getCalculatedData();
+
+        // Check if cache is valid (same data reference)
+        if (this._cachedCellMatrix !== null && this._cellMatrixCacheDataRef === crossTabData) {
+            return this._cachedCellMatrix;
+        }
+
         if (crossTabData.isEmpty) {
-            return null;
+            this._cachedCellMatrix = null;
+            this._cellMatrixCacheDataRef = crossTabData;
+            return defaultPlaceholderMatrix;
         }
 
         const matrix: IObjectMatrixPrimitiveType<Nullable<ICellData>> = {};
@@ -110,7 +127,9 @@ export class PivotEngineV2 extends Disposable {
 
             // Empty cells for row header columns in all column field rows
             for (let i = 0; i < rowHeaderDepth; i++) {
-                headerRow.push({ v: '' });
+                headerRow.push({
+                    v: '',
+                });
             }
 
             // Add column headers for this level
@@ -174,7 +193,9 @@ export class PivotEngineV2 extends Disposable {
                     // Only show value in the very first cell of this value group
                     for (let span = 0; span < totalSpan; span++) {
                         const shouldShowValue = isFirstOccurrence && span === 0;
-                        headerRow.push({ v: shouldShowValue ? headerValue : '' });
+                        headerRow.push({
+                            v: shouldShowValue ? headerValue : '',
+                        });
                     }
 
                     // Update tracking
@@ -202,7 +223,9 @@ export class PivotEngineV2 extends Disposable {
 
             // Add row field names in the same row as value field names
             for (let i = 0; i < rowHeaderDepth; i++) {
-                valueFieldHeaderRow.push({ v: this._rowFields[i]?.name || '' });
+                valueFieldHeaderRow.push({
+                    v: this._rowFields[i]?.name || '',
+                });
             }
 
             // Add value field headers for each column
@@ -211,7 +234,9 @@ export class PivotEngineV2 extends Disposable {
                     // Multiple value fields: repeat value field headers for each column
                     for (let colIdx = 0; colIdx < structure.columnHeaders.length; colIdx++) {
                         for (let vfIdx = 0; vfIdx < structure.valueFieldHeaders.length; vfIdx++) {
-                            valueFieldHeaderRow.push({ v: structure.valueFieldHeaders[vfIdx] });
+                            valueFieldHeaderRow.push({
+                                v: structure.valueFieldHeaders[vfIdx],
+                            });
                         }
                     }
                 } else if (this._valueFields.length >= 1) {
@@ -220,19 +245,25 @@ export class PivotEngineV2 extends Disposable {
                     const aggregation = field.aggregation || AggregationType.SUM;
                     const valueFieldLabel = this._getAggregationLabel(aggregation, field.name);
                     for (let colIdx = 0; colIdx < structure.columnHeaders.length; colIdx++) {
-                        valueFieldHeaderRow.push({ v: valueFieldLabel });
+                        valueFieldHeaderRow.push({
+                            v: valueFieldLabel,
+                        });
                     }
                 }
             } else {
                 // No column fields: just add value field headers
                 if (hasMultipleValueFields && structure.valueFieldHeaders) {
                     for (let vfIdx = 0; vfIdx < structure.valueFieldHeaders.length; vfIdx++) {
-                        valueFieldHeaderRow.push({ v: structure.valueFieldHeaders[vfIdx] });
+                        valueFieldHeaderRow.push({
+                            v: structure.valueFieldHeaders[vfIdx],
+                        });
                     }
                 } else if (this._valueFields.length >= 1) {
                     const field = this._valueFields[0];
                     const aggregation = field.aggregation || AggregationType.SUM;
-                    valueFieldHeaderRow.push({ v: this._getAggregationLabel(aggregation, field.name) });
+                    valueFieldHeaderRow.push({
+                        v: this._getAggregationLabel(aggregation, field.name),
+                    });
                 }
             }
 
@@ -263,7 +294,9 @@ export class PivotEngineV2 extends Disposable {
                 const headerValue = rowHeader[i] || '';
                 // Show value only if it's the first row or different from previous row at this level
                 const shouldShowValue = rowIdx === 0 || headerValue !== lastRowHeaderValues[i];
-                row.push({ v: shouldShowValue ? headerValue : '' });
+                row.push({
+                    v: shouldShowValue ? headerValue : '',
+                });
                 if (shouldShowValue) {
                     lastRowHeaderValues[i] = headerValue;
                 }
@@ -272,7 +305,9 @@ export class PivotEngineV2 extends Disposable {
             // Pad row headers if needed
             const maxRowHeaderDepth = Math.max(...structure.rowHeaders.map((rh) => rh.length));
             while (row.length < maxRowHeaderDepth) {
-                row.push({ v: '' });
+                row.push({
+                    v: '',
+                });
             }
 
             // Add values
@@ -281,7 +316,9 @@ export class PivotEngineV2 extends Disposable {
                     const valueRow = structure.values[rowIdx][colIdx];
                     for (let vfIdx = 0; vfIdx < valueRow.length; vfIdx++) {
                         const value = valueRow[vfIdx];
-                        row.push({ v: value });
+                        row.push({
+                            v: value,
+                        });
                     }
                 }
             }
@@ -292,6 +329,10 @@ export class PivotEngineV2 extends Disposable {
             });
             rowIndex++;
         }
+
+        // Cache the result
+        this._cachedCellMatrix = matrix;
+        this._cellMatrixCacheDataRef = crossTabData;
 
         return matrix;
     }
@@ -390,6 +431,61 @@ export class PivotEngineV2 extends Disposable {
         return this._isDirty;
     }
 
+    /**
+     * Set calculated data directly (for persistence and warm start)
+     * @param data The calculated Cross-Tabulation data to set
+     * @param isDirty Whether the data should be marked as dirty (warm start) or clean (authoritative)
+     * @returns true if data was accepted, false if validation failed
+     */
+    setCalculatedData(data: IPivotTableCrossTabData, isDirty = true): boolean {
+        // Basic validation
+        if (!data || typeof data !== 'object') {
+            return false;
+        }
+
+        // Validate structure exists
+        if (!data.structure || !data.dimensions) {
+            return false;
+        }
+
+        // Validate dimensions match current configuration
+        const expectedValueFieldCount = this._valueFields.length;
+        if (data.dimensions.valueFieldCount !== expectedValueFieldCount) {
+            return false;
+        }
+
+        // Validate row/column structure compatibility
+        const expectedRowDepth = this._rowFields.length;
+        const expectedColDepth = this._columnFields.length;
+
+        // Allow some flexibility - data might have different row counts but same structure
+        if (data.structure.rowHeaders.length > 0) {
+            const actualRowDepth = data.structure.rowHeaders[0].length;
+            if (actualRowDepth !== expectedRowDepth) {
+                return false;
+            }
+        }
+
+        if (data.structure.columnHeaders.length > 0) {
+            const actualColDepth = data.structure.columnHeaders[0].length;
+            if (actualColDepth !== expectedColDepth) {
+                return false;
+            }
+        }
+
+        // Set the data
+        this._calculatedData = data;
+
+        // Set dirty flag based on parameter
+        this._isDirty = isDirty;
+
+        // Invalidate cell matrix cache since calculated data changed
+        this._cachedCellMatrix = null;
+        this._cellMatrixCacheDataRef = null;
+
+        return true;
+    }
+
     // #endregion
 
     // #region Core Calculation
@@ -406,7 +502,7 @@ export class PivotEngineV2 extends Disposable {
      * Orchestrates the entire pivot table calculation process
      * @returns The calculated Cross-Tabulation data
      */
-    private _calculate(): IPivotTableCrossTabData {
+    calculate(): IPivotTableCrossTabData {
         // Early return if no value fields
         if (this._valueFields.length === 0) {
             return this._createEmptyResult();
@@ -543,6 +639,7 @@ export class PivotEngineV2 extends Disposable {
      * Build Cross-Tabulation with value fields as column headers (current behavior)
      * This is the original implementation
      */
+    // eslint-disable-next-line max-lines-per-function
     private _buildCrossTabResultWithColumnValues(
         rowGroups: Map<string, ICellData[][]>,
         columnCombos: string[][],
@@ -579,6 +676,12 @@ export class PivotEngineV2 extends Disposable {
                 value: '',
                 label: '总计',
             });
+        }
+
+        // When no column fields are defined, keep a placeholder column to match the value grid
+        if (columnHeaders.length === 0) {
+            columnHeaders.push([]);
+            columnTypes.push('data');
         }
 
         // Build value field headers if multiple value fields
@@ -661,7 +764,7 @@ export class PivotEngineV2 extends Disposable {
             }
 
             // Add subtotal row if first row field has showSubTotals
-            if (rowIndices.length > 0 && this._rowFields[0]?.showSubTotals) {
+            if (rowIndices.length > 0 && (this._rowFields[0]?.showSubTotals)) {
                 const subtotalHeader = [...rowFieldValues];
                 subtotalHeader[0] = ''; // Empty for subtotal row
 
@@ -748,7 +851,7 @@ export class PivotEngineV2 extends Disposable {
         }
 
         // Add grand total row if first row field has showSubTotals
-        if (rowIndices.length > 0 && this._rowFields[0]?.showSubTotals) {
+        if (rowIndices.length > 0 && (this._rowFields[0]?.showSubTotals)) {
             const grandTotalHeader: string[] = [];
             for (let i = 0; i < rowIndices.length; i++) {
                 grandTotalHeader.push(i === 0 ? '总计' : '');
@@ -903,6 +1006,7 @@ export class PivotEngineV2 extends Disposable {
      * Row Headers: [Region, ValueFieldName]
      * Values:      [[100, 200], [150, 250]]  (North-A: 100, North-B: 200, etc.)
      */
+    // eslint-disable-next-line max-lines-per-function
     private _buildCrossTabResultWithRowValues(
         rowGroups: Map<string, ICellData[][]>,
         columnCombos: string[][],
@@ -912,7 +1016,7 @@ export class PivotEngineV2 extends Disposable {
     ): IPivotTableCrossTabData['structure'] {
         const rowHeaders: string[][] = [];
         const columnHeaders: string[][] = [];
-        const values: (number | string | null)[][][] = [];
+        const values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
         const rowTypes: ('data' | 'subtotal')[] = [];
         const columnTypes: ('data' | 'subtotal')[] = [];
         const subtotalRows: IPivotSubtotalInfo[] = [];
@@ -939,6 +1043,13 @@ export class PivotEngineV2 extends Disposable {
                 value: '',
                 label: '总计',
             });
+        }
+
+        // When there are no column fields, keep a placeholder column header so the
+        // downstream structure reflects the single value column that exists.
+        if (columnHeaders.length === 0) {
+            columnHeaders.push([]);
+            columnTypes.push('data');
         }
 
         // Process row groups
@@ -998,7 +1109,7 @@ export class PivotEngineV2 extends Disposable {
             }
 
             // Add subtotal row if first row field has showSubTotals
-            if (rowIndices.length > 0 && this._rowFields[0]?.showSubTotals) {
+            if (rowIndices.length > 0 && (this._rowFields[0]?.showSubTotals)) {
                 const subtotalHeader = [...rowFieldValues];
                 subtotalHeader[0] = ''; // Empty for subtotal row
                 subtotalHeader.push('小计'); // Add subtotal marker
@@ -1076,7 +1187,7 @@ export class PivotEngineV2 extends Disposable {
         }
 
         // Add grand total row if first row field has showSubTotals
-        if (rowIndices.length > 0 && this._rowFields[0]?.showSubTotals) {
+        if (rowIndices.length > 0 && (this._rowFields[0]?.showSubTotals)) {
             // Add one grand total row for each value field
             for (let valueIdx = 0; valueIdx < this._valueFields.length; valueIdx++) {
                 const valueField = this._valueFields[valueIdx];
@@ -1327,6 +1438,11 @@ export class PivotEngineV2 extends Disposable {
      * @returns Sorted unique column combinations
      */
     private _getColumnCombinations(dataRows: ICellData[][], fieldIndices: number[]): string[][] {
+        // When there are no column fields, return empty array (no column combinations)
+        if (fieldIndices.length === 0) {
+            return [];
+        }
+
         const combinationSet = new Set<string>();
 
         // Collect unique combinations

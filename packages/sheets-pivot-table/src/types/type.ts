@@ -130,6 +130,8 @@ export interface IPivotTableConfig {
 export interface IPivotTableConfigResource {
     /** Pivot table configurations by unitId -> subUnitId -> pivotTableId */
     pivotTableConfigs: Record<string, Record<string, Record<string, IPivotTableConfig>>>;
+    /** Pivot engine calculated data by unitId -> subUnitId -> pivotTableId */
+    pivotData: Record<string, Record<string, Record<string, IPivotTableCrossTabData>>>;
 }
 
 /**

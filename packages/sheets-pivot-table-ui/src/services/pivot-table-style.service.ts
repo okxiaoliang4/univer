@@ -17,6 +17,7 @@
 import type { IBorderData, IColorStyle, IStyleData } from '@univerjs/core';
 import { BooleanNumber, BorderStyleTypes, createIdentifier, Disposable, Inject } from '@univerjs/core';
 import { IPivotTableRangeService } from '@univerjs/sheets-pivot-table';
+import tinycolor from 'tinycolor2';
 
 /**
  * Pivot table cell types for styling
@@ -177,9 +178,11 @@ export class PivotTableStyleService extends Disposable implements IPivotTableSty
      * @param intensity - Intensity percentage (0-100, where 100 is full intensity)
      */
     private _adjustColorIntensity(baseColor: IColorStyle, intensity: number): IColorStyle {
-        // For simplicity, return the base color
-        // In a more sophisticated implementation, this could interpolate between white and the base color
-        return baseColor;
+        // Clamp intensity to 0-100 where 100 = full base color, 0 = white
+        const clamped = Math.min(100, Math.max(0, intensity));
+        const baseHex = (baseColor as { rgb?: string }).rgb || '#000000';
+        const mixed = tinycolor.mix('#ffffff', baseHex, clamped);
+        return { rgb: mixed.toHexString() };
     }
 }
 

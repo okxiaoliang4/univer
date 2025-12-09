@@ -18,7 +18,6 @@ import type { IDisposable, IRange } from '@univerjs/core';
 import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
 import { Disposable, ICommandService, Inject, IUniverInstanceService, RTree, toDisposable } from '@univerjs/core';
 import { SetRangeValuesMutation } from '@univerjs/sheets';
-import { skip } from 'rxjs';
 import { SheetsPivotDataSourceModel } from '../models/sheets-pivot-data-source-model';
 
 /**
@@ -194,22 +193,13 @@ export class PivotTableRangeService extends Disposable implements IPivotTableRan
         }
 
         // Subscribe to calculatedData$ changes (skip initial value)
-        const subscription = pivotTable.calculatedData$.pipe(skip(1)).subscribe((newData) => {
-            if (newData) {
+        const subscription = pivotTable.recalculated$.subscribe(() => {
                 // Clear old range and register new range
-                this._clearPivotTableRange(unitId, subUnitId, pivotTableId);
+            this._clearPivotTableRange(unitId, subUnitId, pivotTableId);
 
-                const outputRange = pivotTable.getOutputRange();
-                if (outputRange) {
-                    const targetCellInfo = pivotTable.getTargetCellInfo();
-                    const absoluteRange = {
-                        startRow: outputRange.startRow + targetCellInfo.row,
-                        endRow: outputRange.endRow + targetCellInfo.row,
-                        startColumn: outputRange.startColumn + targetCellInfo.col,
-                        endColumn: outputRange.endColumn + targetCellInfo.col,
-                    };
-                    this.registerPivotRange(unitId, subUnitId, pivotTableId, absoluteRange);
-                }
+            const outputRange = pivotTable.getAbsoluteOutputRange();
+            if (outputRange) {
+                this.registerPivotRange(unitId, subUnitId, pivotTableId, outputRange);
             }
         });
 

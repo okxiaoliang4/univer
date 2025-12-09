@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import type { ICellData, IMutation, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
+import type { IMutation } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../../controllers/config.schema';
 import type { PivotValuePosition } from '../../types/enum';
-import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
+import type { IFieldsConfig, IPivotTableCrossTabData, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
 import { CommandType, IConfigService } from '@univerjs/core';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../../controllers/config.schema';
 import { PivotTable } from '../../models/pivot-table';
@@ -256,7 +256,7 @@ export interface ISetPivotTableCalculatedDataMutationParams {
     unitId: string;
     subUnitId: string;
     pivotTableId: string;
-    calculatedData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
+    calculatedData: IPivotTableCrossTabData;
 }
 
 export const SetPivotTableCalculatedDataMutation: IMutation<ISetPivotTableCalculatedDataMutationParams> = {

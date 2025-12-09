@@ -15,7 +15,6 @@
  */
 
 import type { ICellDataForSheetInterceptor } from '@univerjs/core';
-import type { PivotCellType } from '../services/pivot-table-style.service';
 import { Disposable, Inject, InterceptorEffectEnum } from '@univerjs/core';
 import { INTERCEPTOR_POINT, SheetInterceptorService } from '@univerjs/sheets';
 import { IPivotTableRangeService, ISheetsPivotTableService } from '@univerjs/sheets-pivot-table';
@@ -78,7 +77,9 @@ export class PivotTableRenderController extends Disposable {
                     const _cellData = ((!cell || cell === context.rawData) ? { ...context.rawData } : cell) as ICellDataForSheetInterceptor;
 
                     // Inject pivot output value using relative positioning
-                    const outputCellMatrix = pivotTable.getOutputCellMatrix();
+                    const pivotEngine = pivotTable.getEngine();
+                    const pivotRenderModel = pivotTable.getRenderModel();
+                    const outputMatrix = pivotEngine.getCalculatedCellMatrix();
                     const targetCellInfo = pivotTable.getTargetCellInfo();
 
                     // Convert absolute position to relative position in the matrix
@@ -86,7 +87,7 @@ export class PivotTableRenderController extends Disposable {
                     const relativeCol = col - targetCellInfo.col;
 
                     // Get value from relative position
-                    const cellValue = outputCellMatrix?.[relativeRow]?.[relativeCol];
+                    const cellValue = outputMatrix?.[relativeRow]?.[relativeCol];
 
                     // If cell is not in the output matrix (undefined), don't inject pivot table data
                     // This handles cases where the range has shrunk but RTree hasn't been updated yet
@@ -107,11 +108,15 @@ export class PivotTableRenderController extends Disposable {
                         _cellData.v = null;
                     }
 
-                    // Determine cell type for styling
-                    const cellType = this._determineCellType(pivotTable, relativeRow, relativeCol);
-
                     // Inject pivot table style
-                    const style = this._styleService.getCellStyle(pivotTableId, relativeRow, relativeCol, cellType);
+                    const cellRenderInfo = pivotRenderModel.determineCellType(relativeRow, relativeCol);
+                    const style = this._styleService.getCellStyle(
+                        pivotTableId,
+                        relativeRow,
+                        relativeCol,
+                        cellRenderInfo.type,
+                        cellRenderInfo.level
+                    );
                     if (style) {
                         _cellData.s = { ...(_cellData.s && typeof _cellData.s === 'object' ? _cellData.s : {}), ...style };
                     }
@@ -120,43 +125,5 @@ export class PivotTableRenderController extends Disposable {
                 },
             })
         );
-    }
-
-    /**
-     * Determine the cell type based on position in the pivot table matrix
-     * This is a simplified implementation - in practice, this would need more sophisticated
-     * logic to properly identify headers, subtotals, etc. based on the pivot table structure
-     */
-    private _determineCellType(pivotTable: any, relativeRow: number, relativeCol: number): PivotCellType {
-        // This is a placeholder implementation
-        // In a real implementation, this would analyze the pivot table structure
-        // to determine if a cell is a header, data, subtotal, etc.
-
-        // For now, use simple heuristics:
-        // - First row: header
-        // - First column: row header
-        // - Last row: grand total
-        // - Other rows: data
-
-        const outputRange = pivotTable.getOutputRange();
-        if (!outputRange) {
-            return 'data';
-        }
-
-        if (relativeRow === 0) {
-            return 'header';
-        }
-
-        if (relativeCol === 0) {
-            return 'rowHeader';
-        }
-
-        if (relativeRow === outputRange.endRow) {
-            return 'grandTotal';
-        }
-
-        // Check for subtotal rows (this would need more sophisticated logic)
-        // For now, assume regular data
-        return 'data';
     }
 }
