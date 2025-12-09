@@ -56,7 +56,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { generateRandomId, ICommandService, LocaleService } from '@univerjs/core';
-import { Button, Dropdown, Select, SelectList } from '@univerjs/design';
+import { Button, Checkbox, Dropdown, Select, SelectList } from '@univerjs/design';
 import { AggregationType, UpdatePivotTableFieldsCommand } from '@univerjs/sheets-pivot-table';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -439,21 +439,43 @@ export function PivotTableEditor({
                         {...restProps}
                         field={field}
                         ref={ref as React.Ref<HTMLDivElement>}
-                    // renderFooter={() => (
-                    //     <div>
-                    //         <div className="univer-flex">
-                    //             <Checkbox checked />
-                    //             <label
-                    //                 className={`
-                    //                   univer-text-xs univer-font-medium univer-text-gray-900
-                    //                   dark:!univer-text-white
-                    //                 `}
-                    //             >
-                    //                 显示总计
-                    //             </label>
-                    //         </div>
-                    //     </div>
-                    // )}
+                        renderFooter={() => {
+                            const latestRowFields = pivotTable.getRowFields();
+                            const latestColumnFields = pivotTable.getColumnFields();
+                            return (
+                                <div className="univer-flex univer-items-center univer-gap-2">
+                                    <Checkbox
+                                        checked={field.showSubTotals}
+                                        onChange={(checked) => {
+                                            const targetCellInfo = pivotTable.getTargetCellInfo();
+                                            const nextColumnFields: IPivotField[] = latestColumnFields.map((f) =>
+                                                f.id === field.id ? { ...f, showSubTotals: !!checked } : f
+                                            );
+                                            commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+                                                unitId: targetCellInfo.unitId,
+                                                subUnitId: targetCellInfo.subUnitId,
+                                                pivotTableId: pivotTable.getId(),
+                                                fieldsConfig: {
+                                                    valueFields,
+                                                    rowFields: latestRowFields,
+                                                    columnFields: nextColumnFields,
+                                                    filterFields,
+                                                    valuePosition: pivotTable.getValuePosition(),
+                                                } satisfies IFieldsConfig,
+                                            } satisfies IUpdatePivotTableFieldsCommandParams);
+                                        }}
+                                    />
+                                    <span
+                                        className={`
+                                          univer-text-xs univer-text-gray-900
+                                          dark:!univer-text-white
+                                        `}
+                                    >
+                                        显示总计
+                                    </span>
+                                </div>
+                            );
+                        }}
                         onRemove={() => {
                             const targetCellInfo = pivotTable.getTargetCellInfo();
                             commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
@@ -463,7 +485,7 @@ export function PivotTableEditor({
                                 fieldsConfig: {
                                     valueFields,
                                     rowFields,
-                                    columnFields: columnFields.filter((f) => f.id !== field.id),
+                                    columnFields: pivotTable.getColumnFields().filter((f) => f.id !== field.id),
                                     filterFields,
                                     valuePosition: pivotTable.getValuePosition(),
                                 } satisfies IFieldsConfig,
@@ -481,21 +503,43 @@ export function PivotTableEditor({
                         {...restProps}
                         field={field}
                         ref={ref as React.Ref<HTMLDivElement>}
-                    // renderFooter={() => (
-                    //     <div>
-                    //         <div className="univer-flex">
-                    //             <Checkbox checked />
-                    //             <label
-                    //                 className={`
-                    //                   univer-text-xs univer-font-medium univer-text-gray-900
-                    //                   dark:!univer-text-white
-                    //                 `}
-                    //             >
-                    //                 显示总计
-                    //             </label>
-                    //         </div>
-                    //     </div>
-                    // )}
+                        renderFooter={() => {
+                            const latestRowFields = pivotTable.getRowFields();
+                            const latestColumnFields = pivotTable.getColumnFields();
+                            return (
+                                <div className="univer-flex univer-items-center univer-gap-2">
+                                    <Checkbox
+                                        checked={field.showSubTotals}
+                                        onChange={(checked) => {
+                                            const targetCellInfo = pivotTable.getTargetCellInfo();
+                                            const nextRowFields: IPivotField[] = latestRowFields.map((f) =>
+                                                f.id === field.id ? { ...f, showSubTotals: !!checked } : f
+                                            );
+                                            commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
+                                                unitId: targetCellInfo.unitId,
+                                                subUnitId: targetCellInfo.subUnitId,
+                                                pivotTableId: pivotTable.getId(),
+                                                fieldsConfig: {
+                                                    valueFields,
+                                                    rowFields: nextRowFields,
+                                                    columnFields: latestColumnFields,
+                                                    filterFields,
+                                                    valuePosition: pivotTable.getValuePosition(),
+                                                } satisfies IFieldsConfig,
+                                            } satisfies IUpdatePivotTableFieldsCommandParams);
+                                        }}
+                                    />
+                                    <span
+                                        className={`
+                                          univer-text-xs univer-text-gray-900
+                                          dark:!univer-text-white
+                                        `}
+                                    >
+                                        显示总计
+                                    </span>
+                                </div>
+                            );
+                        }}
                         onRemove={() => {
                             const targetCellInfo = pivotTable.getTargetCellInfo();
                             commandService.executeCommand(UpdatePivotTableFieldsCommand.id, {
@@ -504,7 +548,7 @@ export function PivotTableEditor({
                                 pivotTableId: pivotTable.getId(),
                                 fieldsConfig: {
                                     valueFields,
-                                    rowFields: rowFields.filter((f) => f.id !== field.id),
+                                    rowFields: pivotTable.getRowFields().filter((f) => f.id !== field.id),
                                     columnFields,
                                     filterFields,
                                     valuePosition: pivotTable.getValuePosition(),
@@ -923,10 +967,13 @@ export function PivotTableEditor({
             if (movedField) {
                 const sourceField = getSourceField(activeSourceColumnIndex);
                 if (sourceField) {
-                    intelligentPlacementService.updatePreference(
-                        sourceField.name,
-                        overContainer as 'rowFields' | 'columnFields' | 'valueFields' | 'filterFields'
-                    );
+                    intelligentPlacementService.updatePreference({
+                        valueFields,
+                        rowFields,
+                        columnFields,
+                        filterFields,
+                        valuePosition: pivotTable.getValuePosition(),
+                    });
                 }
             }
         }

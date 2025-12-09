@@ -293,6 +293,7 @@ describe('PivotEngineV2', () => {
             );
             expect(grandTotalColumn).toBeDefined();
             expect(result.structure.subtotalColumns).toBeDefined();
+            expect(result.structure.columnHeaders.length).toBe(3); // 2 data columns + 1 total column
         });
     });
 
@@ -324,6 +325,35 @@ describe('PivotEngineV2', () => {
             // Check values: first value field (SUM), second value field (COUNT)
             expect(result.structure.values[0][0][0]).toBe(250); // North SUM
             expect(result.structure.values[0][0][1]).toBe(2); // North COUNT
+        });
+
+        it('should add one grand total column per value field when column totals enabled', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [createColumnField('Quarter', 1, true)],
+                valueFields: [
+                    createValueField('Sales', 2, AggregationType.SUM),
+                    createValueField('Count', 2, AggregationType.COUNT),
+                ],
+                filterFields: [],
+                sourceData: createSourceData([
+                    ['Region', 'Quarter', 'Sales'],
+                    ['North', 'Q1', 100],
+                    ['North', 'Q2', 150],
+                ]),
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const result = engine.getCalculatedData();
+            // Data columns = 2 quarter combos, subtotal columns = valueFieldCount (2)
+            expect(result.structure.columnHeaders.length).toBe(4);
+            expect(result.structure.columnTypes.filter((t) => t === 'subtotal').length).toBe(2);
+
+            // Grand total columns map to each value field
+            const grandTotalStart = result.structure.columnTypes.indexOf('subtotal');
+            expect(grandTotalStart).toBe(2);
+            expect(result.structure.values[0][grandTotalStart][0]).toBe(250); // Sales total
+            expect(result.structure.values[0][grandTotalStart + 1][1]).toBe(2); // Count total
         });
 
         it('should display value field headers in column headers when there are column fields', () => {

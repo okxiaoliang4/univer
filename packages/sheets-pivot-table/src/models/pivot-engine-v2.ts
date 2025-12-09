@@ -110,6 +110,9 @@ export class PivotEngineV2 extends Disposable {
         const rowHeaderDepth = structure.rowHeaders[0]?.length || 0;
         const columnHeaderDepth = structure.columnHeaders[0]?.length || 0;
         const hasColumnFields = columnHeaderDepth > 0;
+        const columnTypes = structure.columnTypes || [];
+        const grandTotalColumnCount = columnTypes.filter((t) => t === 'subtotal').length;
+        const dataColumnCount = columnTypes.filter((t) => t === 'data').length || (structure.columnHeaders.length - grandTotalColumnCount);
 
         // Determine if we need to show value field headers row
         // Show value field headers when: (1) multiple value fields OR (2) single value field with column fields
@@ -231,12 +234,23 @@ export class PivotEngineV2 extends Disposable {
             // Add value field headers for each column
             if (hasColumnFields) {
                 if (hasMultipleValueFields && structure.valueFieldHeaders) {
-                    // Multiple value fields: repeat value field headers for each column
+                    // Multiple value fields:
+                    // - Data columns repeat all value field headers
+                    // - Grand total columns already map to a single value field (one column per value)
                     for (let colIdx = 0; colIdx < structure.columnHeaders.length; colIdx++) {
-                        for (let vfIdx = 0; vfIdx < structure.valueFieldHeaders.length; vfIdx++) {
+                        const isSubtotalCol = columnTypes[colIdx] === 'subtotal';
+                        if (isSubtotalCol) {
+                            const vfIndex = Math.max(0, colIdx - dataColumnCount);
+                            const headerLabel = structure.valueFieldHeaders[vfIndex] ?? structure.valueFieldHeaders[0];
                             valueFieldHeaderRow.push({
-                                v: structure.valueFieldHeaders[vfIdx],
+                                v: headerLabel,
                             });
+                        } else {
+                            for (let vfIdx = 0; vfIdx < structure.valueFieldHeaders.length; vfIdx++) {
+                                valueFieldHeaderRow.push({
+                                    v: structure.valueFieldHeaders[vfIdx],
+                                });
+                            }
                         }
                     }
                 } else if (this._valueFields.length >= 1) {
@@ -319,11 +333,20 @@ export class PivotEngineV2 extends Disposable {
 
             for (let colIdx = 0; colIdx < columnCount; colIdx++) {
                 const columnValues = rowValues?.[colIdx];
-                for (let vfIdx = 0; vfIdx < valueFieldCount; vfIdx++) {
-                    const value = columnValues?.[vfIdx] ?? null;
-                    row.push({
-                        v: value,
-                    });
+                const isSubtotalCol = columnTypes[colIdx] === 'subtotal';
+                const repeats = isSubtotalCol ? 1 : valueFieldCount;
+
+                if (isSubtotalCol && grandTotalColumnCount > 0 && valueFieldCount > 1 && this.valuePosition !== PivotValuePosition.ROW) {
+                    const vfIndex = Math.max(0, colIdx - dataColumnCount);
+                    const value = columnValues?.[vfIndex] ?? null;
+                    row.push({ v: value });
+                } else {
+                    for (let vfIdx = 0; vfIdx < repeats; vfIdx++) {
+                        const value = columnValues?.[vfIdx] ?? null;
+                        row.push({
+                            v: value,
+                        });
+                    }
                 }
             }
 
@@ -663,23 +686,29 @@ export class PivotEngineV2 extends Disposable {
         const rowLevelMap: Record<number, string[]> = {};
         const columnLevelMap: Record<number, string[]> = {};
 
-        // Build column headers
+        // Build column headers for each column combination
         for (const combo of columnCombos) {
             columnHeaders.push(combo.map((v) => v === BLANK_VALUE_PLACEHOLDER ? '' : v));
             columnTypes.push('data');
         }
 
-        // Add grand total column if first column field has showSubTotals
-        if (columnIndices.length > 0 && this._columnFields[0]?.showSubTotals) {
-            columnHeaders.push(['总计']);
-            columnTypes.push('subtotal');
-            subtotalColumns.push({
-                columnIndex: columnHeaders.length - 1,
-                level: 0,
-                fieldIndex: 0,
-                value: '',
-                label: '总计',
-            });
+        // Add grand total columns (one per value field) if first column field has showSubTotals
+        const valueFieldCount = valueIndices.length;
+        const shouldAddColumnTotals = columnIndices.length > 0 && this._columnFields[0]?.showSubTotals;
+        const grandTotalColumnCount = shouldAddColumnTotals ? Math.max(1, valueFieldCount) : 0;
+
+        if (shouldAddColumnTotals) {
+            for (let i = 0; i < grandTotalColumnCount; i++) {
+                columnHeaders.push(['总计']);
+                columnTypes.push('subtotal');
+                subtotalColumns.push({
+                    columnIndex: columnHeaders.length - 1,
+                    level: 0,
+                    fieldIndex: 0,
+                    value: '',
+                    label: '总计',
+                });
+            }
         }
 
         // When no column fields are defined, keep a placeholder column to match the value grid
@@ -728,17 +757,18 @@ export class PivotEngineV2 extends Disposable {
                     rowValues[columnIdx] = cellValues;
                 }
 
-                // Add grand total column value if needed
-                if (columnHeaders.length > columnCombos.length) {
-                    const grandTotalValues: IObjectArrayPrimitiveType<number | string | null> = {};
+                // Add grand total column values if needed (one column per value field)
+                if (grandTotalColumnCount > 0) {
                     for (let i = 0; i < valueIndices.length; i++) {
                         const valueIndex = valueIndices[i];
                         const field = this._valueFields[i];
                         const aggregation = field.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                        grandTotalValues[i] = this._normalizeValue(aggregatedValue.v);
+                        rowValues[columnCombos.length + i] = {
+                            ...rowValues[columnCombos.length + i],
+                            [i]: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
-                    rowValues[columnCombos.length] = grandTotalValues;
                 }
 
                 rowHeaders.push(rowFieldValues);
@@ -790,17 +820,18 @@ export class PivotEngineV2 extends Disposable {
                         subtotalValues[columnIdx] = cellValues;
                     }
 
-                    // Add grand total column value
-                    if (columnHeaders.length > columnCombos.length) {
-                        const grandTotalValues: IObjectArrayPrimitiveType<number | string | null> = {};
+                    // Add grand total column values if needed (one column per value field)
+                    if (grandTotalColumnCount > 0) {
                         for (let i = 0; i < valueIndices.length; i++) {
                             const valueIndex = valueIndices[i];
                             const field = this._valueFields[i];
                             const aggregation = field.aggregation || AggregationType.SUM;
                             const aggregatedValue = this._aggregateSingleValue(groupRows, valueIndex, aggregation);
-                            grandTotalValues[i] = this._normalizeValue(aggregatedValue.v);
+                            subtotalValues[columnCombos.length + i] = {
+                                ...subtotalValues[columnCombos.length + i],
+                                [i]: this._normalizeValue(aggregatedValue.v),
+                            };
                         }
-                        subtotalValues[columnCombos.length] = grandTotalValues;
                     }
                 } else {
                     // Row-only: single column of values
@@ -893,18 +924,19 @@ export class PivotEngineV2 extends Disposable {
                     grandTotalValues[columnIdx] = cellValues;
                 }
 
-                // Add grand total column value
-                if (columnHeaders.length > columnCombos.length) {
+                // Add grand total column values (one column per value field)
+                if (grandTotalColumnCount > 0) {
                     const allRows = Array.from(rowGroups.values()).flat();
-                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
                     for (let i = 0; i < valueIndices.length; i++) {
                         const valueIndex = valueIndices[i];
                         const field = this._valueFields[i];
                         const aggregation = field.aggregation || AggregationType.SUM;
                         const aggregatedValue = this._aggregateSingleValue(allRows, valueIndex, aggregation);
-                        cellValues[i] = this._normalizeValue(aggregatedValue.v);
+                        grandTotalValues[columnCombos.length + i] = {
+                            ...grandTotalValues[columnCombos.length + i],
+                            [i]: this._normalizeValue(aggregatedValue.v),
+                        };
                     }
-                    grandTotalValues[columnCombos.length] = cellValues;
                 }
             } else {
                 // Row-only: single column
