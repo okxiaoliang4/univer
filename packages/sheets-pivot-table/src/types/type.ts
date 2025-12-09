@@ -17,6 +17,16 @@
 import type { ICellData, IObjectArrayPrimitiveType, IObjectMatrixPrimitiveType, IRange, Nullable } from '@univerjs/core';
 import type { AggregationType, PivotValuePosition } from './enum';
 
+export type PivotSortDirection = 'asc' | 'desc';
+
+export interface IPivotValueSortRule {
+    type: 'valueField';
+    valueFieldId: string;
+    direction?: PivotSortDirection;
+}
+
+export type IPivotSortRule = IPivotValueSortRule;
+
 /**
  * Source fields configuration for pivot table
  */
@@ -226,6 +236,10 @@ export interface IPivotTableCrossTabConfig {
     valuePosition: PivotValuePosition;
     /** Source data matrix */
     sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
+    /** Optional row sorting rule */
+    rowSortRule?: IPivotSortRule;
+    /** Optional column sorting rule */
+    columnSortRule?: IPivotSortRule;
 }
 
 /**

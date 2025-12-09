@@ -89,18 +89,12 @@ export class PivotTableRenderController extends Disposable {
                     // Get value from relative position
                     const cellValue = outputMatrix?.[relativeRow]?.[relativeCol];
 
-                    // If cell is not in the output matrix (undefined), don't inject pivot table data
-                    // This handles cases where the range has shrunk but RTree hasn't been updated yet
-                    if (cellValue === undefined) {
-                        return next(cell);
-                    }
-
                     // Inject pivot output value (including null, 0, false, empty string as valid values)
                     if (cellValue !== null) {
-                        _cellData.v = cellValue.v;
-                        _cellData.t = cellValue.t;
+                        _cellData.v = cellValue?.v;
+                        _cellData.t = cellValue?.t;
                         // Copy other cell properties as needed
-                        if (cellValue.s) {
+                        if (cellValue?.s) {
                             _cellData.s = cellValue.s;
                         }
                     } else {
