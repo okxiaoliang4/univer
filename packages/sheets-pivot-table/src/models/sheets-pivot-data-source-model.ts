@@ -16,7 +16,7 @@
 
 import type { IRange } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../controllers/config.schema';
-import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../types/type';
+import type { IFieldsConfig, IPivotModel, IPivotTableConfig, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableResource, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ICommandService, IConfigService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
 import { Subject } from 'rxjs';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../controllers/config.schema';
@@ -263,7 +263,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
         unitId: string,
         subUnitId: string,
         pivotTableId: string,
-        pivotModel: PivotModel
+        pivotModel: IPivotModel
     ): void {
         const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
         if (pivotTable) {
@@ -326,8 +326,8 @@ export class SheetsPivotDataSourceModel extends Disposable {
     /**
      * Serialize to JSON
      */
-    toJSON(unitId: string): IPivotTableConfigResource {
-        const result: IPivotTableConfigResource = {
+    toJSON(unitId: string): IPivotTableResource {
+        const result: IPivotTableResource = {
             pivotTableConfigs: {},
             pivotData: {},
         };
@@ -338,11 +338,11 @@ export class SheetsPivotDataSourceModel extends Disposable {
         }
 
         const unitResult: Record<string, Record<string, IPivotTableConfig>> = {};
-        const pivotData: Record<string, Record<string, PivotModel>> = {};
+        const pivotData: Record<string, Record<string, IPivotModel>> = {};
 
         unitConfigMap.forEach((subUnitMap, subUnitId) => {
             const subUnitResult: Record<string, IPivotTableConfig> = {};
-            const subUnitPivotData: Record<string, PivotModel> = {};
+            const subUnitPivotData: Record<string, IPivotModel> = {};
 
             subUnitMap.forEach((pivotTable, pivotTableId) => {
                 subUnitResult[pivotTableId] = pivotTable.toJSON();
@@ -363,7 +363,7 @@ export class SheetsPivotDataSourceModel extends Disposable {
     /**
      * Deserialize from JSON
      */
-    fromJSON(data: IPivotTableConfigResource): void {
+    fromJSON(data: IPivotTableResource): void {
         const pivotConfigs = data.pivotTableConfigs || {};
         const pivotData = data.pivotData || {};
         const skipAutoCalculation = this._shouldSkipAutoCalculation();

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { IPivotTableConfigResource } from '../types/type';
+import type { IPivotTableResource } from '../types/type';
 import { Disposable, IResourceManagerService, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN } from '../services/pivot-table.service';
 
@@ -45,7 +45,7 @@ export class SheetPivotTableController extends Disposable {
             }
             return '';
         };
-        const parseJson = (json: string): IPivotTableConfigResource => {
+        const parseJson = (json: string): IPivotTableResource => {
             if (!json) {
                 return {
                     pivotTableConfigs: {},
@@ -63,7 +63,7 @@ export class SheetPivotTableController extends Disposable {
         };
 
         this.disposeWithMe(
-            this._resourceManagerService.registerPluginResource<IPivotTableConfigResource>({
+            this._resourceManagerService.registerPluginResource<IPivotTableResource>({
                 pluginName: SHEET_PIVOT_TABLE_PLUGIN,
                 businesses: [UniverInstanceType.UNIVER_SHEET],
                 toJson,

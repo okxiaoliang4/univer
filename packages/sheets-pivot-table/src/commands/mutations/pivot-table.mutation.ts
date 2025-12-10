@@ -16,7 +16,7 @@
 
 import type { IMutation } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../../controllers/config.schema';
-import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../../types/type';
+import type { IFieldsConfig, IPivotModel, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
 import { CommandType, IConfigService } from '@univerjs/core';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../../controllers/config.schema';
 import { PivotTable } from '../../models/pivot-table';
@@ -212,7 +212,7 @@ export interface ISetPivotTableCalculatedDataMutationParams {
     unitId: string;
     subUnitId: string;
     pivotTableId: string;
-    pivotModel: PivotModel;
+    pivotModel: IPivotModel;
 }
 
 export const SetPivotTableCalculatedDataMutation: IMutation<ISetPivotTableCalculatedDataMutationParams> = {

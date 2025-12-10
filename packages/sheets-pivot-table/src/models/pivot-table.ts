@@ -16,7 +16,7 @@
 
 import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { Observable } from 'rxjs';
-import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceFields, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../types/type';
+import type { IFieldsConfig, IPivotField, IPivotModel, IPivotTableConfig, ISourceFields, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, pairwise } from 'rxjs';
@@ -346,7 +346,7 @@ export class PivotTable extends Disposable {
      * This method allows the main thread to receive calculated data from Worker
      * via mutation without triggering recalculation.
      */
-    setCalculatedData(data: PivotModel): void {
+    setCalculatedData(data: IPivotModel): void {
         this._pivotEngine.setCalculatedData(data, false);
     }
 

@@ -16,14 +16,14 @@
 
 import type { ICellData, IObjectArrayPrimitiveType, IObjectMatrixPrimitiveType, Nullable } from '@univerjs/core';
 import type {
-    AxisItem,
-    AxisItemType,
-    AxisModel,
+    IAxisItem,
+    IAxisItemType,
+    IAxisModel,
     IPivotField,
     IPivotFilterCriteria,
+    IPivotModel,
+    IPivotSortDirection,
     IPivotTableCrossTabConfig,
-    PivotModel,
-    PivotSortDirection,
 } from '../types/type';
 import { Disposable, ObjectMatrix } from '@univerjs/core';
 import { createAggregator } from '../common/aggregation/functions';
@@ -43,7 +43,7 @@ interface IProcessedRow {
 }
 
 interface IAxisBuildResult {
-    model: AxisModel;
+    model: IAxisModel;
     comboSets: string[][];
 }
 
@@ -59,7 +59,7 @@ export class PivotEngineV3 extends Disposable {
     private _valueFields: IPivotField[];
     private _filterFields: IPivotField[];
     private _sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
-    private _calculatedData: PivotModel | null = null;
+    private _calculatedData: IPivotModel | null = null;
     private _isDirty = true;
 
     constructor(config: IPivotTableCrossTabConfig) {
@@ -71,7 +71,7 @@ export class PivotEngineV3 extends Disposable {
         this._sourceData = config.sourceData;
     }
 
-    getPivotModel(): PivotModel {
+    getPivotModel(): IPivotModel {
         if (this._isDirty || !this._calculatedData) {
             this._calculatedData = this._calculate();
             this._isDirty = false;
@@ -105,7 +105,7 @@ export class PivotEngineV3 extends Disposable {
         const pivotModel = this.getPivotModel();
         const item = pivotModel.rowAxis.items[rowIndex];
         if (!item) {
-            return { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 };
+            return { headers: [], type: 'data' as IAxisItemType, level: 0, fieldIndex: 0 };
         }
         return {
             headers: this._normalizeHeaders(item.headers, pivotModel.rowAxis.headerDepth),
@@ -119,7 +119,7 @@ export class PivotEngineV3 extends Disposable {
         const pivotModel = this.getPivotModel();
         const item = pivotModel.colAxis.items[columnIndex];
         if (!item) {
-            return { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 };
+            return { headers: [], type: 'data' as IAxisItemType, level: 0, fieldIndex: 0 };
         }
         return {
             headers: this._normalizeHeaders(item.headers, pivotModel.colAxis.headerDepth),
@@ -259,12 +259,12 @@ export class PivotEngineV3 extends Disposable {
         this._isDirty = true;
     }
 
-    setCalculatedData(data: PivotModel, isDirty = true): void {
+    setCalculatedData(data: IPivotModel, isDirty = true): void {
         this._calculatedData = data;
         this._isDirty = isDirty;
     }
 
-    private _calculate(): PivotModel {
+    private _calculate(): IPivotModel {
         if (this._rowFields.length === 0 && this._columnFields.length === 0 && this._valueFields.length === 0) {
             return this._emptyResult();
         }
@@ -284,7 +284,7 @@ export class PivotEngineV3 extends Disposable {
         rowIndices: number[],
         colIndices: number[],
         valueIndices: number[]
-    ): PivotModel {
+    ): IPivotModel {
         const rowCombos = this._uniquePaths(processedRows, 'row', this._rowFields.length);
         const colCombos = this._uniquePaths(processedRows, 'column', this._columnFields.length);
         const rowKeysAll = Array.from(new Set(processedRows.map((r) => r.rowKey)));
@@ -340,7 +340,7 @@ export class PivotEngineV3 extends Disposable {
         const hasGrand = fields[0]?.showSubTotals === true;
 
         if (!hasFields) {
-            const items: AxisModel['items'] = [];
+            const items: IAxisModel['items'] = [];
             const comboSets: string[][] = [];
 
             if (kind === 'column') {
@@ -421,7 +421,7 @@ export class PivotEngineV3 extends Disposable {
             }
         });
 
-        const items: AxisModel['items'] = [];
+        const items: IAxisModel['items'] = [];
         const comboSets: string[][] = [];
         const levelMap: Record<number, number[]> = {};
         const subtotalMap: Record<number, number[]> = {};
@@ -433,7 +433,7 @@ export class PivotEngineV3 extends Disposable {
             return children.sort((a, b) => this._cmp(a.key, b.key, dir));
         };
 
-        const addItem = (item: AxisModel['items'][number], combosForItem: string[]) => {
+        const addItem = (item: IAxisModel['items'][number], combosForItem: string[]) => {
             if (seenGroupKeys.has(item.groupKey)) return;
             seenGroupKeys.add(item.groupKey);
             const idx = items.length;
@@ -609,7 +609,7 @@ export class PivotEngineV3 extends Disposable {
     }
 
     private _buildValues(
-        colItems: AxisModel['items'],
+        colItems: IAxisModel['items'],
         rowComboSets: string[][],
         colComboSets: string[][],
         processedRows: IProcessedRow[],
@@ -686,7 +686,7 @@ export class PivotEngineV3 extends Disposable {
         return res;
     }
 
-    private _fillDisplay(items: AxisModel['items'], depth: number): void {
+    private _fillDisplay(items: IAxisModel['items'], depth: number): void {
         const last: string[] = new Array(depth).fill('');
         items.forEach((item) => {
             const disp: string[] = [];
@@ -707,7 +707,7 @@ export class PivotEngineV3 extends Disposable {
         return res;
     }
 
-    private _buildMatrixFromModel(pivotModel: PivotModel): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
+    private _buildMatrixFromModel(pivotModel: IPivotModel): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
         let rowDepth = pivotModel.rowAxis.headerDepth;
         const colDepth = pivotModel.colAxis.headerDepth;
         const needValueRowHeader =
@@ -825,7 +825,7 @@ export class PivotEngineV3 extends Disposable {
         return matrix.getMatrix();
     }
 
-    private _getSubtotalLevelFromModel(rowItem: AxisItem, colItem: AxisItem): number {
+    private _getSubtotalLevelFromModel(rowItem: IAxisItem, colItem: IAxisItem): number {
         if (rowItem.type === 'subtotal') return rowItem.level;
         if (colItem.type === 'subtotal') return colItem.level;
         return 0;
@@ -862,7 +862,7 @@ export class PivotEngineV3 extends Disposable {
         }
     }
 
-    private _cmp(a: string | number, b: string | number, dir: PivotSortDirection): number {
+    private _cmp(a: string | number, b: string | number, dir: IPivotSortDirection): number {
         const locale = 'zh';
         return dir === 'asc'
             ? String(a).localeCompare(String(b), locale, { numeric: true })
@@ -885,7 +885,7 @@ export class PivotEngineV3 extends Disposable {
         return map[aggregation] ?? name;
     }
 
-    private _emptyResult(): PivotModel {
+    private _emptyResult(): IPivotModel {
         return {
             isEmpty: true,
             valueFields: [],

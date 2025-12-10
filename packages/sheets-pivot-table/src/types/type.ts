@@ -17,22 +17,22 @@
 import type { ICellData, IObjectArrayPrimitiveType, IObjectMatrixPrimitiveType, IRange, Nullable } from '@univerjs/core';
 import type { AggregationType } from './enum';
 
-export type PivotSortDirection = 'asc' | 'desc';
+export type IPivotSortDirection = 'asc' | 'desc';
 
 export interface IPivotValueSortRule {
     type: 'valueField';
     valueFieldId: string;
-    direction?: PivotSortDirection;
+    direction?: IPivotSortDirection;
 }
 
 export type IPivotSortRule = IPivotValueSortRule;
 
-export type AxisItemType = 'data' | 'subtotal' | 'grand';
+export type IAxisItemType = 'data' | 'subtotal' | 'grand';
 
-export interface AxisItem {
+export interface IAxisItem {
     headers: string[];
     display: string[];
-    type: AxisItemType;
+    type: IAxisItemType;
     level: number;
     fieldIndex: number;
     valueFieldIndex?: number;
@@ -41,18 +41,18 @@ export interface AxisItem {
     childrenKeys?: string[];
 }
 
-export interface AxisModel {
-    items: AxisItem[];
+export interface IAxisModel {
+    items: IAxisItem[];
     headerDepth: number;
     levelMap: Record<number, number[]>;
     subtotalMap: Record<number, number[]>;
 }
 
-export interface PivotModel {
+export interface IPivotModel {
     isEmpty: boolean;
     valueFields: Array<{ id: string; name: string; agg: AggregationType }>;
-    rowAxis: AxisModel;
-    colAxis: AxisModel;
+    rowAxis: IAxisModel;
+    colAxis: IAxisModel;
     values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>>;
     dimensions: {
         rowCount: number;
@@ -146,13 +146,6 @@ export interface IFieldsConfig {
 }
 
 /**
- * Source configuration for pivot table
- */
-export interface ISourceConfig {
-    sourceFields: IPivotField[];
-}
-
-/**
  * Complete pivot table configuration
  */
 export interface IPivotTableConfig {
@@ -171,27 +164,11 @@ export interface IPivotTableConfig {
 /**
  * Pivot table configuration resource for serialization
  */
-export interface IPivotTableConfigResource {
+export interface IPivotTableResource {
     /** Pivot table configurations by unitId -> subUnitId -> pivotTableId */
     pivotTableConfigs: Record<string, Record<string, Record<string, IPivotTableConfig>>>;
     /** Pivot engine calculated pivotModel by unitId -> subUnitId -> pivotTableId */
-    pivotData: Record<string, Record<string, Record<string, PivotModel>>>;
-}
-
-/**
- * Calculated pivot table data
- */
-export interface IPivotTableCalculatedData {
-    /** Row headers (multi-dimensional array for multiple row fields) */
-    rowHeaders: string[][];
-    /** Column headers (multi-dimensional array for multiple column fields) */
-    columnHeaders: string[][];
-    /** Data values matrix */
-    values: (number | string | null)[][];
-    /** Grand total row (optional) */
-    grandTotalRow?: (number | string | null)[];
-    /** Grand total column (optional) */
-    grandTotalColumn?: (number | string | null)[];
+    pivotData: Record<string, Record<string, Record<string, IPivotModel>>>;
 }
 
 /**
@@ -325,7 +302,7 @@ export interface IPivotTableCrossTabData {
     isEmpty: boolean;
 
     /** Pivot model with axis itemization */
-    pivotModel?: PivotModel;
+    pivotModel?: IPivotModel;
 
     /** Dimension information */
     dimensions: {
