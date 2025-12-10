@@ -31,3 +31,12 @@
 - **THEN** the sort configuration accepts any `valueFieldId` from the valueFields list as the sort key for rows or columns
 - **AND** when no `valueFieldId` is provided, the engine reverts to default field-value sorting for that axis.
 
+### Requirement: Pivot matrix sparse rendering
+`PivotEngineV2` SHALL emit the pivot cell matrix without placeholder blanks, aligning header/value placement with Google Sheets.
+
+#### Scenario: Omit empty cells in headers and values
+- **WHEN** generating the matrix for any combination of rowFields, columnFields, and valueFields
+- **THEN** only non-empty header/value cells are written to the matrix (empty strings/nulls are not emitted)
+- **AND** row field names appear on the deepest column header row when column fields exist
+- **AND** multi-level column headers and multi-value headers maintain alignment without extra blank columns, matching Google Sheets layout.
+

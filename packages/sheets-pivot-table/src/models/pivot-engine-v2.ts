@@ -119,7 +119,10 @@ export class PivotEngineV2 extends Disposable {
 
         // Build column headers (including value field headers)
         const columnHeaderRows: Nullable<ICellData>[][] = [];
-        const hasMultipleValueFields = structure.valueFieldHeaders && structure.valueFieldHeaders.length > 1;
+        const hasMultipleValueFields = this._valueFields.length > 1;
+        const valueFieldLabels = structure.valueFieldHeaders && structure.valueFieldHeaders.length > 0
+            ? structure.valueFieldHeaders
+            : this._valueFields.map((f) => this._getAggregationLabel(f.aggregation || AggregationType.SUM, f.name));
         const columnHeaderDepth = structure.columnHeaders[0]?.length || 0;
         const hasColumnFields = columnHeaderDepth > 0;
         const rawRowHeaderDepth = structure.rowHeaders[0]?.length || 0;
@@ -136,15 +139,28 @@ export class PivotEngineV2 extends Disposable {
         const grandTotalColumnCount = columnTypes.filter((t) => t === 'subtotal').length;
         const dataColumnCount = columnTypes.filter((t) => t === 'data').length || (structure.columnHeaders.length - grandTotalColumnCount);
 
+        // Detect whether columns are already expanded per value field (new subtotal builder)
+        const sampleRow = structure.values ? structure.values[Number(Object.keys(structure.values)[0] ?? -1)] : undefined;
+        let maxFieldsPerColumn = 0;
+        if (sampleRow) {
+            for (const colKey of Object.keys(sampleRow)) {
+                const cell = sampleRow[Number(colKey)];
+                if (cell) {
+                    maxFieldsPerColumn = Math.max(maxFieldsPerColumn, Object.keys(cell).length);
+                }
+            }
+        }
+        const columnsExpandedPerValue = maxFieldsPerColumn <= 1 && hasMultipleValueFields;
+
+        const valueFieldCountForMatrix = columnsExpandedPerValue ? 1 : Math.max(1, this._valueFields.length);
+
         // Determine if we need to show value field headers row
         // Show when multiple value fields, or when there are no column fields (row-based pivots)
         const shouldShowValueHeaderRow = this._valueFields.length > 1 || (!hasColumnFields && this._valueFields.length > 0);
 
         // Column field name row (one row, names placed once)
         if (hasColumnFields) {
-            const valueFieldCount = hasMultipleValueFields && structure.valueFieldHeaders
-                ? structure.valueFieldHeaders.length
-                : 1;
+            const valueFieldCount = valueFieldCountForMatrix;
             const totalColumns = structure.columnHeaders.length * valueFieldCount;
             const nameRow: Nullable<ICellData>[] = [];
 
@@ -158,7 +174,7 @@ export class PivotEngineV2 extends Disposable {
             }
 
             // Add value marker when multiple value fields exist
-            if (valueFieldCount > 1) {
+            if (this._valueFields.length > 1) {
                 nameRow.push({ v: '值' });
             }
 
@@ -226,11 +242,11 @@ export class PivotEngineV2 extends Disposable {
                         ? colHeader.slice(0, colFieldLevel).join(GROUP_KEY_SEPARATOR)
                         : '';
 
-                    // Calculate how many columns this header spans
-                    // If this is not the last level, we need to span across child columns
+                // Calculate how many columns this header spans
+                // If this is not the last level, we need to span across child columns
                     let spanCount = 1;
                     if (colFieldLevel < columnHeaderDepth - 1) {
-                        // Count how many columns share the same prefix up to this level
+                    // Count how many columns share the same prefix up to this level
                         let count = 1;
                         for (let nextIdx = colIdx + 1; nextIdx < structure.columnHeaders.length; nextIdx++) {
                             const nextHeader = structure.columnHeaders[nextIdx];
@@ -250,10 +266,20 @@ export class PivotEngineV2 extends Disposable {
                         spanCount = count;
                     }
 
-                    // Apply span for value fields
-                    const valueFieldCount = hasMultipleValueFields && structure.valueFieldHeaders
-                        ? structure.valueFieldHeaders.length
-                        : 1;
+                    if (columnsExpandedPerValue) {
+                        spanCount = getPrefixCount(colFieldLevel + 1, colHeader.slice(0, colFieldLevel + 1).join(GROUP_KEY_SEPARATOR)) || 1;
+                        for (let span = 0; span < spanCount; span++) {
+                            const shouldShowValue = span === 0;
+                            headerRow.push({ v: shouldShowValue ? headerValue : '' });
+                        }
+                        if (spanCount > 1) {
+                            colIdx += spanCount - 1;
+                        }
+                        continue;
+                    }
+
+                    // Column headers are already expanded per value field; span is purely combo-based
+                    const valueFieldCount = valueFieldCountForMatrix;
                     let totalSpan = spanCount * valueFieldCount;
 
                     if (hasMultipleValueFields && columnHeaderDepth > 1) {
@@ -325,35 +351,17 @@ export class PivotEngineV2 extends Disposable {
 
             // Add value field headers for each column
             if (hasColumnFields) {
-                if (hasMultipleValueFields && structure.valueFieldHeaders) {
-                    // Multiple value fields:
-                    // - Data columns repeat all value field headers
-                    // - Grand total columns already map to a single value field (one column per value)
+                const labels = valueFieldLabels.length > 0 ? valueFieldLabels : ['值'];
+                if (columnsExpandedPerValue) {
                     for (let colIdx = 0; colIdx < structure.columnHeaders.length; colIdx++) {
-                        const isSubtotalCol = columnTypes[colIdx] === 'subtotal';
-                        if (isSubtotalCol) {
-                            const vfIndex = Math.max(0, colIdx - dataColumnCount);
-                            const headerLabel = structure.valueFieldHeaders[vfIndex] ?? structure.valueFieldHeaders[0];
-                            valueFieldHeaderRow.push({
-                                v: headerLabel,
-                            });
-                        } else {
-                            for (let vfIdx = 0; vfIdx < structure.valueFieldHeaders.length; vfIdx++) {
-                                valueFieldHeaderRow.push({
-                                    v: structure.valueFieldHeaders[vfIdx],
-                                });
-                            }
-                        }
+                        const label = labels[colIdx % labels.length];
+                        valueFieldHeaderRow.push({ v: label });
                     }
-                } else if (this._valueFields.length >= 1) {
-                    // Single value field: repeat value field name for each column
-                    const field = this._valueFields[0];
-                    const aggregation = field.aggregation || AggregationType.SUM;
-                    const valueFieldLabel = this._getAggregationLabel(aggregation, field.name);
+                } else {
                     for (let colIdx = 0; colIdx < structure.columnHeaders.length; colIdx++) {
-                        valueFieldHeaderRow.push({
-                            v: valueFieldLabel,
-                        });
+                        for (let vfIdx = 0; vfIdx < labels.length; vfIdx++) {
+                            valueFieldHeaderRow.push({ v: labels[vfIdx] });
+                        }
                     }
                 }
             } else {
@@ -414,14 +422,20 @@ export class PivotEngineV2 extends Disposable {
             const columnCount = structure.columnHeaders.length;
             const valueFieldCount = this.valuePosition === PivotValuePosition.ROW
                 ? 1
-                : Math.max(this._valueFields.length, structure.valueFieldHeaders?.length || 0, 1);
+                : (columnsExpandedPerValue ? 1 : Math.max(this._valueFields.length, structure.valueFieldHeaders?.length || 0, 1));
 
             for (let colIdx = 0; colIdx < columnCount; colIdx++) {
                 const columnValues = rowValues?.[colIdx];
                 const isSubtotalCol = columnTypes[colIdx] === 'subtotal';
-                const repeats = isSubtotalCol ? 1 : valueFieldCount;
+                const repeats = columnsExpandedPerValue ? 1 : (isSubtotalCol ? 1 : valueFieldCount);
 
-                if (isSubtotalCol && grandTotalColumnCount > 0 && valueFieldCount > 1 && this.valuePosition !== PivotValuePosition.ROW) {
+                if (columnsExpandedPerValue) {
+                    const vfIndex = this._valueFields.length > 0
+                        ? colIdx % this._valueFields.length
+                        : 0;
+                    const value = columnValues?.[vfIndex] ?? null;
+                    row.push({ v: value });
+                } else if (isSubtotalCol && grandTotalColumnCount > 0 && valueFieldCount > 1 && this.valuePosition !== PivotValuePosition.ROW) {
                     const vfIndex = Math.max(0, colIdx - dataColumnCount);
                     const value = columnValues?.[vfIndex] ?? null;
                     row.push({ v: value });
@@ -761,6 +775,10 @@ export class PivotEngineV2 extends Disposable {
         columnIndices: number[],
         valueIndices: number[]
     ): IPivotTableCrossTabData['structure'] {
+        const hasSubTotals = this._rowFields.some((f) => f?.showSubTotals) || this._columnFields.some((f) => f?.showSubTotals);
+        if (hasSubTotals) {
+            return this._buildCrossTabResultWithColumnValuesAndSubtotals(rowGroups, rowIndices, columnIndices, valueIndices);
+        }
         const rowHeaders: string[][] = [];
         const columnHeaders: string[][] = [];
         const values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
@@ -1127,6 +1145,266 @@ export class PivotEngineV2 extends Disposable {
             columnGroups: columnGroupsInfo.length > 0 ? columnGroupsInfo : undefined,
             rowLevelMap: Object.keys(rowLevelMap).length > 0 ? rowLevelMap : undefined,
             columnLevelMap: Object.keys(columnLevelMap).length > 0 ? columnLevelMap : undefined,
+        };
+    }
+
+    /**
+     * New subtotal-aware cross-tab builder for valuePosition === COLUMN.
+     * Supports multi-level row/column subtotals, grand totals controlled by first field,
+     * and per-value-field subtotal/grand-total columns (Google Sheets style).
+     */
+    // eslint-disable-next-line max-lines-per-function
+    private _buildCrossTabResultWithColumnValuesAndSubtotals(
+        rowGroups: Map<string, ICellData[][]>,
+        rowIndices: number[],
+        columnIndices: number[],
+        valueIndices: number[]
+    ): IPivotTableCrossTabData['structure'] {
+        interface ColumnEntry {
+            headers: string[];
+            type: 'data' | 'subtotal';
+            combos: string[]; // combo keys for lookup
+            fieldLevel?: number;
+            fieldIndex?: number;
+            valueFieldIndex?: number; // when present, column dedicated to a single value field
+        }
+
+        const allRows = Array.from(rowGroups.values()).flat();
+        const valueFieldCount = valueIndices.length;
+        const toKey = (vals: string[]): string => vals.join(GROUP_KEY_SEPARATOR);
+        const comboKey = (row: ICellData[], indices: number[]): string => this._buildGroupKey(row, indices);
+
+        // Build all data column combos
+        const baseCombos = columnIndices.length > 0 ? this._getColumnCombinations(allRows, columnIndices) : [[]];
+
+        // Build column entries (data + subtotals + grand totals)
+        const buildColumnEntries = (level: number, combos: string[][]): ColumnEntry[] => {
+            if (columnIndices.length === 0) {
+                return [{
+                    headers: [],
+                    type: 'data',
+                    combos: [toKey([])],
+                    fieldLevel: 0,
+                    fieldIndex: 0,
+                }];
+            }
+
+            if (level >= columnIndices.length) {
+                return [];
+            }
+
+            const field = this._columnFields[level];
+            const groups = new Map<string, string[][]>();
+            for (const combo of combos) {
+                const key = combo[level] ?? BLANK_VALUE_PLACEHOLDER;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key)!.push(combo);
+            }
+
+            const sortedKeys = Array.from(groups.keys()).sort((a, b) => this._compareSortValues(a, b, 'asc'));
+            const entries: ColumnEntry[] = [];
+
+            for (const key of sortedKeys) {
+                const childCombos = groups.get(key)!;
+                // Recurse to next level
+                if (level < columnIndices.length - 1) {
+                    entries.push(...buildColumnEntries(level + 1, childCombos));
+                } else {
+                    // Leaf combos -> data columns, one per value field
+                    for (const combo of childCombos) {
+                        for (let vIdx = 0; vIdx < valueFieldCount; vIdx++) {
+                            entries.push({
+                                headers: combo.map((v) => v === BLANK_VALUE_PLACEHOLDER ? '' : v),
+                                type: 'data',
+                                combos: [toKey(combo)],
+                                fieldLevel: level,
+                                fieldIndex: level,
+                                valueFieldIndex: vIdx,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Subtotal at this field level
+            if (field?.showSubTotals) {
+                const subtotalCombos = combos.map((c) => toKey(c));
+                for (let vIdx = 0; vIdx < valueFieldCount; vIdx++) {
+                    const headers = new Array(columnIndices.length).fill('');
+                    headers[level] = `${sortedKeys[0] === BLANK_VALUE_PLACEHOLDER ? '' : ''}总计`;
+                    headers[level] = `${key === BLANK_VALUE_PLACEHOLDER ? '' : key} 总计`;
+                    entries.push({
+                        headers,
+                        type: 'subtotal',
+                        combos: subtotalCombos,
+                        fieldLevel: level,
+                        fieldIndex: level,
+                        valueFieldIndex: vIdx,
+                    });
+                }
+            }
+
+            return entries;
+        };
+
+        const columnEntries = buildColumnEntries(0, baseCombos);
+
+        // Grand total columns (first column field controls)
+        if (columnIndices.length > 0 && this._columnFields[0]?.showSubTotals) {
+            const allComboKeys = baseCombos.map((c) => toKey(c));
+            for (let vIdx = 0; vIdx < valueFieldCount; vIdx++) {
+                columnEntries.push({
+                    headers: ['总计'],
+                    type: 'subtotal',
+                    combos: allComboKeys,
+                    fieldLevel: 0,
+                    fieldIndex: 0,
+                    valueFieldIndex: vIdx,
+                });
+            }
+        }
+
+        const columnHeaders = columnEntries.map((e) => e.headers);
+        const columnTypes = columnEntries.map((e) => e.type);
+        const subtotalColumns = columnEntries
+            .map((entry, idx) => entry.type === 'subtotal'
+                ? {
+                    columnIndex: idx,
+                    level: entry.fieldLevel ?? 0,
+                    fieldIndex: entry.fieldIndex ?? 0,
+                    value: '',
+                    label: entry.headers.find((h) => h.includes('总计')) ?? '总计',
+                } as IPivotSubtotalInfo
+                : null)
+            .filter((x): x is IPivotSubtotalInfo => Boolean(x));
+
+        const values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
+        const rowHeaders: string[][] = [];
+        const rowTypes: ('data' | 'subtotal')[] = [];
+        const subtotalRows: IPivotSubtotalInfo[] = [];
+
+        const aggregateForEntry = (rows: ICellData[][], entry: ColumnEntry, valueFieldIdx: number): number | string | null => {
+            if (rows.length === 0) return null;
+            const entryComboKeys = new Set(entry.combos);
+            const filteredRows = rows.filter((r) => entryComboKeys.has(comboKey(r, columnIndices)));
+            const field = this._valueFields[valueFieldIdx];
+            const aggregation = field.aggregation || AggregationType.SUM;
+            const aggregated = this._aggregateSingleValue(filteredRows, valueIndices[valueFieldIdx], aggregation);
+            return this._normalizeValue(aggregated.v);
+        };
+
+        // Recursive row builder with subtotals per level
+        const buildRows = (level: number, rows: ICellData[][], prefix: string[]): void => {
+            if (level >= rowIndices.length) {
+                // Leaf data row
+                const rowIndex = rowHeaders.length;
+                rowHeaders.push(prefix.map((v) => v === BLANK_VALUE_PLACEHOLDER ? '' : v));
+                rowTypes.push('data');
+
+                const rowValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
+                columnEntries.forEach((entry, colIdx) => {
+                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
+                    for (let vIdx = 0; vIdx < valueFieldCount; vIdx++) {
+                        if (entry.valueFieldIndex !== undefined && entry.valueFieldIndex !== vIdx) continue;
+                        cellValues[vIdx] = aggregateForEntry(rows, entry, vIdx);
+                    }
+                    rowValues[colIdx] = cellValues;
+                });
+                values[rowIndex] = rowValues;
+                return;
+            }
+
+            const field = this._rowFields[level];
+            const groups = new Map<string, ICellData[][]>();
+            for (const r of rows) {
+                const key = r[rowIndices[level]]?.v?.toString() ?? BLANK_VALUE_PLACEHOLDER;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key)!.push(r);
+            }
+
+            const sortedKeys = Array.from(groups.keys()).sort((a, b) => this._compareSortValues(a, b, 'asc'));
+
+            for (const key of sortedKeys) {
+                const childRows = groups.get(key)!;
+                const childPrefix = [...prefix, key];
+                buildRows(level + 1, childRows, childPrefix);
+            }
+
+            // Subtotal for this grouping level
+            if (field?.showSubTotals) {
+                const rowIndex = rowHeaders.length;
+                const subtotalHeader = [...prefix];
+                subtotalHeader[level] = `${prefix[level] === BLANK_VALUE_PLACEHOLDER ? '' : prefix[level]} 总计`;
+                while (subtotalHeader.length < this._rowFields.length) {
+                    subtotalHeader.push('');
+                }
+                rowHeaders.push(subtotalHeader);
+                rowTypes.push('subtotal');
+
+                const rowValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
+                columnEntries.forEach((entry, colIdx) => {
+                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
+                    for (let vIdx = 0; vIdx < valueFieldCount; vIdx++) {
+                        if (entry.valueFieldIndex !== undefined && entry.valueFieldIndex !== vIdx) continue;
+                        cellValues[vIdx] = aggregateForEntry(rows, entry, vIdx);
+                    }
+                    rowValues[colIdx] = cellValues;
+                });
+                values[rowIndex] = rowValues;
+
+                subtotalRows.push({
+                    rowIndex,
+                    level,
+                    fieldIndex: level,
+                    value: prefix[level] === BLANK_VALUE_PLACEHOLDER ? '' : prefix[level],
+                    label: `${prefix[level] === BLANK_VALUE_PLACEHOLDER ? '' : prefix[level]} 总计`,
+                });
+            }
+
+            // Grand total row controlled by first row field
+            if (level === 0 && field?.showSubTotals) {
+                const rowIndex = rowHeaders.length;
+                const header = ['总计'];
+                while (header.length < this._rowFields.length) {
+                    header.push('');
+                }
+                rowHeaders.push(header);
+                rowTypes.push('subtotal');
+
+                const rowValues: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
+                columnEntries.forEach((entry, colIdx) => {
+                    const cellValues: IObjectArrayPrimitiveType<number | string | null> = {};
+                    for (let vIdx = 0; vIdx < valueFieldCount; vIdx++) {
+                        if (entry.valueFieldIndex !== undefined && entry.valueFieldIndex !== vIdx) continue;
+                        cellValues[vIdx] = aggregateForEntry(rows, entry, vIdx);
+                    }
+                    rowValues[colIdx] = cellValues;
+                });
+                values[rowIndex] = rowValues;
+
+                subtotalRows.push({
+                    rowIndex,
+                    level: 0,
+                    fieldIndex: 0,
+                    value: '',
+                    label: '总计',
+                });
+            }
+        };
+
+        buildRows(0, allRows, []);
+
+        return {
+            rowHeaders,
+            columnHeaders,
+            valueFieldHeaders: this._valueFields.length > 1
+                ? this._valueFields.map((f) => this._getAggregationLabel(f.aggregation || AggregationType.SUM, f.name))
+                : undefined,
+            values,
+            rowTypes,
+            columnTypes,
+            subtotalRows: subtotalRows.length > 0 ? subtotalRows : undefined,
+            subtotalColumns: subtotalColumns.length > 0 ? subtotalColumns : undefined,
         };
     }
 

@@ -470,4 +470,228 @@ describe('PivotEngine', () => {
             expect(result).toEqual(output);
         });
     });
+
+    describe('totals and subtotals', () => {
+        it('should generate multi-level row subtotals per field flags', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [
+                    createRowField('Region', 0, true),
+                    createRowField('Quarter', 3, true),
+                    createRowField('Channel', 2, false),
+                ],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 4)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data = engine.getCalculatedData();
+            const { structure, dimensions } = data;
+            const rowHeaders = structure.rowHeaders ?? [];
+            const rowTypes = structure.rowTypes ?? [];
+            const subtotalRows = structure.subtotalRows ?? [];
+
+            // Expect data rows + quarter subtotals + region totals + grand total
+            expect(dimensions.totalRows).toBe(22);
+            expect(rowTypes.filter((t) => t === 'subtotal').length).toBe(11);
+            expect(subtotalRows.length).toBe(11);
+            expect(rowHeaders.some((h) => h[1] === 'Q1 总计')).toBe(true);
+            expect(rowHeaders.some((h) => h[0] === '华北 总计')).toBe(true);
+            expect(rowHeaders[rowHeaders.length - 1][0]).toBe('总计');
+
+            const findRowIndex = (predicate: (headers: string[]) => boolean): number =>
+                rowHeaders.findIndex((headers) => headers && predicate(headers));
+            const getValueAt = (r: number, c = 0): number | string | null | undefined =>
+                structure.values?.[r]?.[c]?.[0];
+
+            const q1SubtotalIndex = findRowIndex((h) => h[0] === '华北' && h[1] === 'Q1 总计');
+            expect(q1SubtotalIndex).toBeGreaterThan(-1);
+            expect(getValueAt(q1SubtotalIndex)).toBe(2500);
+
+            const regionTotalIndex = findRowIndex((h) => h[0] === '华东 总计');
+            expect(regionTotalIndex).toBeGreaterThan(-1);
+            expect(getValueAt(regionTotalIndex)).toBe(60500);
+        });
+
+        it('should expand column totals per value field and per column group', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [],
+                columnFields: [
+                    createColumnField('Category', 1, true),
+                    createColumnField('Channel', 2, true),
+                ],
+                valueFields: [
+                    createValueField('Sales', 4),
+                    createValueField('Category', 1, AggregationType.COUNT),
+                ],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const data = engine.getCalculatedData();
+            const { structure, dimensions } = data;
+            const columnHeaders = structure.columnHeaders ?? [];
+            const columnTypes = structure.columnTypes ?? [];
+            // 6 data combos + (3 category subtotals * 2 value fields) + (2 grand total columns)
+            expect(dimensions.totalColumns).toBe(20);
+            expect(columnHeaders.length).toBe(20);
+            expect(columnTypes.filter((t) => t === 'subtotal').length).toBe(8);
+            expect(
+                columnHeaders.some((h) => h[0] === '笔记本电脑' && h[1] === '总计')
+            ).toBe(true);
+            expect(
+                columnHeaders.filter((h) => h[0] === '总计').length
+            ).toBe(2);
+        });
+
+        it('getCalculatedCellMatrix should include row/column case 1', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3)],
+                columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
+                valueFields: [createValueField('Sales', 4)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const result = engine.getCalculatedCellMatrix();
+            const expected = toObjectMatrix([
+                ['', '', 'Category', 'Channel', '', '', '', '', '', '', '', ''],
+                ['', '', '笔记本电脑', '', '笔记本电脑 总计', '配件', '', '配件 总计', '手机', '', '手机 总计', '总计'],
+                ['Region', 'Quarter', '线上商城', '线下门店', '', '线上商城', '线下门店', '', '线上商城', '线下门店', '', ''],
+                ['华北', 'Q1', '', '', '', 2500, '', 2500, '', '', '', 2500],
+                ['', 'Q2', 18000, '', 18000, '', '', '', '', 6500, 6500, 24500],
+                ['', 'Q4', '', '', '', '', '', '', '', 7200, 7200, 7200],
+                ['华东', 'Q1', 15000, 12000, 27000, '', '', '', 8000, '', 8000, 35000],
+                ['', 'Q4', 16500, '', 16500, '', '', '', '', 9000, 9000, 25500],
+                ['华南', 'Q2', 14000, '', 14000, '', '', '', '', '', '', 14000],
+                ['', 'Q3', '', '', '', '', 3000, 3000, 10000, '', 10000, 13000],
+                ['总计', '', 63500, 12000, 75500, 2500, 3000, 5500, 18000, 22700, 40700, 121700],
+            ]);
+            expect(result).toMatchObject(expected);
+        });
+
+        it('getCalculatedCellMatrix should include row/column case 2', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3, true)],
+                columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
+                valueFields: [createValueField('Sales', 4)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const result = engine.getCalculatedCellMatrix();
+            const expected = toObjectMatrix([
+                ['', '', 'Category', 'Channel', '', '', '', '', '', '', '', ''],
+                ['', '', '笔记本电脑', '', '笔记本电脑 总计', '配件', '', '配件 总计', '手机', '', '手机 总计', '总计'],
+                ['Region', 'Quarter', '线上商城', '线下门店', '', '线上商城', '线下门店', '', '线上商城', '线下门店', '', ''],
+                ['华北', 'Q1', '', '', '', 2500, '', 2500, '', '', '', 2500],
+                ['', 'Q2', 18000, '', 18000, '', '', '', '', 6500, 6500, 24500],
+                ['', 'Q4', '', '', '', '', '', '', '', 7200, 7200, 7200],
+                ['华北 总计', '', 18000, '', 18000, 2500, '', 2500, '', 13700, 13700, 34200],
+                ['华东', 'Q1', 15000, 12000, 27000, '', '', '', 8000, '', 8000, 35000],
+                ['', 'Q4', 16500, '', 16500, '', '', '', '', 9000, 9000, 25500],
+                ['华东 总计', '', 31500, 12000, 43500, '', '', '', 8000, 9000, 17000, 60500],
+                ['华南', 'Q2', 14000, '', 14000, '', '', '', '', '', '', 14000],
+                ['', 'Q3', '', '', '', '', 3000, 3000, 10000, '', 10000, 13000],
+                ['华南 总计', '', 14000, '', 14000, '', 3000, 3000, 10000, '', 10000, 27000],
+                ['总计', '', 63500, 12000, 75500, 2500, 3000, 5500, 18000, 22700, 40700, 121700],
+            ]);
+            expect(result).toMatchObject(expected);
+        });
+
+        it('getCalculatedCellMatrix should include row/column grand totals when single row field has showSubTotals and multiple column field has showSubTotals', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3)],
+                columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
+                valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const result = engine.getCalculatedCellMatrix();
+            const expected = toObjectMatrix([
+                ['', '', 'Category', 'Channel', '值', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+                ['', '', '笔记本电脑', '', '', '', '笔记本电脑 总计', '', '配件', '', '', '', '配件 总计', '', '手机', '', '', '', '手机 总计', '', '总计'],
+                ['', '', '线上商城', '', '线下门店', '', '', '', '线上商城', '', '线下门店', '', '', '', '线上商城', '', '线下门店', '', '', ''],
+                ['Region', 'Quarter', sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory],
+                ['华北', 'Q1', '', '', '', '', '', '', 2500, 1, '', '', 2500, 1, '', '', '', '', '', '', 2500, 1],
+                ['', 'Q2', 18000, 1, '', '', 18000, 1, '', '', '', '', '', '', '', '', 6500, 1, 6500, 1, 24500, 2],
+                ['', 'Q4', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 7200, 1, 7200, 1, 7200, 1],
+                ['华东', 'Q1', 15000, 1, 12000, 1, 27000, 2, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 35000, 3],
+                ['', 'Q4', 16500, 1, '', '', 16500, 1, '', '', '', '', '', '', '', '', 9000, 1, 9000, 1, 25500, 2],
+                ['华南', 'Q2', 14000, 1, '', '', 14000, 1, '', '', '', '', '', '', '', '', '', '', '', '', 14000, 1],
+                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 10000, 1, '', '', 10000, 1, 13000, 2],
+                ['总计', '', 63500, 4, 12000, 1, 75500, 5, 2500, 1, 3000, 1, 5500, 2, 18000, 2, 22700, 3, 40700, 5, 121700, 12],
+            ]);
+            expect(result).toMatchObject(expected);
+        });
+
+        it('getCalculatedCellMatrix should include row/column grand totals when multiple column field has showSubTotals and single row field has showSubTotals', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0), createRowField('Quarter', 3, true)],
+                columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
+                valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const result = engine.getCalculatedCellMatrix();
+            const expected = toObjectMatrix([
+                ['', '', 'Category', 'Channel', '值', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+                ['', '', '笔记本电脑', '', '', '', '笔记本电脑 总计', '', '配件', '', '', '', '配件 总计', '', '手机', '', '', '', '手机 总计', '', '总计'],
+                ['', '', '线上商城', '', '线下门店', '', '', '', '线上商城', '', '线下门店', '', '', '', '线上商城', '', '线下门店', '', '', ''],
+                ['Region', 'Quarter', sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory],
+                ['华北', 'Q1', '', '', '', '', '', '', 2500, 1, '', '', 2500, 1, '', '', '', '', '', '', 2500, 1],
+                ['', 'Q2', 18000, 1, '', '', 18000, 1, '', '', '', '', '', '', '', '', 6500, 1, 6500, 1, 24500, 2],
+                ['', 'Q4', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 7200, 1, 7200, 1, 7200, 1],
+                ['华北 总计', '', 18000, 1, '', '', 18000, 1, 2500, 1, '', '', 2500, 1, '', '', 13700, 2, 13700, 2, 34200, 4],
+                ['华东', 'Q1', 15000, 1, 12000, 1, 27000, 2, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 35000, 3],
+                ['', 'Q4', 16500, 1, '', '', 16500, 1, '', '', '', '', '', '', '', '', 9000, 1, 9000, 1, 25500, 2],
+                ['华东 总计', 31500, 2, 12000, 1, 43500, 3, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 9000, 1, 17000, 2, 60500, 5],
+                ['华南', 'Q2', 14000, 1, '', '', 14000, 1, '', '', '', '', '', '', '', '', '', '', '', '', 14000, 1],
+                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 10000, 1, '', '', 10000, 1, 13000, 2],
+                ['华南 总计', '', 14000, 1, '', '', 14000, 1, '', '', 3000, 1, 3000, 1, 10000, 1, '', '', 10000, 1, 27000, 3],
+            ]);
+
+            expect(result).toMatchObject(expected);
+        });
+
+        it('getCalculatedCellMatrix should include row/column grand totals when multiple row field has showSubTotals and multiple column field has showSubTotals', () => {
+            const engine = new PivotEngineV2({
+                rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3, true)],
+                columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
+                valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            const result = engine.getCalculatedCellMatrix();
+            const expected = toObjectMatrix([
+                ['', '', 'Category', 'Channel', '值', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+                ['', '', '笔记本电脑', '', '', '', '笔记本电脑 总计', '', '配件', '', '', '', '配件 总计', '', '手机', '', '', '', '手机 总计', '', '总计'],
+                ['', '', '线上商城', '', '线下门店', '', '', '', '线上商城', '', '线下门店', '', '', '', '线上商城', '', '线下门店', '', '', ''],
+                ['Region', 'Quarter', sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory],
+                ['华北', 'Q1', '', '', '', '', '', '', 2500, 1, '', '', 2500, 1, '', '', '', '', '', '', 2500, 1],
+                ['', 'Q2', 18000, 1, '', '', 18000, 1, '', '', '', '', '', '', '', '', 6500, 1, 6500, 1, 24500, 2],
+                ['', 'Q4', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 7200, 1, 7200, 1, 7200, 1],
+                ['华北 总计', '', 18000, 1, '', '', 18000, 1, 2500, 1, '', '', 2500, 1, '', '', 13700, 2, 13700, 2, 34200, 4],
+                ['华东', 'Q1', 15000, 1, 12000, 1, 27000, 2, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 35000, 3],
+                ['', 'Q4', 16500, 1, '', '', 16500, 1, '', '', '', '', '', '', '', '', 9000, 1, 9000, 1, 25500, 2],
+                ['华东 总计', 31500, 2, 12000, 1, 43500, 3, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 9000, 1, 17000, 2, 60500, 5],
+                ['华南', 'Q2', 14000, 1, '', '', 14000, 1, '', '', '', '', '', '', '', '', '', '', '', '', 14000, 1],
+                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 10000, 1, '', '', 10000, 1, 13000, 2],
+                ['华南 总计', '', 14000, 1, '', '', 14000, 1, '', '', 3000, 1, 3000, 1, 10000, 1, '', '', 10000, 1, 27000, 3],
+                ['总计', '', 63500, 4, 12000, 1, 75500, 5, 2500, 1, 3000, 1, 5500, 2, 18000, 2, 22700, 3, 40700, 5, 121700, 12],
+            ]);
+
+            expect(result).toMatchObject(expected);
+        });
+    });
 });
