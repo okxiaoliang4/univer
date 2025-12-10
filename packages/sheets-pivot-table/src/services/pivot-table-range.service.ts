@@ -17,7 +17,7 @@
 import type { IDisposable, IRange } from '@univerjs/core';
 import type { ISetRangeValuesMutationParams } from '@univerjs/sheets';
 import { Disposable, ICommandService, Inject, IUniverInstanceService, RTree, toDisposable } from '@univerjs/core';
-import { SetRangeValuesMutation } from '@univerjs/sheets';
+import { InsertColMutation, InsertRowMutation, SetRangeValuesMutation } from '@univerjs/sheets';
 import { SheetsPivotDataSourceModel } from '../models/sheets-pivot-data-source-model';
 
 /**
@@ -122,6 +122,7 @@ export class PivotTableRangeService extends Disposable implements IPivotTableRan
                         startColumn: outputRange.startColumn + targetCellInfo.col,
                         endColumn: outputRange.endColumn + targetCellInfo.col,
                     };
+                    this._ensureWorksheetCapacity(unitId, subUnitId, absoluteRange);
                     this.registerPivotRange(unitId, subUnitId, pivotTableId, absoluteRange);
                 }
             })
@@ -169,6 +170,7 @@ export class PivotTableRangeService extends Disposable implements IPivotTableRan
                         endColumn: newOutputRange.endColumn + targetCellInfo.col,
                     };
 
+                    this._ensureWorksheetCapacity(unitId, subUnitId, newAbsoluteRange);
                     this.registerPivotRange(unitId, subUnitId, pivotTableId, newAbsoluteRange);
                 }
             })
@@ -199,6 +201,7 @@ export class PivotTableRangeService extends Disposable implements IPivotTableRan
 
             const outputRange = pivotTable.getAbsoluteOutputRange();
             if (outputRange) {
+                this._ensureWorksheetCapacity(unitId, subUnitId, outputRange);
                 this.registerPivotRange(unitId, subUnitId, pivotTableId, outputRange);
             }
         });
@@ -330,8 +333,42 @@ export class PivotTableRangeService extends Disposable implements IPivotTableRan
                 });
             }
         }
-
         return ranges;
+    }
+
+    /**
+     * Ensure worksheet has enough rows/cols for the absolute pivot output range.
+     * Inserts rows/cols locally when needed.
+     */
+    private _ensureWorksheetCapacity(unitId: string, subUnitId: string, range: IRange): void {
+        const univerSheet = this._univerInstanceService.getUniverSheetInstance(unitId);
+        const worksheet = univerSheet?.getSheetBySheetId(subUnitId);
+        if (!worksheet) return;
+
+        const currentRowCount = worksheet.getRowCount();
+        const currentColCount = worksheet.getColumnCount();
+
+        if (range.endRow >= currentRowCount) {
+            const startRow = currentRowCount;
+            const endRow = range.endRow;
+            this._commandService.executeCommand(InsertRowMutation.id, {
+                unitId,
+                subUnitId,
+                range: { startRow, endRow },
+                options: { onlyLocal: true },
+            });
+        }
+
+        if (range.endColumn >= currentColCount) {
+            const startColumn = currentColCount;
+            const endColumn = range.endColumn;
+            this._commandService.executeCommand(InsertColMutation.id, {
+                unitId,
+                subUnitId,
+                range: { startColumn, endColumn },
+                options: { onlyLocal: true },
+            });
+        }
     }
 
     /**
