@@ -19,7 +19,7 @@ import type { IPivotField, IPivotFilterCriteria } from '../../types/type';
 import { ObjectMatrix } from '@univerjs/core';
 import { describe, expect, it } from 'vitest';
 import { defaultPlaceholderMatrix } from '../../common/default-pivot-table';
-import { AggregationType, PivotValuePosition } from '../../types/enum';
+import { AggregationType } from '../../types/enum';
 import { PivotEngineV3 } from '../pivot-engine-v3';
 
 const sourceDataArray = [
@@ -124,7 +124,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
 
             engine.getCalculatedData(); // trigger calculation
@@ -150,7 +149,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
 
             engine.getCalculatedData();
@@ -179,7 +177,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             expect(result).toEqual(defaultPlaceholderMatrix);
@@ -192,7 +189,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             expect(result).not.toEqual(defaultPlaceholderMatrix);
@@ -205,7 +201,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             expect(result).not.toEqual(defaultPlaceholderMatrix);
@@ -218,7 +213,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             expect(result).not.toEqual(defaultPlaceholderMatrix);
@@ -231,7 +225,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [createFilterField('Region', 0, { type: 'value', values: ['华北'] })],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             expect(result).toEqual(defaultPlaceholderMatrix);
@@ -246,7 +239,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const output = toObjectMatrix([
                 [sumOfSales],
@@ -266,7 +258,6 @@ describe('PivotEngine', () => {
                 ],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
 
@@ -286,7 +277,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -305,7 +295,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -328,7 +317,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -347,7 +335,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -372,7 +359,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -390,7 +376,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -409,7 +394,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -428,7 +412,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -450,7 +433,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -470,7 +452,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -494,7 +475,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -515,7 +495,6 @@ describe('PivotEngine', () => {
                 valueFields: [],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
@@ -542,7 +521,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedCellMatrix();
@@ -569,7 +547,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedCellMatrix();
@@ -599,7 +576,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedCellMatrix();
@@ -627,7 +603,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedCellMatrix();
@@ -659,7 +634,6 @@ describe('PivotEngine', () => {
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
                 filterFields: [],
                 sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
             });
 
             const result = engine.getCalculatedCellMatrix();
