@@ -63,9 +63,6 @@ const locale = {
         panel: {
             sourceRangeLabel: 'Source Range:',
             fieldConfigurationLabel: 'Field configuration:',
-            valuePositionLabel: 'Value Position:',
-            valuePositionRow: 'Row',
-            valuePositionColumn: 'Column',
         },
     },
 };

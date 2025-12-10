@@ -19,7 +19,7 @@ import type { IInsertSheetCommandParams } from '@univerjs/sheets';
 import type { ICreatePivotTableCommandParams } from '@univerjs/sheets-pivot-table';
 import { BooleanNumber, CommandType, generateRandomId, ICommandService, IUniverInstanceService, LocaleService } from '@univerjs/core';
 import { expandToContinuousRange, getSheetCommandTarget, InsertSheetCommand, isSingleCellSelection, SheetsSelectionsService } from '@univerjs/sheets';
-import { CreatePivotTableCommand, PivotValuePosition } from '@univerjs/sheets-pivot-table';
+import { CreatePivotTableCommand } from '@univerjs/sheets-pivot-table';
 import { IDialogService, ISidebarService } from '@univerjs/ui';
 import { CREATE_PIVOT_TABLE_DIALOG } from '../../const/const';
 import { PivotTablePanel } from '../../views/components/PivotTablePanel';
@@ -161,7 +161,6 @@ export const OpenCreatePivotTableDialogOperation: IOperation<IPivotTableSelectio
                     columnFields: [],
                     valueFields: [],
                     filterFields: [],
-                    valuePosition: PivotValuePosition.COLUMN,
                 },
             },
         } satisfies ICreatePivotTableCommandParams);

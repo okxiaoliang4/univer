@@ -65,9 +65,6 @@ const locale: typeof enUS = {
         panel: {
             sourceRangeLabel: 'Исходный диапазон:',
             fieldConfigurationLabel: 'Конфигурация полей:',
-            valuePositionLabel: 'Позиция значения:',
-            valuePositionRow: 'Строка',
-            valuePositionColumn: 'Столбец',
         },
     },
 };

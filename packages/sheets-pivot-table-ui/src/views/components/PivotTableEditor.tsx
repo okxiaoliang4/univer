@@ -256,7 +256,6 @@ export function PivotTableEditor({
                 rowFields: newRowFields,
                 columnFields: newColumnFields,
                 filterFields: newFilterFields,
-                valuePosition: pivotTable.getValuePosition(),
             } satisfies IFieldsConfig,
         } satisfies IUpdatePivotTableFieldsCommandParams);
     }, [intelligentPlacementService, sourceData, pivotTable, commandService, valueFields, rowFields, columnFields, filterFields]);
@@ -274,7 +273,6 @@ export function PivotTableEditor({
                 rowFields: rowFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex),
                 columnFields: columnFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex),
                 filterFields: filterFields.filter((f) => f.sourceColumnIndex !== field.sourceColumnIndex),
-                valuePosition: pivotTable.getValuePosition(),
             } satisfies IFieldsConfig,
         } satisfies IUpdatePivotTableFieldsCommandParams);
     }, [intelligentPlacementService, pivotTable, commandService, valueFields, rowFields, columnFields, filterFields]);
@@ -319,7 +317,6 @@ export function PivotTableEditor({
                 rowFields: newRowFields,
                 columnFields: newColumnFields,
                 filterFields: newFilterFields,
-                valuePosition: pivotTable.getValuePosition(),
             } satisfies IFieldsConfig,
         } satisfies IUpdatePivotTableFieldsCommandParams);
     }, [pivotTable, commandService, valueFields, rowFields, columnFields, filterFields]);
@@ -423,7 +420,6 @@ export function PivotTableEditor({
                                     rowFields,
                                     columnFields,
                                     filterFields: filterFields.filter((f) => f.id !== field.id),
-                                    valuePosition: pivotTable.getValuePosition(),
                                 } satisfies IFieldsConfig,
                             } satisfies IUpdatePivotTableFieldsCommandParams);
                         }}
@@ -460,7 +456,6 @@ export function PivotTableEditor({
                                                     rowFields: latestRowFields,
                                                     columnFields: nextColumnFields,
                                                     filterFields,
-                                                    valuePosition: pivotTable.getValuePosition(),
                                                 } satisfies IFieldsConfig,
                                             } satisfies IUpdatePivotTableFieldsCommandParams);
                                         }}
@@ -487,7 +482,6 @@ export function PivotTableEditor({
                                     rowFields,
                                     columnFields: pivotTable.getColumnFields().filter((f) => f.id !== field.id),
                                     filterFields,
-                                    valuePosition: pivotTable.getValuePosition(),
                                 } satisfies IFieldsConfig,
                             } satisfies IUpdatePivotTableFieldsCommandParams);
                         }}
@@ -524,7 +518,6 @@ export function PivotTableEditor({
                                                     rowFields: nextRowFields,
                                                     columnFields: latestColumnFields,
                                                     filterFields,
-                                                    valuePosition: pivotTable.getValuePosition(),
                                                 } satisfies IFieldsConfig,
                                             } satisfies IUpdatePivotTableFieldsCommandParams);
                                         }}
@@ -551,7 +544,6 @@ export function PivotTableEditor({
                                     rowFields: pivotTable.getRowFields().filter((f) => f.id !== field.id),
                                     columnFields,
                                     filterFields,
-                                    valuePosition: pivotTable.getValuePosition(),
                                 } satisfies IFieldsConfig,
                             } satisfies IUpdatePivotTableFieldsCommandParams);
                         }}
@@ -598,7 +590,6 @@ export function PivotTableEditor({
                                                         rowFields,
                                                         columnFields,
                                                         filterFields,
-                                                        valuePosition: pivotTable.getValuePosition(),
                                                     } satisfies IFieldsConfig,
                                                 } satisfies IUpdatePivotTableFieldsCommandParams);
                                             }}
@@ -618,7 +609,6 @@ export function PivotTableEditor({
                                     rowFields,
                                     columnFields,
                                     filterFields,
-                                    valuePosition: pivotTable.getValuePosition(),
                                 } satisfies IFieldsConfig,
                             } satisfies IUpdatePivotTableFieldsCommandParams);
                         }}
@@ -972,7 +962,6 @@ export function PivotTableEditor({
                         rowFields,
                         columnFields,
                         filterFields,
-                        valuePosition: pivotTable.getValuePosition(),
                     });
                 }
             }
@@ -987,7 +976,6 @@ export function PivotTableEditor({
                 rowFields,
                 columnFields,
                 filterFields,
-                valuePosition: pivotTable.getValuePosition(),
             },
         } satisfies IUpdatePivotTableFieldsCommandParams);
 

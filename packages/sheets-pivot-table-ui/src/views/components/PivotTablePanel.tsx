@@ -16,13 +16,12 @@
 
 import type { IDocumentData, Workbook } from '@univerjs/core';
 import type { IRangeSelectorInstance } from '@univerjs/sheets-formula-ui';
-import type { ISetPivotTableSourceRangeCommandParams, ISetPivotTableValuePositionCommandParams } from '@univerjs/sheets-pivot-table';
+import type { ISetPivotTableSourceRangeCommandParams } from '@univerjs/sheets-pivot-table';
 import type { IShowPivotTablePanelOperationParams } from '../../commands/operations/pivot-table.operation';
 import { ICommandService, IUniverInstanceService, LocaleService, RichTextBuilder, UniverInstanceType } from '@univerjs/core';
-import { Select } from '@univerjs/design';
 import { deserializeRangeWithSheet, isReferenceString, serializeRangeToRefString, serializeRangeWithSheet } from '@univerjs/engine-formula';
 import { RangeSelector } from '@univerjs/sheets-formula-ui';
-import { ISheetsPivotTableService, PivotValuePosition, SetPivotTableSourceRangeCommand, SetPivotTableValuePositionCommand } from '@univerjs/sheets-pivot-table';
+import { ISheetsPivotTableService, SetPivotTableSourceRangeCommand } from '@univerjs/sheets-pivot-table';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { PivotTableEditor } from './PivotTableEditor';
@@ -115,18 +114,6 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
         }
     };
 
-    const valuePosition = useObservable(pivotTable?.valuePosition$);
-    const handleValuePositionChange = useCallback((value: string | undefined) => {
-        if (!pivotTable) return;
-        const newValue = Number(value) as PivotValuePosition;
-        commandService.executeCommand(SetPivotTableValuePositionCommand.id, {
-            unitId: pivotTable?.getTargetCellInfo().unitId,
-            subUnitId: pivotTable?.getTargetCellInfo().subUnitId,
-            pivotTableId: pivotTable?.getId(),
-            valuePosition: newValue,
-        } satisfies ISetPivotTableValuePositionCommandParams);
-    }, [pivotTable, commandService.executeCommand]);
-
     return (
         <div className="univer-space-y-4 univer-py-4">
             <div className="univer-flex univer-flex-col univer-gap-2">
@@ -164,24 +151,6 @@ export const PivotTablePanel = (props: IShowPivotTablePanelOperationParams) => {
                 {pivotTable && (
                     <PivotTableEditor pivotTable={pivotTable} />
                 )}
-            </div>
-            <div className="univer-flex univer-flex-col univer-gap-2">
-                <label
-                    className={`
-                      univer-text-sm univer-font-medium univer-text-gray-900
-                      dark:!univer-text-white
-                    `}
-                >
-                    {localeService.t('pivotTable.panel.valuePositionLabel')}
-                </label>
-                <Select
-                    value={String(valuePosition)}
-                    options={[
-                        { label: localeService.t('pivotTable.panel.valuePositionRow'), value: String(PivotValuePosition.ROW) },
-                        { label: localeService.t('pivotTable.panel.valuePositionColumn'), value: String(PivotValuePosition.COLUMN) },
-                    ]}
-                    onChange={handleValuePositionChange}
-                />
             </div>
         </div>
     );

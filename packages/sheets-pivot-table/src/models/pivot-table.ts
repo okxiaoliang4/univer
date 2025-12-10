@@ -16,7 +16,6 @@
 
 import type { ICellData, IObjectMatrixPrimitiveType, IRange, Nullable, Workbook } from '@univerjs/core';
 import type { Observable } from 'rxjs';
-import type { PivotValuePosition } from '../types/enum';
 import type { IFieldsConfig, IPivotField, IPivotTableConfig, IPivotTableCrossTabData, ISourceFields, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
 import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
@@ -55,7 +54,6 @@ export class PivotTable extends Disposable {
     private _rowFields$: BehaviorSubject<IPivotField[]>;
     private _columnFields$: BehaviorSubject<IPivotField[]>;
     private _filterFields$: BehaviorSubject<IPivotField[]>;
-    private _valuePosition$: BehaviorSubject<PivotValuePosition>;
 
     private _sourceData$: BehaviorSubject<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
     private _sourceFields$: BehaviorSubject<IPivotField[]>;
@@ -66,7 +64,6 @@ export class PivotTable extends Disposable {
     rowFields$: Observable<IPivotField[]>;
     columnFields$: Observable<IPivotField[]>;
     filterFields$: Observable<IPivotField[]>;
-    valuePosition$: Observable<PivotValuePosition>;
 
     sourceData$: Observable<IObjectMatrixPrimitiveType<Nullable<ICellData>>>;
     sourceFields$: Observable<IPivotField[]>;
@@ -92,7 +89,6 @@ export class PivotTable extends Disposable {
             valueFields: fieldsConfig.valueFields || [],
             filterFields: fieldsConfig.filterFields || [],
             sourceData: {},
-            valuePosition: fieldsConfig.valuePosition,
         });
 
         this._recalculated$ = new BehaviorSubject(false);
@@ -100,7 +96,6 @@ export class PivotTable extends Disposable {
         this._rowFields$ = new BehaviorSubject(fieldsConfig.rowFields);
         this._columnFields$ = new BehaviorSubject(fieldsConfig.columnFields);
         this._filterFields$ = new BehaviorSubject(fieldsConfig.filterFields);
-        this._valuePosition$ = new BehaviorSubject(fieldsConfig.valuePosition);
         this._sourceData$ = new BehaviorSubject({});
         this._sourceFields$ = new BehaviorSubject<IPivotField[]>([]);
 
@@ -110,7 +105,6 @@ export class PivotTable extends Disposable {
         this.rowFields$ = this._rowFields$.asObservable();
         this.columnFields$ = this._columnFields$.asObservable();
         this.filterFields$ = this._filterFields$.asObservable();
-        this.valuePosition$ = this._valuePosition$.asObservable();
         this.sourceData$ = this._sourceData$.asObservable();
         this.sourceFields$ = this._sourceFields$.asObservable();
 
@@ -124,7 +118,6 @@ export class PivotTable extends Disposable {
             this._rowFields$.complete();
             this._columnFields$.complete();
             this._filterFields$.complete();
-            this._valuePosition$.complete();
             this._sourceData$.complete();
         });
     }
@@ -151,7 +144,6 @@ export class PivotTable extends Disposable {
                 this.rowFields$,
                 this.columnFields$,
                 this.filterFields$,
-                this.valuePosition$,
                 this.sourceData$,
             ])
                 .pipe(
@@ -291,10 +283,6 @@ export class PivotTable extends Disposable {
         return this._pivotEngine.getFilterFields();
     }
 
-    getValuePosition(): PivotValuePosition {
-        return this._pivotEngine.valuePosition;
-    }
-
     setValueFields(valueFields: IPivotField[]): void {
         this._pivotEngine.setValueFields(valueFields);
         this._valueFields$.next(valueFields);
@@ -313,11 +301,6 @@ export class PivotTable extends Disposable {
     setFilterFields(filterFields: IPivotField[]): void {
         this._pivotEngine.setFilterFields(filterFields);
         this._filterFields$.next(filterFields);
-    }
-
-    setValuePosition(valuePosition: PivotValuePosition): void {
-        this._pivotEngine.setValuePosition(valuePosition);
-        this._valuePosition$.next(valuePosition);
     }
 
   /**
@@ -396,7 +379,6 @@ export class PivotTable extends Disposable {
                 rowFields: this.getRowFields(),
                 columnFields: this.getColumnFields(),
                 filterFields: this.getFilterFields(),
-                valuePosition: this.getValuePosition(),
             },
         };
     }

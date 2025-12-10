@@ -65,9 +65,6 @@ const locale: typeof enUS = {
         panel: {
             sourceRangeLabel: 'محدوده منبع:',
             fieldConfigurationLabel: 'پیکربندی فیلد:',
-            valuePositionLabel: 'موقعیت مقدار:',
-            valuePositionRow: 'ردیف',
-            valuePositionColumn: 'ستون',
         },
     },
 };

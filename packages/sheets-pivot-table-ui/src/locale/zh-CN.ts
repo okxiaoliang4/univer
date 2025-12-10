@@ -63,9 +63,6 @@ const locale = {
         panel: {
             sourceRangeLabel: '源范围:',
             fieldConfigurationLabel: '字段配置:',
-            valuePositionLabel: '值位置:',
-            valuePositionRow: '行',
-            valuePositionColumn: '列',
         },
     },
 };

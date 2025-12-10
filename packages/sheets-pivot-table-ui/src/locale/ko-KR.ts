@@ -65,9 +65,6 @@ const locale: typeof enUS = {
         panel: {
             sourceRangeLabel: '원본 범위:',
             fieldConfigurationLabel: '필드 구성:',
-            valuePositionLabel: '값 위치:',
-            valuePositionRow: '행',
-            valuePositionColumn: '열',
         },
     },
 };

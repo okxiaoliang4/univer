@@ -16,7 +16,6 @@
 
 import type { IMutation } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../../controllers/config.schema';
-import type { PivotValuePosition } from '../../types/enum';
 import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../../types/type';
 import { CommandType, IConfigService } from '@univerjs/core';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../../controllers/config.schema';
@@ -190,49 +189,6 @@ export const SetPivotTableFieldsConfigMutation: IMutation<ISetPivotTableFieldsCo
 
         // Update fields config
         pivotTableService.updateFieldsConfig(unitId, subUnitId, pivotTableId, fieldsConfig);
-
-        return true;
-    },
-};
-
-/**
- * Mutation to update pivot table value position (atomic operation)
- */
-export interface ISetPivotTableValuePositionMutationParams {
-    unitId: string;
-    subUnitId: string;
-    pivotTableId: string;
-    valuePosition: PivotValuePosition;
-}
-
-export const SetPivotTableValuePositionMutation: IMutation<ISetPivotTableValuePositionMutationParams> = {
-    type: CommandType.MUTATION,
-    id: 'sheet.mutation.set-pivot-table-value-position',
-
-    handler: (accessor, params) => {
-        if (!params) {
-            return false;
-        }
-
-        const pivotTableService = accessor.get(ISheetsPivotTableService);
-        const { unitId, subUnitId, pivotTableId, valuePosition } = params;
-
-        const pivotTable = pivotTableService.getPivotTable(unitId, subUnitId, pivotTableId);
-        if (!pivotTable) {
-            return false;
-        }
-
-        // Update value position
-        pivotTable.setValuePosition(valuePosition);
-
-        // Update fields config to persist the change
-        const currentFieldsConfig = pivotTableService.getPivotTableConfig(unitId, subUnitId, pivotTableId)?.fieldsConfig;
-        if (currentFieldsConfig) {
-            pivotTableService.updateFieldsConfig(unitId, subUnitId, pivotTableId, {
-                ...currentFieldsConfig,
-                valuePosition,
-            });
-        }
 
         return true;
     },

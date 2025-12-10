@@ -21,10 +21,8 @@ export {
     type ICreatePivotTableCommandParams,
     type IRemovePivotTableCommandParams,
     type ISetPivotTableSourceRangeCommandParams,
-    type ISetPivotTableValuePositionCommandParams,
     type IUpdatePivotTableFieldsCommandParams,
     SetPivotTableSourceRangeCommand,
-    SetPivotTableValuePositionCommand,
     UpdatePivotTableFieldsCommand,
 } from './commands/commands/pivot-table.command';
 
@@ -37,13 +35,11 @@ export {
     type ISetPivotTableFieldsConfigMutationParams,
     type ISetPivotTableSourceRangeMutationParams,
     type ISetPivotTableTargetCellMutationParams,
-    type ISetPivotTableValuePositionMutationParams,
     RemovePivotTableMutation,
     SetPivotTableCalculatedDataMutation,
     SetPivotTableFieldsConfigMutation,
     SetPivotTableSourceRangeMutation,
     SetPivotTableTargetCellMutation,
-    SetPivotTableValuePositionMutation,
 } from './commands/mutations/pivot-table.mutation';
 
 // Config
@@ -59,7 +55,7 @@ export { UniverSheetsPivotTablePlugin } from './plugin';
 export { IPivotTableRangeService } from './services/pivot-table-range.service';
 export { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN as SHEET_PIVOT_TABLE_SNAPSHOT_ID } from './services/pivot-table.service';
 
-export { AggregationType, PivotFieldAreaType, PivotSortOrder, PivotValuePosition } from './types/enum';
+export { AggregationType, PivotFieldAreaType, PivotSortOrder } from './types/enum';
 
 // Types
 export type {

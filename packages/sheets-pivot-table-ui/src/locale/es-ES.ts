@@ -65,9 +65,6 @@ const locale: typeof enUS = {
         panel: {
             sourceRangeLabel: 'Rango fuente:',
             fieldConfigurationLabel: 'Configuración de campos:',
-            valuePositionLabel: 'Posición del valor:',
-            valuePositionRow: 'Fila',
-            valuePositionColumn: 'Columna',
         },
     },
 };

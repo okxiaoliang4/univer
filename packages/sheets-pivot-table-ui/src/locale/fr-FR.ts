@@ -65,9 +65,6 @@ const locale: typeof enUS = {
         panel: {
             sourceRangeLabel: 'Plage source:',
             fieldConfigurationLabel: 'Configuration des champs:',
-            valuePositionLabel: 'Position de la valeur:',
-            valuePositionRow: 'Ligne',
-            valuePositionColumn: 'Colonne',
         },
     },
 };

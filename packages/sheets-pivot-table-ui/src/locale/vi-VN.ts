@@ -65,9 +65,6 @@ const locale: typeof enUS = {
         panel: {
             sourceRangeLabel: 'Phạm vi nguồn:',
             fieldConfigurationLabel: 'Cấu hình trường:',
-            valuePositionLabel: 'Vị trí giá trị:',
-            valuePositionRow: 'Hàng',
-            valuePositionColumn: 'Cột',
         },
     },
 };

@@ -65,9 +65,6 @@ const locale: typeof enUS = {
         panel: {
             sourceRangeLabel: '來源範圍:',
             fieldConfigurationLabel: '欄位設定:',
-            valuePositionLabel: '值位置:',
-            valuePositionRow: '列',
-            valuePositionColumn: '欄',
         },
     },
 };

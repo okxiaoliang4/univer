@@ -226,7 +226,6 @@ export class SheetsPivotDataSourceModel extends Disposable {
         pivotTable.setRowFields(fieldsConfig.rowFields);
         pivotTable.setColumnFields(fieldsConfig.columnFields);
         pivotTable.setFilterFields(fieldsConfig.filterFields);
-        pivotTable.setValuePosition(fieldsConfig.valuePosition);
 
         // Emit event
         this._fieldsConfigChanged$.next({
