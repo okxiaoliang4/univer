@@ -153,9 +153,11 @@ export class PivotTableStyleService extends Disposable implements IPivotTableSty
      * Get grand total row style
      */
     private _getGrandTotalStyle(): IStyleData {
+        // Use the darkest header tone to make grand totals stand out
         return {
-            bg: PIVOT_GREEN_PALETTE.grandTotalBg,
-            bl: BooleanNumber.TRUE, // Bold text
+            bg: PIVOT_GREEN_PALETTE.headerBg,
+            cl: PIVOT_GREEN_PALETTE.headerFg,
+            bl: BooleanNumber.TRUE,
             bd: this._getBorderStyle(),
         };
     }

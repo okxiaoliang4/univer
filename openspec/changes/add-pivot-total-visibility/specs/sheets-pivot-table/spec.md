@@ -33,3 +33,4 @@ Column grand totals SHALL output one grand total column per value field (mirrori
 - **THEN** the structure includes one additional column per value field at the end of the column axis
 - **AND** column headers/metadata align each grand total column with its corresponding value field
 - **AND** dimensions and value arrays reflect the expanded column count
+

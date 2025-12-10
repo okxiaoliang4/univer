@@ -17,7 +17,7 @@
 import type { IMutation } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../../controllers/config.schema';
 import type { PivotValuePosition } from '../../types/enum';
-import type { IFieldsConfig, IPivotTableCrossTabData, ISourceRangeInfo, ITargetCellInfo } from '../../types/type';
+import type { IFieldsConfig, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../../types/type';
 import { CommandType, IConfigService } from '@univerjs/core';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../../controllers/config.schema';
 import { PivotTable } from '../../models/pivot-table';
@@ -256,7 +256,7 @@ export interface ISetPivotTableCalculatedDataMutationParams {
     unitId: string;
     subUnitId: string;
     pivotTableId: string;
-    calculatedData: IPivotTableCrossTabData;
+    pivotModel: PivotModel;
 }
 
 export const SetPivotTableCalculatedDataMutation: IMutation<ISetPivotTableCalculatedDataMutationParams> = {
@@ -277,7 +277,7 @@ export const SetPivotTableCalculatedDataMutation: IMutation<ISetPivotTableCalcul
         // which would trigger _listenToPivotTableDataChanges which would execute this
         // mutation again, causing an infinite loop.
         const isCalculate = pluginConfig?.notExecuteFormula ?? false;
-        const { unitId, subUnitId, pivotTableId, calculatedData } = params;
+        const { unitId, subUnitId, pivotTableId, pivotModel } = params;
 
         if (!isCalculate) {
             return true;
@@ -286,7 +286,7 @@ export const SetPivotTableCalculatedDataMutation: IMutation<ISetPivotTableCalcul
         const dataSourceModel = accessor.get(SheetsPivotDataSourceModel);
 
         // Update calculated data in the model (Main thread only)
-        dataSourceModel.setCalculatedData(unitId, subUnitId, pivotTableId, calculatedData);
+        dataSourceModel.setCalculatedData(unitId, subUnitId, pivotTableId, pivotModel);
 
         return true;
     },

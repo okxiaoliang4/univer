@@ -25,3 +25,4 @@ The pivot table editor SHALL provide row and column grand total checkboxes in th
 - **WHEN** the grand total checkbox is toggled
 - **THEN** only the first row/column field `showSubTotals` is changed
 - **AND** other row/column fields retain their `showSubTotals` values for their own subtotals
+

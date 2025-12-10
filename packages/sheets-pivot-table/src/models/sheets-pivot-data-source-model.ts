@@ -16,7 +16,7 @@
 
 import type { IRange } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../controllers/config.schema';
-import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableCrossTabData, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
+import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableCrossTabData, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../types/type';
 import { Disposable, ICommandService, IConfigService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
 import { Subject } from 'rxjs';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../controllers/config.schema';
@@ -264,11 +264,11 @@ export class SheetsPivotDataSourceModel extends Disposable {
         unitId: string,
         subUnitId: string,
         pivotTableId: string,
-        calculatedData: IPivotTableCrossTabData
+        pivotModel: PivotModel
     ): void {
         const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
         if (pivotTable) {
-            pivotTable.setCalculatedData(calculatedData);
+            pivotTable.setCalculatedData(pivotModel);
 
             // Emit range change event (output range may have changed)
             const outputRange = pivotTable.getOutputRange();

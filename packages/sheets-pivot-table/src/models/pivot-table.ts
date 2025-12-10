@@ -21,8 +21,7 @@ import type { IFieldsConfig, IPivotField, IPivotTableConfig, IPivotTableCrossTab
 import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, pairwise } from 'rxjs';
-import { PivotEngineV2 } from './pivot-engine-v2';
-import { PivotTableRenderModel } from './pivot-table-render-model';
+import { PivotEngineV3 } from './pivot-engine-v3';
 
 /**
  * Configuration options for PivotTable
@@ -49,8 +48,7 @@ export class PivotTable extends Disposable {
     private _targetCellInfo: ITargetCellInfo;
     private _options: IPivotTableOptions;
 
-    private _pivotEngine: PivotEngineV2;
-    private _pivotTableRenderModel: PivotTableRenderModel;
+    private _pivotEngine: PivotEngineV3;
     private _recalculated$: BehaviorSubject<boolean>;
 
     private _valueFields$: BehaviorSubject<IPivotField[]>;
@@ -88,7 +86,7 @@ export class PivotTable extends Disposable {
         this._targetCellInfo = targetCellInfo;
         this._options = options;
 
-        this._pivotEngine = new PivotEngineV2({
+        this._pivotEngine = new PivotEngineV3({
             rowFields: fieldsConfig.rowFields || [],
             columnFields: fieldsConfig.columnFields || [],
             valueFields: fieldsConfig.valueFields || [],
@@ -96,7 +94,6 @@ export class PivotTable extends Disposable {
             sourceData: {},
             valuePosition: fieldsConfig.valuePosition,
         });
-        this._pivotTableRenderModel = new PivotTableRenderModel(this._pivotEngine.getCalculatedData());
 
         this._recalculated$ = new BehaviorSubject(false);
         this._valueFields$ = new BehaviorSubject(fieldsConfig.valueFields);
@@ -162,8 +159,7 @@ export class PivotTable extends Disposable {
                     debounceTime(0)
                 )
                 .subscribe(() => {
-                    const calculatedData = this._pivotEngine.getCalculatedData();
-                    this._pivotTableRenderModel.setData(calculatedData);
+                    this._pivotEngine.getCalculatedData();
                     this._recalculated$.next(true);
                 })
         );
@@ -271,10 +267,6 @@ export class PivotTable extends Disposable {
         this._targetCellInfo = targetCellInfo;
     }
 
-    isDirty(): boolean {
-        return this._pivotEngine.isDirty();
-    }
-
     getSourceFields(): IPivotField[] {
         return this._sourceFields$.value;
     }
@@ -353,12 +345,8 @@ export class PivotTable extends Disposable {
         };
     }
 
-    getEngine(): PivotEngineV2 {
+    getEngine(): PivotEngineV3 {
         return this._pivotEngine;
-    }
-
-    getRenderModel(): PivotTableRenderModel {
-        return this._pivotTableRenderModel;
     }
 
     setSourceData(sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>): void {
@@ -375,9 +363,8 @@ export class PivotTable extends Disposable {
      * This method allows the main thread to receive calculated data from Worker
      * via mutation without triggering recalculation.
      */
-    setCalculatedData(calculatedData: IPivotTableCrossTabData): void {
-        this._pivotEngine.setCalculatedData(calculatedData);
-        this._pivotTableRenderModel.setData(calculatedData);
+    setCalculatedData(data: IPivotTableCrossTabData): void {
+        this._pivotEngine.setCalculatedData(data, false);
     }
 
     /**

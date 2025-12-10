@@ -78,7 +78,6 @@ export class PivotTableRenderController extends Disposable {
 
                     // Inject pivot output value using relative positioning
                     const pivotEngine = pivotTable.getEngine();
-                    const pivotRenderModel = pivotTable.getRenderModel();
                     const outputMatrix = pivotEngine.getCalculatedCellMatrix();
                     const targetCellInfo = pivotTable.getTargetCellInfo();
 
@@ -103,7 +102,8 @@ export class PivotTableRenderController extends Disposable {
                     }
 
                     // Inject pivot table style
-                    const cellRenderInfo = pivotRenderModel.determineCellType(relativeRow, relativeCol);
+                    const cellRenderInfo = pivotEngine.determineCellType(relativeRow, relativeCol);
+
                     const style = this._styleService.getCellStyle(
                         pivotTableId,
                         relativeRow,

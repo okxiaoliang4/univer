@@ -7,3 +7,4 @@
 
 ## 2. Validation
 - [ ] 2.1 Run `openspec validate add-pivot-ui-group-toggle-renderer --strict`
+

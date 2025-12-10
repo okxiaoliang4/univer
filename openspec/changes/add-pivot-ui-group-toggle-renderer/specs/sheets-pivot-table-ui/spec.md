@@ -27,3 +27,4 @@ The system SHALL render an expand/collapse control inside pivot output cells tha
 - **WHEN** the pivot table UI initializes rendering
 - **THEN** it registers the expand/collapse graphics renderer once with the sheet graphics extension
 - **AND** the renderer works across normal view and printing contexts without breaking selection or cell hit-testing
+

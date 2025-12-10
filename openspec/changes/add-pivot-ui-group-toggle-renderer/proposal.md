@@ -9,3 +9,4 @@ Pivot table users cannot toggle row/column groups directly from rendered cells. 
 ## Impact
 - Affected specs: sheets-pivot-table-ui
 - Affected code: pivot table UI render controller/model, graphics renderer registration (`packages/sheets-graphics`, `packages/engine-render`), pivot group toggle flow
+

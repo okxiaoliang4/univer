@@ -222,7 +222,7 @@ export class PivotTableFormulaController extends Disposable {
                 unitId,
                 subUnitId,
                 pivotTableId,
-                calculatedData: pivotTable.getEngine().getCalculatedData(),
+                calculatedData: pivotTable.getEngine(),
             };
             this._commandService.executeCommand(SetPivotTableCalculatedDataMutation.id, params);
 

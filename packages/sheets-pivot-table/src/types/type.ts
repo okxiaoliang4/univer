@@ -27,6 +27,40 @@ export interface IPivotValueSortRule {
 
 export type IPivotSortRule = IPivotValueSortRule;
 
+export type AxisItemType = 'data' | 'subtotal' | 'grand';
+
+export interface AxisItem {
+    headers: string[];
+    display: string[];
+    type: AxisItemType;
+    level: number;
+    fieldIndex: number;
+    valueFieldIndex?: number;
+    groupKey: string;
+    parentKey?: string;
+    childrenKeys?: string[];
+}
+
+export interface AxisModel {
+    items: AxisItem[];
+    headerDepth: number;
+    levelMap: Record<number, number[]>;
+    subtotalMap: Record<number, number[]>;
+}
+
+export interface PivotModel {
+    isEmpty: boolean;
+    valueFields: Array<{ id: string; name: string; agg: AggregationType }>;
+    rowAxis: AxisModel;
+    colAxis: AxisModel;
+    values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>>;
+    dimensions: {
+        rowCount: number;
+        colCount: number;
+        valueFieldCount: number;
+    };
+}
+
 /**
  * Source fields configuration for pivot table
  */
@@ -73,6 +107,8 @@ export interface IPivotField {
     sourceColumnIndex: number;
     /** Field display name */
     name: string;
+    /** Sort rule (optional) applied on this axis field */
+    sortRule?: IPivotSortRule;
     /** Range key */
     // rangeKey: string;
     /** Field area (row, column, value, filter) */
@@ -291,6 +327,9 @@ export interface IPivotGroupInfo {
 export interface IPivotTableCrossTabData {
     /** Whether the data is empty (no value fields, no data rows, or all values are null) */
     isEmpty: boolean;
+
+    /** Pivot model with axis itemization */
+    pivotModel?: PivotModel;
 
     /** Dimension information */
     dimensions: {

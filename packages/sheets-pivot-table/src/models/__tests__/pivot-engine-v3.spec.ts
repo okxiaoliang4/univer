@@ -20,7 +20,7 @@ import { ObjectMatrix } from '@univerjs/core';
 import { describe, expect, it } from 'vitest';
 import { defaultPlaceholderMatrix } from '../../common/default-pivot-table';
 import { AggregationType, PivotValuePosition } from '../../types/enum';
-import { PivotEngineV2 } from '../pivot-engine-v2';
+import { PivotEngineV3 } from '../pivot-engine-v3';
 
 const sourceDataArray = [
     ['Region', 'Category', 'Channel', 'Quarter', 'Sales'],
@@ -113,12 +113,67 @@ function createFilterField(name: string, sourceColumnIndex: number, filter: IPiv
 describe('PivotEngine', () => {
     const sourceData = toObjectMatrix(sourceDataArray);
     it('should be defined', () => {
-        expect(PivotEngineV2).toBeDefined();
+        expect(PivotEngineV3).toBeDefined();
+    });
+
+    describe('helpers: getRowInfo/getColumnInfo/getCellInfo', () => {
+        it('should expose row/column/cell info for basic pivot', () => {
+            const engine = new PivotEngineV3({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 4)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            engine.getCalculatedData(); // trigger calculation
+
+            const rowInfo = engine.getRowInfo(0);
+            expect(rowInfo.type).toBe('data');
+            expect(rowInfo.headers).toEqual(['华北']);
+
+            const colInfo = engine.getColumnInfo(0);
+            expect(colInfo.type).toBe('data');
+            expect(colInfo.headers).toEqual([sumOfSales]);
+
+            const cellInfo = engine.getCellInfo(0, 0);
+            expect(cellInfo.value).toBe(34200);
+            expect(cellInfo.rowInfo.type).toBe('data');
+            expect(cellInfo.columnInfo.type).toBe('data');
+        });
+
+        it('determineCellType should rely on headers for header rows and row data otherwise', () => {
+            const engine = new PivotEngineV3({
+                rowFields: [createRowField('Region', 0)],
+                columnFields: [],
+                valueFields: [createValueField('Sales', 4)],
+                filterFields: [],
+                sourceData,
+                valuePosition: PivotValuePosition.COLUMN,
+            });
+
+            engine.getCalculatedData();
+
+            const headerRows = engine.getHeaderRowsCount();
+
+            // Matrix header row (row 0, col 0) should be header
+            const headerCell = engine.determineCellType(0, 0);
+            expect(headerCell.type).toBe('header');
+
+            // First data row header cell (rowHeader) after header rows
+            const rowHeaderCell = engine.determineCellType(headerRows, 0);
+            expect(rowHeaderCell.type).toBe('rowHeader');
+
+            // First data value cell
+            const dataCell = engine.determineCellType(headerRows, 1);
+            expect(dataCell.type).toBe('data');
+        });
     });
 
     describe('should empty result', () => {
         it('should empty result', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [],
                 valueFields: [],
@@ -131,7 +186,7 @@ describe('PivotEngine', () => {
         });
 
         it('should not empty result rowFields', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [],
                 valueFields: [],
@@ -144,7 +199,7 @@ describe('PivotEngine', () => {
         });
 
         it('should not empty result columnFields', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [createColumnField('Quarter', 3)],
                 valueFields: [],
@@ -157,7 +212,7 @@ describe('PivotEngine', () => {
         });
 
         it('should not empty result with valueFields', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [],
                 valueFields: [createValueField('Sales', 4)],
@@ -170,7 +225,7 @@ describe('PivotEngine', () => {
         });
 
         it('should empty result with filter', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [],
                 valueFields: [],
@@ -185,7 +240,7 @@ describe('PivotEngine', () => {
 
     describe('should only valueFields', () => {
         it('should single valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [],
                 valueFields: [createValueField('Sales', 4)],
@@ -202,7 +257,7 @@ describe('PivotEngine', () => {
         });
 
         it('should multiple valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [],
                 valueFields: [
@@ -217,7 +272,7 @@ describe('PivotEngine', () => {
 
             const output = toObjectMatrix([
                 [sumOfSales, countOfCategory],
-                [121700, 2],
+                [121700, 12],
             ]);
             expect(result).toEqual(output);
         });
@@ -225,7 +280,7 @@ describe('PivotEngine', () => {
 
     describe('should combine rowFields and valueFields', () => {
         it('should single rowFields and single valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [],
                 valueFields: [createValueField('Sales', 4)],
@@ -244,7 +299,7 @@ describe('PivotEngine', () => {
         });
 
         it('should multiple rowFields and single valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0), createRowField('Quarter', 3)],
                 columnFields: [],
                 valueFields: [createValueField('Sales', 4)],
@@ -267,7 +322,7 @@ describe('PivotEngine', () => {
         });
 
         it('should single rowFields and multiple valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [],
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
@@ -286,7 +341,7 @@ describe('PivotEngine', () => {
         });
 
         it('should multiple rowFields and multiple valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0), createRowField('Quarter', 3)],
                 columnFields: [],
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
@@ -311,7 +366,7 @@ describe('PivotEngine', () => {
 
     describe('should combine columnFields and valueFields', () => {
         it('should single columnFields and single valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [createColumnField('Quarter', 3)],
                 valueFields: [createValueField('Sales', 4)],
@@ -329,7 +384,7 @@ describe('PivotEngine', () => {
         });
 
         it('should multiple columnFields and single valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [createColumnField('Quarter', 3), createColumnField('Region', 0)],
                 valueFields: [createValueField('Sales', 4)],
@@ -348,7 +403,7 @@ describe('PivotEngine', () => {
         });
 
         it('should single columnFields and multiple valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [createColumnField('Region', 0)],
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
@@ -367,7 +422,7 @@ describe('PivotEngine', () => {
         });
 
         it('should multiple columnFields and multiple valueFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [],
                 columnFields: [createColumnField('Quarter', 3), createColumnField('Region', 0)],
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
@@ -378,19 +433,18 @@ describe('PivotEngine', () => {
             const result = engine.getCalculatedCellMatrix();
             const output = toObjectMatrix([
                 ['Quarter', 'Region', '值', '', '', '', '', '', '', '', '', '', ''],
-                ['Q1', '', '', '', 'Q2', '', '', '', 'Q3', 'Q4', '', '', ''],
-                ['华北', '', '华东', '', '华北', '', '华南', '', '华南', '华北', '', '华东', ''],
+                ['Q1', '', '', '', 'Q2', '', '', '', 'Q3', '', 'Q4', '', '', ''],
+                ['华北', '', '华东', '', '华北', '', '华南', '', '华南', '', '华北', '', '华东', ''],
                 [sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory, sumOfSales, countOfCategory],
                 [2500, 1, 35000, 3, 24500, 2, 14000, 1, 13000, 2, 7200, 1, 25500, 2],
             ]);
-
             expect(result).toEqual(output);
         });
     });
 
     describe('should combine rowFields and columnFields', () => {
         it('should single rowFields and single columnFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Quarter', 3)],
                 valueFields: [],
@@ -410,7 +464,7 @@ describe('PivotEngine', () => {
         });
 
         it('should multiple rowFields and single columnFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0), createRowField('Quarter', 3)],
                 columnFields: [createColumnField('Category', 1)],
                 valueFields: [],
@@ -434,7 +488,7 @@ describe('PivotEngine', () => {
         });
 
         it('should single rowFields and multiple columnFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0)],
                 columnFields: [createColumnField('Category', 1), createColumnField('Quarter', 3)],
                 valueFields: [],
@@ -455,7 +509,7 @@ describe('PivotEngine', () => {
         });
 
         it('should multiple rowFields and multiple columnFields in column position', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0), createRowField('Quarter', 3)],
                 columnFields: [createColumnField('Category', 1), createColumnField('Channel', 2)],
                 valueFields: [],
@@ -481,82 +535,8 @@ describe('PivotEngine', () => {
     });
 
     describe('totals and subtotals', () => {
-        it('should generate multi-level row subtotals per field flags', () => {
-            const engine = new PivotEngineV2({
-                rowFields: [
-                    createRowField('Region', 0, true),
-                    createRowField('Quarter', 3, true),
-                    createRowField('Channel', 2, false),
-                ],
-                columnFields: [],
-                valueFields: [createValueField('Sales', 4)],
-                filterFields: [],
-                sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
-            });
-
-            const data = engine.getCalculatedData();
-            const { structure, dimensions } = data;
-            const rowHeaders = structure.rowHeaders ?? [];
-            const rowTypes = structure.rowTypes ?? [];
-            const subtotalRows = structure.subtotalRows ?? [];
-
-            // Expect data rows + quarter subtotals + region totals + grand total
-            expect(dimensions.totalRows).toBe(22);
-            expect(rowTypes.filter((t) => t === 'subtotal').length).toBe(11);
-            expect(subtotalRows.length).toBe(11);
-            expect(rowHeaders.some((h) => h[1] === 'Q1 总计')).toBe(true);
-            expect(rowHeaders.some((h) => h[0] === '华北 总计')).toBe(true);
-            expect(rowHeaders[rowHeaders.length - 1][0]).toBe('总计');
-
-            const findRowIndex = (predicate: (headers: string[]) => boolean): number =>
-                rowHeaders.findIndex((headers) => headers && predicate(headers));
-            const getValueAt = (r: number, c = 0): number | string | null | undefined =>
-                structure.values?.[r]?.[c]?.[0];
-
-            const q1SubtotalIndex = findRowIndex((h) => h[0] === '华北' && h[1] === 'Q1 总计');
-            expect(q1SubtotalIndex).toBeGreaterThan(-1);
-            expect(getValueAt(q1SubtotalIndex)).toBe(2500);
-
-            const regionTotalIndex = findRowIndex((h) => h[0] === '华东 总计');
-            expect(regionTotalIndex).toBeGreaterThan(-1);
-            expect(getValueAt(regionTotalIndex)).toBe(60500);
-        });
-
-        it('should expand column totals per value field and per column group', () => {
-            const engine = new PivotEngineV2({
-                rowFields: [],
-                columnFields: [
-                    createColumnField('Category', 1, true),
-                    createColumnField('Channel', 2, true),
-                ],
-                valueFields: [
-                    createValueField('Sales', 4),
-                    createValueField('Category', 1, AggregationType.COUNT),
-                ],
-                filterFields: [],
-                sourceData,
-                valuePosition: PivotValuePosition.COLUMN,
-            });
-
-            const data = engine.getCalculatedData();
-            const { structure, dimensions } = data;
-            const columnHeaders = structure.columnHeaders ?? [];
-            const columnTypes = structure.columnTypes ?? [];
-            // 6 data combos + (3 category subtotals * 2 value fields) + (2 grand total columns)
-            expect(dimensions.totalColumns).toBe(20);
-            expect(columnHeaders.length).toBe(20);
-            expect(columnTypes.filter((t) => t === 'subtotal').length).toBe(8);
-            expect(
-                columnHeaders.some((h) => h[0] === '笔记本电脑' && h[1] === '总计')
-            ).toBe(true);
-            expect(
-                columnHeaders.filter((h) => h[0] === '总计').length
-            ).toBe(2);
-        });
-
         it('getCalculatedCellMatrix should include row/column case 1', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3)],
                 columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
                 valueFields: [createValueField('Sales', 4)],
@@ -565,15 +545,7 @@ describe('PivotEngine', () => {
                 valuePosition: PivotValuePosition.COLUMN,
             });
 
-            // Debug current headers/structure
-            const data = engine.getCalculatedData();
-
-            // eslint-disable-next-line no-console
-            console.log('case1-columnHeaders', data.structure.columnHeaders);
-
             const result = engine.getCalculatedCellMatrix();
-            // eslint-disable-next-line no-console
-            console.log('case1-matrix', JSON.stringify(result));
             const expected = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '', '', '', '', '', '', '', ''],
                 ['', '', '笔记本电脑', '', '笔记本电脑 总计', '配件', '', '配件 总计', '手机', '', '手机 总计', '总计'],
@@ -591,7 +563,7 @@ describe('PivotEngine', () => {
         });
 
         it('getCalculatedCellMatrix should include row/column case 2', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3, true)],
                 columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
                 valueFields: [createValueField('Sales', 4)],
@@ -621,7 +593,7 @@ describe('PivotEngine', () => {
         });
 
         it('getCalculatedCellMatrix should include row/column grand totals when single row field has showSubTotals and multiple column field has showSubTotals', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3)],
                 columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
@@ -642,14 +614,14 @@ describe('PivotEngine', () => {
                 ['华东', 'Q1', 15000, 1, 12000, 1, 27000, 2, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 35000, 3],
                 ['', 'Q4', 16500, 1, '', '', 16500, 1, '', '', '', '', '', '', '', '', 9000, 1, 9000, 1, 25500, 2],
                 ['华南', 'Q2', 14000, 1, '', '', 14000, 1, '', '', '', '', '', '', '', '', '', '', '', '', 14000, 1],
-                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 10000, 1, '', '', 10000, 1, 13000, 2],
+                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 1, 10000, 1, '', '', 10000, 1, 13000, 2],
                 ['总计', '', 63500, 4, 12000, 1, 75500, 5, 2500, 1, 3000, 1, 5500, 2, 18000, 2, 22700, 3, 40700, 5, 121700, 12],
             ]);
             expect(result).toMatchObject(expected);
         });
 
         it('getCalculatedCellMatrix should include row/column grand totals when multiple column field has showSubTotals and single row field has showSubTotals', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0), createRowField('Quarter', 3, true)],
                 columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
@@ -659,6 +631,7 @@ describe('PivotEngine', () => {
             });
 
             const result = engine.getCalculatedCellMatrix();
+
             const expected = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '值', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
                 ['', '', '笔记本电脑', '', '', '', '笔记本电脑 总计', '', '配件', '', '', '', '配件 总计', '', '手机', '', '', '', '手机 总计', '', '总计'],
@@ -670,9 +643,9 @@ describe('PivotEngine', () => {
                 ['华北 总计', '', 18000, 1, '', '', 18000, 1, 2500, 1, '', '', 2500, 1, '', '', 13700, 2, 13700, 2, 34200, 4],
                 ['华东', 'Q1', 15000, 1, 12000, 1, 27000, 2, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 35000, 3],
                 ['', 'Q4', 16500, 1, '', '', 16500, 1, '', '', '', '', '', '', '', '', 9000, 1, 9000, 1, 25500, 2],
-                ['华东 总计', 31500, 2, 12000, 1, 43500, 3, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 9000, 1, 17000, 2, 60500, 5],
+                ['华东 总计', '', 31500, 2, 12000, 1, 43500, 3, '', '', '', '', '', '', 8000, 1, 9000, 1, 17000, 2, 60500, 5],
                 ['华南', 'Q2', 14000, 1, '', '', 14000, 1, '', '', '', '', '', '', '', '', '', '', '', '', 14000, 1],
-                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 10000, 1, '', '', 10000, 1, 13000, 2],
+                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 1, 10000, 1, '', '', 10000, 1, 13000, 2],
                 ['华南 总计', '', 14000, 1, '', '', 14000, 1, '', '', 3000, 1, 3000, 1, 10000, 1, '', '', 10000, 1, 27000, 3],
             ]);
 
@@ -680,7 +653,7 @@ describe('PivotEngine', () => {
         });
 
         it('getCalculatedCellMatrix should include row/column grand totals when multiple row field has showSubTotals and multiple column field has showSubTotals', () => {
-            const engine = new PivotEngineV2({
+            const engine = new PivotEngineV3({
                 rowFields: [createRowField('Region', 0, true), createRowField('Quarter', 3, true)],
                 columnFields: [createColumnField('Category', 1, true), createColumnField('Channel', 2, true)],
                 valueFields: [createValueField('Sales', 4), createValueField('Category', 1, AggregationType.COUNT)],
@@ -701,9 +674,9 @@ describe('PivotEngine', () => {
                 ['华北 总计', '', 18000, 1, '', '', 18000, 1, 2500, 1, '', '', 2500, 1, '', '', 13700, 2, 13700, 2, 34200, 4],
                 ['华东', 'Q1', 15000, 1, 12000, 1, 27000, 2, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 35000, 3],
                 ['', 'Q4', 16500, 1, '', '', 16500, 1, '', '', '', '', '', '', '', '', 9000, 1, 9000, 1, 25500, 2],
-                ['华东 总计', 31500, 2, 12000, 1, 43500, 3, '', '', '', '', '', '', 8000, 1, '', '', 8000, 1, 9000, 1, 17000, 2, 60500, 5],
+                ['华东 总计', '', 31500, 2, 12000, 1, 43500, 3, '', '', '', '', '', '', 8000, 1, 9000, 1, 17000, 2, 60500, 5],
                 ['华南', 'Q2', 14000, 1, '', '', 14000, 1, '', '', '', '', '', '', '', '', '', '', '', '', 14000, 1],
-                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 10000, 1, '', '', 10000, 1, 13000, 2],
+                ['', 'Q3', '', '', '', '', '', '', '', '', 3000, 1, 3000, 1, 10000, 1, '', '', 10000, 1, 13000, 2],
                 ['华南 总计', '', 14000, 1, '', '', 14000, 1, '', '', 3000, 1, 3000, 1, 10000, 1, '', '', 10000, 1, 27000, 3],
                 ['总计', '', 63500, 4, 12000, 1, 75500, 5, 2500, 1, 3000, 1, 5500, 2, 18000, 2, 22700, 3, 40700, 5, 121700, 12],
             ]);
