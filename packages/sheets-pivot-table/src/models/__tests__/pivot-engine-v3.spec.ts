@@ -126,7 +126,7 @@ describe('PivotEngine', () => {
                 sourceData,
             });
 
-            engine.getCalculatedData(); // trigger calculation
+            engine.getPivotModel(); // trigger calculation
 
             const rowInfo = engine.getRowInfo(0);
             expect(rowInfo.type).toBe('data');
@@ -151,7 +151,7 @@ describe('PivotEngine', () => {
                 sourceData,
             });
 
-            engine.getCalculatedData();
+            engine.getPivotModel();
 
             const headerRows = engine.getHeaderRowsCount();
 
@@ -178,7 +178,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             expect(result).toEqual(defaultPlaceholderMatrix);
         });
 
@@ -190,7 +190,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             expect(result).not.toEqual(defaultPlaceholderMatrix);
         });
 
@@ -202,7 +202,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             expect(result).not.toEqual(defaultPlaceholderMatrix);
         });
 
@@ -214,7 +214,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             expect(result).not.toEqual(defaultPlaceholderMatrix);
         });
 
@@ -226,7 +226,7 @@ describe('PivotEngine', () => {
                 filterFields: [createFilterField('Region', 0, { type: 'value', values: ['华北'] })],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             expect(result).toEqual(defaultPlaceholderMatrix);
         });
     });
@@ -244,7 +244,7 @@ describe('PivotEngine', () => {
                 [sumOfSales],
                 [121700],
             ]);
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             expect(result).toEqual(output);
         });
 
@@ -259,7 +259,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
 
             const output = toObjectMatrix([
                 [sumOfSales, countOfCategory],
@@ -278,7 +278,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['Region', sumOfSales],
                 ['华北', 34200],
@@ -296,7 +296,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['Region', 'Quarter', sumOfSales],
                 ['华北', 'Q1', 2500],
@@ -318,7 +318,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['Region', sumOfSales, countOfCategory],
                 ['华北', 34200, 4],
@@ -336,7 +336,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['Region', 'Quarter', sumOfSales, countOfCategory],
                 ['华北', 'Q1', 2500, 1],
@@ -360,7 +360,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['', 'Quarter', '', '', ''],
                 ['', 'Q1', 'Q2', 'Q3', 'Q4'],
@@ -377,7 +377,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['', 'Quarter', 'Region', '', '', '', '', ''],
                 ['', 'Q1', '', 'Q2', '', 'Q3', 'Q4', ''],
@@ -395,7 +395,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['Region', '值', '', '', '', ''],
                 ['华北', '', '华东', '', '华南', ''],
@@ -413,7 +413,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['Quarter', 'Region', '值', '', '', '', '', '', '', '', '', '', ''],
                 ['Q1', '', '', '', 'Q2', '', '', '', 'Q3', '', 'Q4', '', '', ''],
@@ -434,7 +434,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['', 'Quarter', '', '', ''],
                 ['Region', 'Q1', 'Q2', 'Q3', 'Q4'],
@@ -453,7 +453,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['', '', 'Category', '', '', ''],
                 ['Region', 'Quarter', '笔记本电脑', '配件', '手机'],
@@ -476,7 +476,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['', 'Category', 'Quarter', '', '', '', '', '', '', ''],
                 ['', '笔记本电脑', '', '', '配件', '', '手机', '', '', ''],
@@ -496,7 +496,7 @@ describe('PivotEngine', () => {
                 filterFields: [],
                 sourceData,
             });
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const output = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '', '', '', ''],
                 ['', '', '笔记本电脑', '', '配件', '', '手机', ''],
@@ -523,7 +523,7 @@ describe('PivotEngine', () => {
                 sourceData,
             });
 
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const expected = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '', '', '', '', '', '', '', ''],
                 ['', '', '笔记本电脑', '', '笔记本电脑 总计', '配件', '', '配件 总计', '手机', '', '手机 总计', '总计'],
@@ -549,7 +549,7 @@ describe('PivotEngine', () => {
                 sourceData,
             });
 
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const expected = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '', '', '', '', '', '', '', ''],
                 ['', '', '笔记本电脑', '', '笔记本电脑 总计', '配件', '', '配件 总计', '手机', '', '手机 总计', '总计'],
@@ -578,7 +578,7 @@ describe('PivotEngine', () => {
                 sourceData,
             });
 
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const expected = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '值', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
                 ['', '', '笔记本电脑', '', '', '', '笔记本电脑 总计', '', '配件', '', '', '', '配件 总计', '', '手机', '', '', '', '手机 总计', '', '总计'],
@@ -605,7 +605,7 @@ describe('PivotEngine', () => {
                 sourceData,
             });
 
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
 
             const expected = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '值', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
@@ -636,7 +636,7 @@ describe('PivotEngine', () => {
                 sourceData,
             });
 
-            const result = engine.getCalculatedCellMatrix();
+            const result = engine.getOutputMatrix();
             const expected = toObjectMatrix([
                 ['', '', 'Category', 'Channel', '值', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
                 ['', '', '笔记本电脑', '', '', '', '笔记本电脑 总计', '', '配件', '', '', '', '配件 总计', '', '手机', '', '', '', '手机 总计', '', '总计'],

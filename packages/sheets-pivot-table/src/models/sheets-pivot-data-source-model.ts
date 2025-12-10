@@ -16,7 +16,7 @@
 
 import type { IRange } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from '../controllers/config.schema';
-import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableCrossTabData, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../types/type';
+import type { IFieldsConfig, IPivotTableConfig, IPivotTableConfigResource, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo, PivotModel } from '../types/type';
 import { Disposable, ICommandService, IConfigService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
 import { Subject } from 'rxjs';
 import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../controllers/config.schema';
@@ -338,15 +338,15 @@ export class SheetsPivotDataSourceModel extends Disposable {
         }
 
         const unitResult: Record<string, Record<string, IPivotTableConfig>> = {};
-        const pivotData: Record<string, Record<string, IPivotTableCrossTabData>> = {};
+        const pivotData: Record<string, Record<string, PivotModel>> = {};
 
         unitConfigMap.forEach((subUnitMap, subUnitId) => {
             const subUnitResult: Record<string, IPivotTableConfig> = {};
-            const subUnitPivotData: Record<string, IPivotTableCrossTabData> = {};
+            const subUnitPivotData: Record<string, PivotModel> = {};
 
             subUnitMap.forEach((pivotTable, pivotTableId) => {
                 subUnitResult[pivotTableId] = pivotTable.toJSON();
-                const calculatedData = pivotTable.getEngine().getCalculatedData();
+                const calculatedData = pivotTable.getEngine().getPivotModel();
                 if (calculatedData) {
                     subUnitPivotData[pivotTableId] = calculatedData;
                 }

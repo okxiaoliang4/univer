@@ -46,15 +46,15 @@ export {
 export type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 
 // Models
+export type { PivotCellType } from './models/pivot-engine-v3';
 export { type IPivotTableOptions, PivotTable } from './models/pivot-table';
 
 // Plugin
 export { UniverSheetsPivotTablePlugin } from './plugin';
-
 // Services
 export { IPivotTableRangeService } from './services/pivot-table-range.service';
-export { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN as SHEET_PIVOT_TABLE_SNAPSHOT_ID } from './services/pivot-table.service';
 
+export { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN as SHEET_PIVOT_TABLE_SNAPSHOT_ID } from './services/pivot-table.service';
 export { AggregationType, PivotFieldAreaType, PivotSortOrder } from './types/enum';
 
 // Types

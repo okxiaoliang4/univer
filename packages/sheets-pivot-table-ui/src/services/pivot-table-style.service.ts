@@ -15,14 +15,10 @@
  */
 
 import type { IBorderData, IColorStyle, IStyleData } from '@univerjs/core';
+import type { PivotCellType } from '@univerjs/sheets-pivot-table';
 import { BooleanNumber, BorderStyleTypes, createIdentifier, Disposable, Inject } from '@univerjs/core';
 import { IPivotTableRangeService } from '@univerjs/sheets-pivot-table';
 import tinycolor from 'tinycolor2';
-
-/**
- * Pivot table cell types for styling
- */
-export type PivotCellType = 'header' | 'rowHeader' | 'columnHeader' | 'data' | 'subtotal' | 'grandTotal';
 
 /**
  * Green theme color palette for pivot table styling

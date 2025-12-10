@@ -379,7 +379,7 @@ export class PivotTableFormulaController extends Disposable {
         }
 
         const pivotEngine = pivotTable.getEngine();
-        const outputCellMatrix = pivotEngine.getCalculatedCellMatrix() || {};
+        const outputCellMatrix = pivotEngine.getOutputMatrix() || {};
         const targetCellInfo = pivotTable.getTargetCellInfo();
         const outputRange = pivotTable.getAbsoluteOutputRange();
 

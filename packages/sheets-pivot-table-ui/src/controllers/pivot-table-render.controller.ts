@@ -78,7 +78,7 @@ export class PivotTableRenderController extends Disposable {
 
                     // Inject pivot output value using relative positioning
                     const pivotEngine = pivotTable.getEngine();
-                    const outputMatrix = pivotEngine.getCalculatedCellMatrix();
+                    const outputMatrix = pivotEngine.getOutputMatrix();
                     const targetCellInfo = pivotTable.getTargetCellInfo();
 
                     // Convert absolute position to relative position in the matrix

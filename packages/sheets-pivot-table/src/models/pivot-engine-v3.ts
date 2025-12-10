@@ -21,9 +21,7 @@ import type {
     AxisModel,
     IPivotField,
     IPivotFilterCriteria,
-    IPivotSubtotalInfo,
     IPivotTableCrossTabConfig,
-    IPivotTableCrossTabData,
     PivotModel,
     PivotSortDirection,
 } from '../types/type';
@@ -34,8 +32,9 @@ import { AggregationType } from '../types/enum';
 
 const BLANK = '(blank)';
 const SEP = '|';
+const toKey = (vals: string[]): string => vals.join(SEP);
 
-interface ProcessedRow {
+interface IProcessedRow {
     row: ICellData[];
     rowKey: string;
     rowPath: string[];
@@ -43,15 +42,14 @@ interface ProcessedRow {
     colPath: string[];
 }
 
-interface AxisBuildResult {
+interface IAxisBuildResult {
     model: AxisModel;
     comboSets: string[][];
 }
 
-type PivotRenderCellType = 'rowHeader' | 'columnHeader' | 'data' | 'subtotal' | 'grandTotal';
-
+export type PivotCellType = 'header' | 'rowHeader' | 'columnHeader' | 'data' | 'subtotal' | 'grandTotal';
 interface IPivotRenderCellInfo {
-    type: PivotRenderCellType;
+    type: PivotCellType;
     level: number;
 }
 
@@ -61,7 +59,7 @@ export class PivotEngineV3 extends Disposable {
     private _valueFields: IPivotField[];
     private _filterFields: IPivotField[];
     private _sourceData: IObjectMatrixPrimitiveType<Nullable<ICellData>>;
-    private _calculatedData: IPivotTableCrossTabData | null = null;
+    private _calculatedData: PivotModel | null = null;
     private _isDirty = true;
 
     constructor(config: IPivotTableCrossTabConfig) {
@@ -73,7 +71,7 @@ export class PivotEngineV3 extends Disposable {
         this._sourceData = config.sourceData;
     }
 
-    getCalculatedData(): IPivotTableCrossTabData {
+    getPivotModel(): PivotModel {
         if (this._isDirty || !this._calculatedData) {
             this._calculatedData = this._calculate();
             this._isDirty = false;
@@ -81,10 +79,10 @@ export class PivotEngineV3 extends Disposable {
         return this._calculatedData;
     }
 
-    getCalculatedCellMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
-        const data = this.getCalculatedData();
-        if (data.isEmpty) return defaultPlaceholderMatrix;
-        return this._buildMatrix(data.structure);
+    getOutputMatrix(): IObjectMatrixPrimitiveType<Nullable<ICellData>> | null {
+        const model = this.getPivotModel();
+        if (model.isEmpty) return defaultPlaceholderMatrix;
+        return this._buildMatrixFromModel(model);
     }
 
     getRowFields(): IPivotField[] {
@@ -104,11 +102,7 @@ export class PivotEngineV3 extends Disposable {
     }
 
     getRowInfo(rowIndex: number) {
-        const data = this.getCalculatedData();
-        const pivotModel = data.pivotModel;
-        if (!pivotModel) {
-            return { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 };
-        }
+        const pivotModel = this.getPivotModel();
         const item = pivotModel.rowAxis.items[rowIndex];
         if (!item) {
             return { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 };
@@ -122,11 +116,7 @@ export class PivotEngineV3 extends Disposable {
     }
 
     getColumnInfo(columnIndex: number) {
-        const data = this.getCalculatedData();
-        const pivotModel = data.pivotModel;
-        if (!pivotModel) {
-            return { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 };
-        }
+        const pivotModel = this.getPivotModel();
         const item = pivotModel.colAxis.items[columnIndex];
         if (!item) {
             return { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 };
@@ -140,19 +130,11 @@ export class PivotEngineV3 extends Disposable {
     }
 
     getCellInfo(rowIndex: number, columnIndex: number) {
-        const data = this.getCalculatedData();
-        const pivotModel = data.pivotModel;
-        if (!pivotModel) {
-            return {
-                value: null,
-                rowInfo: { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 },
-                columnInfo: { headers: [], type: 'data' as AxisItemType, level: 0, fieldIndex: 0 },
-            };
-        }
+        const pivotModel = this.getPivotModel();
         const rowInfo = this.getRowInfo(rowIndex);
         const columnInfo = this.getColumnInfo(columnIndex);
         const cell = pivotModel.values?.[rowIndex]?.[columnIndex];
-        const firstValue = cell ? cell[Object.keys(cell)[0] ?? '0'] ?? null : null;
+        const firstValue = cell ? cell[Number(Object.keys(cell)[0] ?? '0')] ?? null : null;
         return {
             value: firstValue as number | string | null,
             rowInfo,
@@ -161,11 +143,20 @@ export class PivotEngineV3 extends Disposable {
     }
 
     getHeaderRowsCount(): number {
-        const data = this.getCalculatedData();
-        const structure = data.structure;
-        const columnHeaderDepth = Math.max(...(structure.columnHeaders?.map((h) => h.length) || [0]), 0);
-        const rowHeaderDepth = structure.rowHeaders?.[0]?.length ?? 0;
+        const model = this.getPivotModel();
+        if (model.isEmpty) return 0;
+        const columnHeaderDepth = model.colAxis.headerDepth;
+        let rowHeaderDepth = model.rowAxis.headerDepth;
         const hasValueHeaderRow = this._columnFields.length > 0 && this._valueFields.length > 1;
+
+        if (
+            rowHeaderDepth === 0 &&
+            this._rowFields.length === 0 &&
+            this._columnFields.length > 0 &&
+            this._valueFields.length === 1
+        ) {
+            rowHeaderDepth = 1;
+        }
 
         if (this._columnFields.length > 0) {
             return 1 + columnHeaderDepth + (hasValueHeaderRow ? 1 : 0);
@@ -175,11 +166,7 @@ export class PivotEngineV3 extends Disposable {
     }
 
     determineCellType(rowIndex: number, columnIndex: number): IPivotRenderCellInfo {
-        const data = this.getCalculatedData();
-        const pivotModel = data.pivotModel;
-        if (!pivotModel) {
-            return { type: 'data', level: 0 };
-        }
+        const pivotModel = this.getPivotModel();
 
         // Header depths
         let rowHeaderDepth = pivotModel.rowAxis.headerDepth;
@@ -272,12 +259,12 @@ export class PivotEngineV3 extends Disposable {
         this._isDirty = true;
     }
 
-    setCalculatedData(data: IPivotTableCrossTabData, isDirty = true): void {
+    setCalculatedData(data: PivotModel, isDirty = true): void {
         this._calculatedData = data;
         this._isDirty = isDirty;
     }
 
-    private _calculate(): IPivotTableCrossTabData {
+    private _calculate(): PivotModel {
         if (this._rowFields.length === 0 && this._columnFields.length === 0 && this._valueFields.length === 0) {
             return this._emptyResult();
         }
@@ -289,27 +276,11 @@ export class PivotEngineV3 extends Disposable {
         const processed = this._processRows(filteredRows, rowIdx, colIdx);
 
         const pivotModel = this._buildPivotModel(processed, rowIdx, colIdx, valIdx);
-        const structure = this._buildStructureFromModel(pivotModel);
-
-        const hasValues = Object.values(structure.values || {}).some((row) =>
-            Object.values(row || {}).some((cell) =>
-                Object.values(cell || {}).some((v) => v !== null && v !== undefined && v !== '')
-            )
-        );
-        const isEmpty = pivotModel.isEmpty;
-        const dimensions = {
-            totalRows: structure.rowHeaders.length,
-            totalColumns: structure.columnHeaders.length,
-            dataRowCount: pivotModel.rowAxis.items.filter((i) => i.type === 'data').length,
-            dataColumnCount: pivotModel.colAxis.items.filter((i) => i.type === 'data').length,
-            valueFieldCount: this._valueFields.length,
-        };
-
-        return { isEmpty, dimensions, structure, pivotModel };
+        return pivotModel;
     }
 
     private _buildPivotModel(
-        processedRows: ProcessedRow[],
+        processedRows: IProcessedRow[],
         rowIndices: number[],
         colIndices: number[],
         valueIndices: number[]
@@ -361,7 +332,7 @@ export class PivotEngineV3 extends Disposable {
         combos: string[][],
         rowKeysAll: string[],
         colKeysAll: string[]
-    ): AxisBuildResult {
+    ): IAxisBuildResult {
         const baseDepth = fields.length;
         const headerDepth = baseDepth > 0 ? baseDepth : (kind === 'column' ? 1 : 0);
         const hasFields = baseDepth > 0;
@@ -641,10 +612,10 @@ export class PivotEngineV3 extends Disposable {
         colItems: AxisModel['items'],
         rowComboSets: string[][],
         colComboSets: string[][],
-        processedRows: ProcessedRow[],
+        processedRows: IProcessedRow[],
         valueIndices: number[]
     ): IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> {
-        const map = new Map<string, Map<string, ICellData[]>>();
+        const map = new Map<string, Map<string, ICellData[][]>>();
         for (const pr of processedRows) {
             if (!map.has(pr.rowKey)) map.set(pr.rowKey, new Map());
             const colMap = map.get(pr.rowKey)!;
@@ -655,7 +626,7 @@ export class PivotEngineV3 extends Disposable {
         const values: IObjectMatrixPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
 
         rowComboSets.forEach((rowCombos, rIdx) => {
-            const rowVal: IObjectArrayPrimitiveType<number | string | null> = {};
+            const rowVal: IObjectArrayPrimitiveType<IObjectArrayPrimitiveType<number | string | null>> = {};
             colComboSets.forEach((colCombos, cIdx) => {
                 const cellVals: IObjectArrayPrimitiveType<number | string | null> = {};
                 const targetValueIdx = colItems[cIdx]?.valueFieldIndex;
@@ -676,7 +647,7 @@ export class PivotEngineV3 extends Disposable {
                             }
                         }
                     }
-                    cellVals[vIdx] = aggregator.getResult() ?? null;
+                    cellVals[vIdx] = (aggregator.getResult() ?? null) as number | string | null;
                 }
                 rowVal[cIdx] = cellVals;
             });
@@ -686,66 +657,7 @@ export class PivotEngineV3 extends Disposable {
         return values;
     }
 
-    private _buildStructureFromModel(pivotModel: PivotModel): IPivotTableCrossTabData['structure'] {
-        let rowDepth = pivotModel.rowAxis.headerDepth;
-        const colDepth = pivotModel.colAxis.headerDepth;
-        const needValueRowHeader = rowDepth === 0 && this._rowFields.length === 0 && this._columnFields.length > 0 && this._valueFields.length === 1;
-
-        if (needValueRowHeader) {
-            rowDepth = 1;
-        }
-
-        let rowHeaders = pivotModel.rowAxis.items.map((i) => this._normalizeHeaders(i.headers, rowDepth));
-        if (needValueRowHeader) {
-            rowHeaders = rowHeaders.map(() => [this._label(this._valueFields[0])]);
-        }
-        const columnHeaders = pivotModel.colAxis.items.map((i) => this._normalizeHeaders(i.headers, colDepth));
-
-        const rowTypes = pivotModel.rowAxis.items.map((i) => (i.type === 'data' ? 'data' : 'subtotal') as const);
-        const columnTypes = pivotModel.colAxis.items.map((i) => (i.type === 'data' ? 'data' : 'subtotal') as const);
-
-        const subtotalRows: IPivotSubtotalInfo[] = [];
-        const subtotalColumns: IPivotSubtotalInfo[] = [];
-
-        pivotModel.rowAxis.items.forEach((item, idx) => {
-            if (item.type !== 'data') {
-                const hdr = this._normalizeHeaders(item.headers, rowDepth);
-                subtotalRows.push({
-                    rowIndex: idx,
-                    level: Math.max(item.level, 0),
-                    fieldIndex: item.fieldIndex,
-                    value: hdr[item.level] || '',
-                    label: hdr[item.level] || '',
-                });
-            }
-        });
-
-        pivotModel.colAxis.items.forEach((item, idx) => {
-            if (item.type !== 'data') {
-                const hdr = this._normalizeHeaders(item.headers, colDepth);
-                subtotalColumns.push({
-                    columnIndex: idx,
-                    level: Math.max(item.level, 0),
-                    fieldIndex: item.fieldIndex,
-                    value: hdr[item.level] || '',
-                    label: hdr[item.level] || '',
-                });
-            }
-        });
-
-        return {
-            rowHeaders,
-            columnHeaders,
-            valueFieldHeaders: this._valueFields.length > 1 ? this._valueFields.map((f) => this._label(f)) : undefined,
-            values: pivotModel.values,
-            rowTypes,
-            columnTypes,
-            subtotalRows: subtotalRows.length ? subtotalRows : undefined,
-            subtotalColumns: subtotalColumns.length ? subtotalColumns : undefined,
-        };
-    }
-
-    private _processRows(rows: ICellData[][], rowIdx: number[], colIdx: number[]): ProcessedRow[] {
+    private _processRows(rows: ICellData[][], rowIdx: number[], colIdx: number[]): IProcessedRow[] {
         return rows.map((row) => {
             const rowPath = rowIdx.map((i) => row[i]?.v?.toString() ?? BLANK);
             const colPath = colIdx.map((i) => row[i]?.v?.toString() ?? BLANK);
@@ -759,7 +671,7 @@ export class PivotEngineV3 extends Disposable {
         });
     }
 
-    private _uniquePaths(processed: ProcessedRow[], kind: 'row' | 'column', depth: number): string[][] {
+    private _uniquePaths(processed: IProcessedRow[], kind: 'row' | 'column', depth: number): string[][] {
         const set = new Set<string>();
         const res: string[][] = [];
         if (depth === 0) return [[]];
@@ -795,10 +707,28 @@ export class PivotEngineV3 extends Disposable {
         return res;
     }
 
-    private _buildMatrix(structure: IPivotTableCrossTabData['structure']): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
+    private _buildMatrixFromModel(pivotModel: PivotModel): IObjectMatrixPrimitiveType<Nullable<ICellData>> {
+        let rowDepth = pivotModel.rowAxis.headerDepth;
+        const colDepth = pivotModel.colAxis.headerDepth;
+        const needValueRowHeader =
+            rowDepth === 0 && this._rowFields.length === 0 && this._columnFields.length > 0 && this._valueFields.length === 1;
+
+        if (needValueRowHeader) {
+            rowDepth = 1;
+        }
+
+        let rowHeaders = pivotModel.rowAxis.items.map((i) => this._normalizeHeaders(i.headers, rowDepth));
+        if (needValueRowHeader) {
+            rowHeaders = rowHeaders.map(() => [this._label(this._valueFields[0])]);
+        }
+        const columnHeaders = pivotModel.colAxis.items.map((i) => this._normalizeHeaders(i.headers, colDepth));
+
+        const valueFieldHeaders = this._valueFields.length > 1 ? this._valueFields.map((f) => this._label(f)) : undefined;
+        const values = pivotModel.values;
+
         const matrix = new ObjectMatrix<Nullable<ICellData>>();
-        const rowHeaderDepth = structure.rowHeaders[0]?.length ?? 0;
-        const columnHeaderDepth = Math.max(...structure.columnHeaders.map((h) => h.length), 0);
+        const rowHeaderDepth = rowHeaders[0]?.length ?? 0;
+        const columnHeaderDepth = Math.max(...columnHeaders.map((h) => h.length), 0);
 
         let r = 0;
 
@@ -807,7 +737,7 @@ export class PivotEngineV3 extends Disposable {
             const row: Nullable<ICellData>[] = [];
             for (let i = 0; i < rowHeaderDepth; i++) row.push({ v: this._rowFields[i]?.name || '' });
             const labels = this._valueFields.length > 0
-                ? (structure.valueFieldHeaders || this._valueFields.map((f) => this._label(f)))
+                ? (valueFieldHeaders || this._valueFields.map((f) => this._label(f)))
                 : [];
             labels.forEach((v) => row.push({ v }));
             row.forEach((cell, c) => {
@@ -833,8 +763,8 @@ export class PivotEngineV3 extends Disposable {
             const showRowNames = isLast && this._valueFields.length <= 1;
             for (let i = 0; i < rowHeaderDepth; i++) row.push({ v: showRowNames ? this._rowFields[i]?.name || '' : '' });
             let prevHeaders: string[] | null = null;
-            for (let c = 0; c < structure.columnHeaders.length; c++) {
-                const hdr = structure.columnHeaders[c];
+            for (let c = 0; c < columnHeaders.length; c++) {
+                const hdr = columnHeaders[c];
                 const v = hdr[level] ?? '';
                 let show = true;
                 if (prevHeaders) {
@@ -861,8 +791,8 @@ export class PivotEngineV3 extends Disposable {
         if (this._valueFields.length > 1 && this._columnFields.length > 0) {
             const row: Nullable<ICellData>[] = [];
             for (let i = 0; i < rowHeaderDepth; i++) row.push({ v: this._rowFields[i]?.name || '' });
-            const labels = structure.valueFieldHeaders || this._valueFields.map((f) => this._label(f));
-            for (let c = 0; c < structure.columnHeaders.length; c++) {
+            const labels = valueFieldHeaders || this._valueFields.map((f) => this._label(f));
+            for (let c = 0; c < columnHeaders.length; c++) {
                 row.push({ v: labels[c % labels.length] });
             }
             row.forEach((cell, c) => {
@@ -872,7 +802,7 @@ export class PivotEngineV3 extends Disposable {
         }
 
         const lastHdrs: string[] = new Array(rowHeaderDepth).fill('');
-        structure.rowHeaders.forEach((hdr, rowIdx) => {
+        rowHeaders.forEach((hdr, rowIdx) => {
             const row: Nullable<ICellData>[] = [];
             for (let i = 0; i < rowHeaderDepth; i++) {
                 const v = hdr[i] ?? '';
@@ -880,10 +810,10 @@ export class PivotEngineV3 extends Disposable {
                 row.push({ v: show ? v : '' });
                 if (show) lastHdrs[i] = v;
             }
-            const rowVals = structure.values[rowIdx] || {};
-            for (let c = 0; c < structure.columnHeaders.length; c++) {
+            const rowVals = values[rowIdx] || {};
+            for (let c = 0; c < columnHeaders.length; c++) {
                 const cell = rowVals[c];
-                const first = cell ? cell[Object.keys(cell)[0] ?? '0'] : '';
+                const first = cell ? cell[Number(Object.keys(cell)[0] ?? '0')] : '';
                 row.push({ v: first ?? '' });
             }
             row.forEach((cell, c) => {
@@ -955,21 +885,14 @@ export class PivotEngineV3 extends Disposable {
         return map[aggregation] ?? name;
     }
 
-    private _emptyResult(): IPivotTableCrossTabData {
+    private _emptyResult(): PivotModel {
         return {
             isEmpty: true,
-            dimensions: { totalRows: 0, totalColumns: 0, dataRowCount: 0, dataColumnCount: 0, valueFieldCount: 0 },
-            structure: { rowHeaders: [], columnHeaders: [], values: {}, rowTypes: [], columnTypes: [] },
-            pivotModel: {
-                isEmpty: true,
-                valueFields: [],
-                rowAxis: { items: [], headerDepth: 0, levelMap: {}, subtotalMap: {} },
-                colAxis: { items: [], headerDepth: 0, levelMap: {}, subtotalMap: {} },
-                values: {},
-                dimensions: { rowCount: 0, colCount: 0, valueFieldCount: 0 },
-            },
+            valueFields: [],
+            rowAxis: { items: [], headerDepth: 0, levelMap: {}, subtotalMap: {} },
+            colAxis: { items: [], headerDepth: 0, levelMap: {}, subtotalMap: {} },
+            values: {},
+            dimensions: { rowCount: 0, colCount: 0, valueFieldCount: 0 },
         };
     }
 }
-
-const toKey = (vals: string[]): string => vals.join(SEP);
