@@ -46,7 +46,7 @@ export {
 export type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 
 // Models
-export type { PivotCellType } from './models/pivot-engine-v3';
+export type { PivotCellType } from './models/pivot-engine';
 export { type IPivotTableOptions, PivotTable } from './models/pivot-table';
 
 // Plugin

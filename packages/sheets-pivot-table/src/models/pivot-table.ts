@@ -20,7 +20,7 @@ import type { IFieldsConfig, IPivotField, IPivotTableConfig, ISourceFields, ISou
 import { Disposable, ObjectMatrix, Rectangle } from '@univerjs/core';
 import { deserializeRangeWithSheetWithCache, serializeRangeToRefString, serializeRangeWithSpreadsheet } from '@univerjs/engine-formula';
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, pairwise } from 'rxjs';
-import { PivotEngineV3 } from './pivot-engine-v3';
+import { PivotEngineV3 } from './pivot-engine';
 
 /**
  * Configuration options for PivotTable
