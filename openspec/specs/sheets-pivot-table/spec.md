@@ -5,7 +5,6 @@
 The Sheets Pivot Table plugin provides functionality for creating and managing pivot tables in spreadsheet documents. It supports Cross-Tabulation data analysis with multi-level row and column grouping, subtotals, grand totals, and value field aggregation.
 ## Requirements
 ### Requirement: Field Configuration
-
 The system SHALL support configuring pivot table fields in four areas: row fields, column fields, value fields, and filter fields. Each field MAY specify whether to show subtotals.
 
 #### Scenario: Add field to row area with subtotal configuration
@@ -14,7 +13,7 @@ The system SHALL support configuring pivot table fields in four areas: row field
 - **THEN** the pivot table stores the field ID in the rowFields array
 - **AND** stores the `showSubTotals` configuration
 - **AND** marks the pivot table as dirty for recalculation
-- **AND** `PivotEngineV2` generates subtotal rows for each unique value of that field
+- **AND** the PivotEngine generates subtotal rows for each unique value of that field in the PivotModel.
 
 #### Scenario: Add field to column area with subtotal configuration
 - **WHEN** a user adds a source column to the column fields area
@@ -22,114 +21,7 @@ The system SHALL support configuring pivot table fields in four areas: row field
 - **THEN** the pivot table stores the field ID in the columnFields array
 - **AND** stores the `showSubTotals` configuration
 - **AND** marks the pivot table as dirty for recalculation
-- **AND** `PivotEngineV2` generates subtotal columns for each unique value of that field
-
-### Requirement: PivotEngineV2 Cross-Tabulation Calculation Engine
-
-The system SHALL provide a `PivotEngineV2` class that calculates pivot table results in a structured Cross-Tabulation format optimized for UI rendering.
-
-#### Scenario: Calculate Cross-Tabulation with structured output
-- **WHEN** `PivotEngineV2` is instantiated with `IPivotTableCrossTabConfig` containing row fields, column fields, value fields, and source data
-- **AND** `getCalculatedData()` is called
-- **THEN** the engine returns `IPivotTableCrossTabData` with structured output including:
-  - `isEmpty` flag indicating if data is empty
-  - `dimensions` object with row/column counts
-  - `structure.rowHeaders` array with multi-level row values
-  - `structure.columnHeaders` array with multi-level column values
-  - `structure.values` 3D array `[rowIndex][columnIndex][valueFieldIndex]`
-  - `structure.rowTypes` and `structure.columnTypes` arrays
-  - `structure.subtotalRows` and `structure.subtotalColumns` metadata
-  - `structure.rowGroups` and `structure.columnGroups` for collapse/expand
-  - `structure.rowLevelMap` and `structure.columnLevelMap` for quick lookup
-
-#### Scenario: Field-level subtotal configuration
-- **WHEN** a row field or column field has `showSubTotals: true`
-- **THEN** the engine generates subtotal rows/columns for each unique value of that field
-- **AND** the subtotal value equals the aggregation of all data rows in that group
-- **AND** the first field's subtotal (level=0, fieldIndex=0) is treated as the grand total
-
-#### Scenario: Multi-level row and column fields
-- **WHEN** multiple row fields or column fields are configured
-- **THEN** the engine creates hierarchical grouping
-- **AND** generates proper multi-level headers in `rowHeaders` and `columnHeaders`
-- **AND** creates parent-child relationships in `rowGroups` and `columnGroups`
-- **AND** populates `rowLevelMap` and `columnLevelMap` with all group IDs for each row/column
-
-#### Scenario: Multi-value field support
-- **WHEN** multiple value fields are configured
-- **THEN** the engine generates a 3D values array `[rowIndex][columnIndex][valueFieldIndex]`
-- **AND** includes `valueFieldHeaders` array with field names
-- **AND** each cell contains values for all configured value fields
-
-#### Scenario: Empty data detection
-- **WHEN** source data has no value fields configured
-- **OR** all source data is filtered out
-- **OR** all calculated values are null/empty
-- **THEN** the engine sets `isEmpty: true` in the output
-- **AND** still returns valid structure with empty arrays
-
-#### Scenario: Dimension calculation
-- **WHEN** calculation completes
-- **THEN** the engine populates `dimensions` object with:
-  - `totalRows`: total number of rows including subtotals and grand total
-  - `totalColumns`: total number of columns including subtotals and grand total
-  - `dataRowCount`: number of data rows (excluding subtotals)
-  - `dataColumnCount`: number of data columns (excluding subtotals)
-  - `valueFieldCount`: number of configured value fields
-
-#### Scenario: Individual setter methods
-- **WHEN** `setRowFields()`, `setColumnFields()`, `setValueFields()`, `setFilterFields()`, or `setSourceData()` is called
-- **THEN** the engine updates the corresponding configuration field
-- **AND** marks the engine as dirty (`_isDirty = true`)
-- **AND** invalidates cached calculation result
-
-#### Scenario: Caching mechanism
-- **WHEN** `getCalculatedData()` is called multiple times without configuration changes
-- **THEN** the engine returns the cached result
-- **AND** does not recalculate
-- **WHEN** any setter method is called
-- **THEN** the engine marks itself as dirty
-- **AND** recalculates on next `getCalculatedData()` call
-
-### Requirement: PivotTableRenderModel for UI Rendering
-
-The system SHALL provide a `PivotTableRenderModel` class that provides business logic for rendering Cross-Tabulation pivot tables.
-
-#### Scenario: Visible row/column calculation with collapse support
-- **WHEN** `PivotTableRenderModel` is instantiated with `IPivotTableCrossTabData`
-- **AND** some row groups or column groups are collapsed
-- **THEN** `getVisibleRowIndices()` returns only visible row indices
-- **AND** `getVisibleColumnIndices()` returns only visible column indices
-- **AND** collapsed group rows/columns are excluded from visible indices
-
-#### Scenario: Cell value retrieval
-- **WHEN** `getCellValue(rowIndex, columnIndex, valueFieldIndex)` is called
-- **THEN** the model returns the value from the 3D values array
-- **AND** handles out-of-bounds indices gracefully
-
-#### Scenario: Row/column information retrieval
-- **WHEN** `getRowInfo(rowIndex)` or `getColumnInfo(columnIndex)` is called
-- **THEN** the model returns an object containing:
-  - Headers array
-  - Type ('data' | 'subtotal')
-  - Visibility status
-  - Group information
-
-#### Scenario: Group collapse/expand operations
-- **WHEN** `toggleRowGroup(groupId)` or `toggleColumnGroup(groupId)` is called
-- **THEN** the model updates the collapse state
-- **AND** subsequent `getVisibleRowIndices()` or `getVisibleColumnIndices()` calls reflect the new state
-- **WHEN** `expandAllRows()` or `collapseAllRows()` is called
-- **THEN** the model updates all row group collapse states accordingly
-
-#### Scenario: Group information for UI controls
-- **WHEN** `getRowGroupInfo(rowIndex)` or `getColumnGroupInfo(columnIndex)` is called
-- **THEN** the model returns information needed for collapse/expand buttons:
-  - Group ID
-  - Level
-  - Whether it has children
-  - Current expanded state
-  - Whether it can be collapsed
+- **AND** the PivotEngine generates subtotal columns for each unique value of that field in the PivotModel.
 
 ### Requirement: Pivot Table Output Protection
 
@@ -196,6 +88,7 @@ Formula integration is implemented using the feature calculation mechanism:
 - **Runtime Data Provision**: Pivot table output is provided to the formula engine as runtime cell data without persisting to the model
 - **Automatic Lifecycle Management**: Features are registered/unregistered when pivot tables are created/deleted
 - **Dynamic Range Updates**: Feature dependency ranges are updated when pivot table configuration changes
+- **RPC Compatibility**: The plugin supports a `notExecuteFormula` configuration option to disable formula integration in the main thread when using Web Workers, allowing the Worker thread to handle formula integration instead
 
 #### Scenario: Simple formula referencing pivot output cell
 - **WHEN** a user creates a formula `=C3` where `C3` is a pivot table output cell
@@ -223,6 +116,7 @@ Formula integration is implemented using the feature calculation mechanism:
 
 #### Scenario: Feature registration on pivot table creation
 - **WHEN** a new pivot table is created via `SheetsPivotTableService.createPivotTable()`
+- **AND** the `notExecuteFormula` configuration is `false` (default)
 - **THEN** `PivotTableFormulaController` automatically registers the pivot table as a feature
 - **AND** executes `SetFeatureCalculationMutation` with appropriate parameters
 - **AND** the feature is available for formula calculations immediately
@@ -260,6 +154,21 @@ Formula integration is implemented using the feature calculation mechanism:
 - **AND** returns data in the expected `IRuntimeUnitDataType` format
 - **AND** does not trigger pivot table recalculation during formula evaluation
 
+#### Scenario: RPC environment with notExecuteFormula enabled
+- **WHEN** the pivot table plugin is configured with `notExecuteFormula: true` in the main thread
+- **AND** the application uses Web Workers for formula calculation
+- **THEN** `PivotTableFormulaController` is NOT initialized in the main thread
+- **AND** no `SetFeatureCalculationMutation` is executed in the main thread
+- **AND** the Worker thread's `PivotTableFormulaController` handles formula integration
+- **AND** no `DataCloneError` occurs during mutation synchronization
+
+#### Scenario: Non-RPC environment with default configuration
+- **WHEN** the pivot table plugin is configured with default settings (`notExecuteFormula: false`)
+- **AND** the application does NOT use Web Workers
+- **THEN** `PivotTableFormulaController` is initialized in the main thread
+- **AND** formula integration works correctly in the main thread
+- **AND** all existing functionality is preserved
+
 ### Requirement: Pivot Table Range Service (RTree Spatial Index)
 
 The system SHALL provide a `PivotTableRangeService` that uses RTree spatial indexing for O(log n) pivot table output range queries to optimize rendering performance.
@@ -288,43 +197,24 @@ The system SHALL provide a `PivotTableRangeService` that uses RTree spatial inde
 - **AND** the query completes in O(log n) time where n is the number of pivot tables
 
 ### Requirement: Pivot Table Style Service (Green Theme)
+The system SHALL provide pivot table cell styling with a green theme.
 
-The system SHALL provide a `PivotTableStyleService` that calculates cell styles for pivot table output using a green color theme.
+#### Scenario: Header cell style with level-based graduation
+- **WHEN** `getCellStyle()` is called for header, rowHeader, or columnHeader cells
+- **THEN** the service uses the dark header green (#2E7D32) at level 0 and progressively lightens the shade by mixing with white (20% per additional level)
+- **AND** applies white text, bold font, and thin green borders.
 
-#### Scenario: Calculate header cell style
-- **WHEN** `getCellStyle()` is called for a header cell (row header or column header)
-- **THEN** the service returns a style with:
-  - Background color: #2E7D32 (Green 800)
-  - Font color: #FFFFFF (White)
-  - Bold: true
-- **AND** the style is suitable for rendering without persistence
+#### Scenario: Data cell zebra striping
+- **WHEN** `getCellStyle()` is called for data cells
+- **THEN** the service alternates row backgrounds (#E8F5E9 for odd rows, #C8E6C9 for even rows) with green borders.
 
-#### Scenario: Calculate data cell style with zebra striping
-- **WHEN** `getCellStyle()` is called for a data cell
-- **THEN** the service returns a style with alternating background colors:
-  - Odd rows: #E8F5E9 (Green 50)
-  - Even rows: #C8E6C9 (Green 100)
-- **AND** provides visual distinction between rows
+#### Scenario: Subtotal style
+- **WHEN** `getCellStyle()` is called for subtotal cells
+- **THEN** the service returns a medium green background (#A5D6A7), bold text, and green borders.
 
-#### Scenario: Calculate subtotal cell style
-- **WHEN** `getCellStyle()` is called for a subtotal cell (row or column subtotal)
-- **THEN** the service returns a style with:
-  - Background color: #A5D6A7 (Green 200)
-  - Bold: true
-- **AND** visually distinguishes subtotals from data cells
-
-#### Scenario: Calculate grand total cell style
-- **WHEN** `getCellStyle()` is called for a grand total cell
-- **THEN** the service returns a style with:
-  - Background color: #81C784 (Green 300)
-  - Bold: true
-- **AND** provides the strongest visual emphasis in the table
-
-#### Scenario: Multi-level header color graduation
-- **WHEN** pivot table has multiple row or column field levels
-- **THEN** `getCellStyle()` returns progressively lighter shades for deeper levels
-- **AND** level 0 uses the darkest shade (#2E7D32)
-- **AND** each subsequent level uses a 10% lighter shade
+#### Scenario: Grand total emphasis
+- **WHEN** `getCellStyle()` is called for grandTotal cells
+- **THEN** the service applies the darkest header background (#2E7D32) with white text, bold font, and green borders for maximum emphasis.
 
 ### Requirement: Pivot Table Output Range Clearing
 
@@ -357,122 +247,138 @@ The system SHALL automatically clear pivot table output ranges before rendering 
 - **AND** the formula returns an empty value (not an error)
 - **AND** formulas referencing cells still in the output range continue to work correctly
 
-### Requirement: Pivot Table Value Position Support
+### Requirement: PivotEngine PivotModel Calculation Engine
+The system SHALL provide a PivotEngine that calculates pivot table results as a PivotModel with axis metadata and values for rendering and formulas.
 
-The system SHALL allow users to control the placement of value fields in a pivot table by switching between row-based and column-based positioning, enabling flexible data analysis layouts.
+#### Scenario: Calculate PivotModel with axis metadata
+- **WHEN** PivotEngine is instantiated with row, column, value, and filter fields plus source data
+- **AND** `getPivotModel()` is called
+- **THEN** the engine returns a PivotModel containing `isEmpty`, `valueFields` (id, name, agg), `rowAxis` and `colAxis` (items with headers/display/type/level/fieldIndex/valueFieldIndex, headerDepth, levelMap, subtotalMap), `values` matrix indexed by `[row][col][valueIndex]`, and `dimensions` (rowCount, colCount, valueFieldCount).
 
-Value position support is implemented in `PivotEngineV2`:
-- **Position Control**: `valuePosition` property controls whether value fields appear as row or column headers
-- **Position Modes**:
-  - `PivotValuePosition.COLUMN`: Value fields appear as column headers (values fill columns)
-  - `PivotValuePosition.ROW`: Value fields appear as row headers (values fill rows)
-- **Dynamic Switching**: `setValuePosition()` method allows runtime switching between positions with automatic recalculation
-- **Structure Adaptation**: Cross-tabulation output structure automatically adapts to position changes
-- **Test Coverage**: Comprehensive test cases validate all position combinations and transitions
+#### Scenario: Subtotals and grand totals without duplication
+- **WHEN** row or column fields have `showSubTotals: true`
+- **THEN** the engine creates subtotal items per field level (labelled with “总计”) and a single grand total at level 0 when the first field has `showSubTotals: true`
+- **AND** subtotal and grand items reuse the correct combo sets so no duplicate subtotal/grand rows or columns are emitted.
 
-#### Scenario: Basic pivot with values in column position
-- **WHEN** a pivot table is created with `valuePosition: COLUMN`
-- **AND** contains row fields, column fields, and value fields
-- **THEN** the output structure has value fields as column headers
-- **AND** values are organized in columns in the data matrix
-- **AND** column count includes space for value field columns
+#### Scenario: Multi-value fields in column orientation
+- **WHEN** multiple value fields are configured
+- **THEN** column axis items carry `valueFieldIndex` to disambiguate per-value columns, and the output matrix renders value headers in column orientation (row-based value positioning is not supported)
+- **AND** `getHeaderRowsCount()` and `getOutputMatrix()` include a value-header row when multiple value fields exist.
 
-#### Scenario: Basic pivot with values in row position
-- **WHEN** a pivot table is created with `valuePosition: ROW`
-- **AND** contains the same row fields, column fields, and value fields as COLUMN position pivot
-- **THEN** the output structure has value fields as row headers
-- **AND** values are organized in rows in the data matrix
-- **AND** row count includes space for value field rows
-- **AND** column structure is simplified without value headers
+#### Scenario: Normalized header rows and placeholders
+- **WHEN** no column fields are configured
+- **THEN** `getOutputMatrix()` emits a single header row containing row field names and value labels
+- **AND** when the model is empty it returns a placeholder matrix for rendering instead of null.
 
-#### Scenario: Switching value position from COLUMN to ROW
-- **WHEN** a pivot table with `valuePosition: COLUMN` exists
-- **AND** `setValuePosition(PivotValuePosition.ROW)` is called
-- **THEN** the engine marks itself as dirty (requires recalculation)
-- **AND** the next call to `getCalculatedData()` recalculates with ROW position
-- **AND** the output structure changes to have values in rows
-- **AND** dimensions correctly reflect the new structure (rows and columns swap)
+#### Scenario: Cached calculation invalidation
+- **WHEN** field setters, `setSourceData`, or `setCalculatedData` are called
+- **THEN** the engine marks itself dirty and recalculates on the next `getPivotModel()` call
+- **AND** repeated calls without configuration changes reuse the cached PivotModel.
 
-#### Scenario: Switching value position from ROW to COLUMN
-- **WHEN** a pivot table with `valuePosition: ROW` exists
-- **AND** `setValuePosition(PivotValuePosition.COLUMN)` is called
-- **THEN** the engine marks itself as dirty
-- **AND** the output recalculates with COLUMN position
-- **AND** values return to column-based organization
-- **AND** render model receives correctly structured data
+### Requirement: Pivot Engine Rendering Helpers
+The system SHALL expose rendering helpers on PivotEngine for UI and styling without relying on a separate render model.
 
-#### Scenario: No change when setting same position
-- **WHEN** a pivot table already has `valuePosition: COLUMN`
-- **AND** `setValuePosition(PivotValuePosition.COLUMN)` is called
-- **THEN** the position property is updated to the same value
-- **AND** no unnecessary recalculation is triggered (engine may optimize this)
-- **AND** existing calculated data remains valid
+#### Scenario: Row/column info lookup
+- **WHEN** `getRowInfo()` or `getColumnInfo()` is called with an index
+- **THEN** the engine returns normalized headers for the axis depth, the axis item type (`data` | `subtotal` | `grand`), its level, and fieldIndex based on the PivotModel axis items
+- **AND** out-of-bounds indices return an empty headers array with type `data`.
 
-#### Scenario: Multiple value fields with ROW position
-- **WHEN** a pivot table has multiple value fields (e.g., Sum, Count, Average)
-- **AND** `valuePosition: ROW` is set
-- **THEN** each value field appears as a distinct row in the output
-- **AND** aggregated values for each field are in separate rows
-- **AND** row headers show the appropriate value field labels
+#### Scenario: Cell typing for styling
+- **WHEN** `determineCellType(rowIndex, columnIndex)` is called for an output-matrix coordinate
+- **THEN** the engine classifies the cell as `header`, `rowHeader`, `columnHeader`, `data`, `subtotal`, or `grandTotal`
+- **AND** returns the hierarchy level derived from axis metadata and header depths (including optional value-header rows when multiple value fields exist)
+- **AND** subtotal level is derived from the corresponding row/column subtotal items.
 
-#### Scenario: Multiple value fields with COLUMN position
-- **WHEN** a pivot table has multiple value fields
-- **AND** `valuePosition: COLUMN` is set
-- **THEN** each value field appears as a distinct column
-- **AND** column headers show the appropriate value field labels
-- **AND** values are laid out with one column per value field
+### Requirement: Pivot Output Capacity Management
+The system SHALL ensure worksheets have sufficient rows and columns for pivot output ranges.
 
-#### Scenario: Row-only pivot with valuePosition ROW
-- **WHEN** a pivot contains only row fields and value fields (no column fields)
-- **AND** `valuePosition: ROW` is set
-- **THEN** the output still functions correctly
-- **AND** values appear in the single available position
-- **AND** structure is 1D with row organization
+#### Scenario: Insert rows/cols when output exceeds sheet
+- **WHEN** a pivot table output range in absolute coordinates exceeds the current worksheet row or column count
+- **THEN** `PivotTableRangeService` executes `InsertRowMutation` or `InsertColMutation` with `onlyLocal: true` to expand the sheet before registering the range
+- **AND** the updated range is then registered in the spatial index
+- **AND** inserted rows/columns keep other users synchronized via the shared mutation stream.
 
-#### Scenario: Row-only pivot with valuePosition COLUMN
-- **WHEN** a pivot contains only row fields and value fields (no column fields)
-- **AND** `valuePosition: COLUMN` is set
-- **THEN** the output still functions correctly
-- **AND** values are aggregated into a single column
-- **AND** structure is valid despite limited dimensionality
+### Requirement: Field-level subtotal semantics
+The first row/column field `showSubTotals` flag SHALL represent the table’s grand total toggles, while subsequent fields’ `showSubTotals` flags continue to represent their own subtotals (no separate grand total flags).
 
-#### Scenario: Column-only pivot with valuePosition ROW
-- **WHEN** a pivot contains only column fields and value fields (no row fields)
-- **AND** `valuePosition: ROW` is set
-- **THEN** the output functions correctly
-- **AND** values are aggregated into a single row
-- **AND** structure shows all column variations in columns
+#### Scenario: First row field controls row grand total
+- **WHEN** the first row field has `showSubTotals: true`
+- **THEN** `PivotEngineV2` generates row grand total rows
+- **AND** setting that flag to `false` removes row grand totals but keeps lower-level subtotals according to later row fields
 
-#### Scenario: Column-only pivot with valuePosition COLUMN
-- **WHEN** a pivot contains only column fields and value fields (no row fields)
-- **AND** `valuePosition: COLUMN` is set
-- **THEN** the output has value fields as column headers
-- **AND** each value field creates additional columns
-- **AND** structure reflects both column fields and value fields in columns
+#### Scenario: First column field controls column grand total
+- **WHEN** the first column field has `showSubTotals: true`
+- **THEN** `PivotEngineV2` generates column grand total columns
+- **AND** setting that flag to `false` removes column grand totals but keeps lower-level subtotals according to later column fields
 
-#### Scenario: Empty pivot with valuePosition changes
-- **WHEN** a pivot table with no source data exists
-- **AND** `valuePosition` is changed
-- **THEN** the empty result is returned consistently
-- **AND** no errors occur during position change
-- **AND** `isEmpty` flag is true in both positions
+#### Scenario: Subsequent fields keep subtotal behavior
+- **WHEN** row or column fields after the first have `showSubTotals: true`
+- **THEN** `PivotEngineV2` generates subtotals for those fields without affecting grand totals
 
-#### Scenario: Dimension tracking with position changes
-- **WHEN** a pivot's `valuePosition` is changed
-- **THEN** `dimensions.totalRows` and `dimensions.totalColumns` are correctly updated
-- **AND** `dimensions.dataRowCount` and `dimensions.dataColumnCount` reflect new structure
-- **AND** `dimensions.valueFieldCount` remains unchanged
-- **AND** dimensions accurately describe the output structure
+#### Scenario: Multi-level row subtotals mapping example
+- **GIVEN** three row fields `[Region, Category, Quarter]`
+- **WHEN** `Region.showSubTotals = true`
+- **THEN** the engine outputs grand total rows for the whole table
+- **WHEN** `Category.showSubTotals = true`
+- **THEN** the engine outputs subtotals for each Category within its Region
+- **WHEN** `Quarter.showSubTotals = true`
+- **THEN** the engine outputs subtotals for each Quarter within its Region + Category grouping (does not create another grand total)
 
-#### Scenario: Subtotals with different value positions
-- **WHEN** a pivot with `showSubTotals: true` has its `valuePosition` changed
-- **THEN** subtotal rows/columns are positioned correctly for the new layout
-- **AND** subtotal labels appear in the appropriate dimension
-- **AND** subtotal values are correctly calculated and placed
+### Requirement: Column grand total per value field
+Column grand totals SHALL output one grand total column per value field (mirroring Google Sheets behavior) instead of sharing a single grand total column across all value fields.
 
-#### Scenario: Filtering with value position changes
-- **WHEN** a pivot with filter fields changes its `valuePosition`
-- **THEN** filters continue to apply correctly
-- **AND** filtered data is still aggregated properly
-- **AND** output reflects both filtering and position changes
+#### Scenario: Append grand total columns per value field
+- **WHEN** column grand totals are enabled and multiple value fields exist
+- **THEN** the structure includes one additional column per value field at the end of the column axis
+- **AND** column headers/metadata align each grand total column with its corresponding value field
+- **AND** dimensions and value arrays reflect the expanded column count
+
+### Requirement: RPC-Compatible Plugin Configuration
+
+The system SHALL provide a `notExecuteFormula` configuration option that allows users to disable formula integration in the main thread when using Web Workers, following the same pattern as `@univerjs/sheets-formula`.
+
+#### Scenario: Configure plugin for RPC environment
+- **WHEN** a user registers the pivot table plugin with `{ notExecuteFormula: true }`
+- **THEN** the plugin stores this configuration
+- **AND** skips `PivotTableFormulaController` initialization
+- **AND** allows the Worker thread to handle formula integration
+
+#### Scenario: Configure plugin for non-RPC environment
+- **WHEN** a user registers the pivot table plugin without configuration or with `{ notExecuteFormula: false }`
+- **THEN** the plugin uses default configuration
+- **AND** initializes `PivotTableFormulaController` normally
+- **AND** formula integration works in the main thread
+
+#### Scenario: Default configuration preserves backward compatibility
+- **WHEN** existing code registers the pivot table plugin without any configuration changes
+- **THEN** the plugin behaves exactly as before the change
+- **AND** no breaking changes occur for non-RPC deployments
+
+### Requirement: Calculated Data Sync via Mutation
+
+The system SHALL provide a `SetPivotTableCalculatedDataMutation` that syncs calculated pivot table data from Worker thread to Main thread in RPC environments.
+
+#### Scenario: Worker calculates and syncs data to Main thread
+- **WHEN** Worker thread calculates pivot table data
+- **AND** the `calculatedData$` observable emits new data
+- **THEN** `PivotTableFormulaController` executes `SetPivotTableCalculatedDataMutation`
+- **AND** the mutation is synced to Main thread via `DataSyncReplicaController`
+- **AND** Main thread's `SheetsPivotDataSourceModel.setCalculatedData()` receives the data
+- **AND** the pivot table renders correctly on Main thread
+
+#### Scenario: Main thread skips auto-calculation in RPC environment
+- **WHEN** the pivot table plugin is configured with `notExecuteFormula: true`
+- **AND** a new pivot table is created via `AddPivotTableMutation`
+- **THEN** the PivotTable instance is created with `skipAutoCalculation: true`
+- **AND** the `_initCalculatedDataListener` is NOT initialized
+- **AND** no automatic calculation occurs on Main thread
+- **AND** calculated data is received via `SetPivotTableCalculatedDataMutation` from Worker
+
+#### Scenario: Single-threaded environment works normally
+- **WHEN** the pivot table plugin is configured with `notExecuteFormula: false` (default)
+- **AND** a new pivot table is created
+- **THEN** the PivotTable instance is created with `skipAutoCalculation: false`
+- **AND** the `_initCalculatedDataListener` IS initialized
+- **AND** calculation occurs automatically when fields or source data change
+- **AND** no mutation is needed for data sync (single-threaded)
 
