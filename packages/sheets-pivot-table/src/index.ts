@@ -52,8 +52,8 @@ export { type IPivotTableOptions, PivotTable } from './models/pivot-table';
 // Plugin
 export { UniverSheetsPivotTablePlugin } from './plugin';
 // Services
-export { type IPivotTableRangeService } from './services/pivot-table-range.service';
-export { type ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN } from './services/pivot-table.service';
+export { IPivotTableRangeService } from './services/pivot-table-range.service';
+export { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN } from './services/pivot-table.service';
 
 export { AggregationType, PivotFieldAreaType, PivotSortOrder } from './types/enum';
 
