@@ -70,7 +70,8 @@
         "@univerjs/thread-comment-ui": "workspace:*",
         "@univerjs/ui": "workspace:*",
         "@univerjs/uni-formula-ui": "workspace:*",
-        "@univerjs/uniscript": "workspace:*"
+        "@univerjs/uniscript": "workspace:*",
+        "@univerjs/sheets-pivot-table-ui": "workspace:*"
     },
     "devDependencies": {
         "@univerjs-infra/shared": "workspace:*",

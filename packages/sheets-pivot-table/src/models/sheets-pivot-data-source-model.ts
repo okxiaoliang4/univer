@@ -1,0 +1,411 @@
+/**
+ * Copyright 2023-present DreamNum Co., Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { IRange } from '@univerjs/core';
+import type { IUniverSheetsPivotTableConfig } from '../controllers/config.schema';
+import type { IFieldsConfig, IPivotModel, IPivotTableConfig, IPivotTableFieldsConfigChangedEvent, IPivotTableRangeChangedEvent, IPivotTableResource, IPivotTableSourceRangeChangedEvent, IPivotTableTargetCellChangedEvent, ISourceRangeInfo, ITargetCellInfo } from '../types/type';
+import { Disposable, ICommandService, IConfigService, IUniverInstanceService, Rectangle, toDisposable } from '@univerjs/core';
+import { Subject } from 'rxjs';
+import { SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY } from '../controllers/config.schema';
+import { PivotTable } from './pivot-table';
+
+/**
+ * Simplified data source model for pivot tables (MVP version)
+ * Manages pivot table instances and their lifecycle
+ */
+export class SheetsPivotDataSourceModel extends Disposable {
+    private _pivotTableMap: Map<string, Map<string, Map<string, PivotTable>>> = new Map();
+
+    private _pivotTableAdded$ = new Subject<{ unitId: string; subUnitId: string; pivotTableId: string }>();
+    public readonly pivotTableAdded$ = this._pivotTableAdded$.asObservable();
+
+    private _pivotTableRemoved$ = new Subject<{ unitId: string; subUnitId: string; pivotTableId: string }>();
+    public readonly pivotTableRemoved$ = this._pivotTableRemoved$.asObservable();
+
+    private _tableRangeChanged$ = new Subject<IPivotTableRangeChangedEvent>();
+    public readonly tableRangeChanged$ = this._tableRangeChanged$.asObservable();
+
+    private _sourceRangeChanged$ = new Subject<IPivotTableSourceRangeChangedEvent>();
+    public readonly sourceRangeChanged$ = this._sourceRangeChanged$.asObservable();
+
+    private _targetCellChanged$ = new Subject<IPivotTableTargetCellChangedEvent>();
+    public readonly targetCellChanged$ = this._targetCellChanged$.asObservable();
+
+    private _fieldsConfigChanged$ = new Subject<IPivotTableFieldsConfigChangedEvent>();
+    public readonly fieldsConfigChanged$ = this._fieldsConfigChanged$.asObservable();
+
+    constructor(
+        @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
+        @ICommandService private readonly _commandService: ICommandService,
+        @IConfigService private readonly _configService: IConfigService
+    ) {
+        super();
+
+        this.disposeWithMe(
+            toDisposable(() => {
+                this._pivotTableMap.clear();
+            })
+        );
+    }
+
+    /**
+     * Check if auto-calculation should be skipped (RPC environment)
+     */
+    private _shouldSkipAutoCalculation(): boolean {
+        const config = this._configService.getConfig<IUniverSheetsPivotTableConfig>(SHEETS_PIVOT_TABLE_PLUGIN_CONFIG_KEY);
+        return config?.notExecuteFormula ?? false;
+    }
+
+    /**
+     * Add a pivot table
+     */
+    addPivotTable(
+        unitId: string,
+        subUnitId: string,
+        pivotTableId: string,
+        pivotTable: PivotTable
+    ): void {
+        this._ensureMaps(unitId, subUnitId);
+
+        this._pivotTableMap.get(unitId)?.get(subUnitId)?.set(pivotTableId, pivotTable);
+
+        this._pivotTableAdded$.next({ unitId, subUnitId, pivotTableId });
+    }
+
+    /**
+     * Remove a pivot table
+     */
+    removePivotTable(unitId: string, subUnitId: string, pivotTableId: string): void {
+        const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
+        if (pivotTable) {
+            pivotTable.dispose();
+        }
+
+        this._pivotTableMap.get(unitId)?.get(subUnitId)?.delete(pivotTableId);
+
+        this._pivotTableRemoved$.next({ unitId, subUnitId, pivotTableId });
+    }
+
+    /**
+     * Get pivot table instance
+     */
+    getPivotTableInstance(unitId: string, subUnitId: string, pivotTableId: string): PivotTable | undefined {
+        return this._pivotTableMap.get(unitId)?.get(subUnitId)?.get(pivotTableId);
+    }
+
+    /**
+     * Get pivot table config
+     */
+    getPivotTableConfig(unitId: string, subUnitId: string, pivotTableId: string): IPivotTableConfig | undefined {
+        return this._pivotTableMap.get(unitId)?.get(subUnitId)?.get(pivotTableId)?.toJSON();
+    }
+
+    /**
+     * Set source range info for a pivot table
+     */
+    setSourceRangeInfo(
+        unitId: string,
+        subUnitId: string,
+        pivotTableId: string,
+        sourceRangeInfo: ISourceRangeInfo
+    ): void {
+        const oldConfig = this.getPivotTableConfig(unitId, subUnitId, pivotTableId);
+        if (!oldConfig) {
+            throw new Error(`Pivot table ${pivotTableId} not found`);
+        }
+
+        const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
+        if (!pivotTable) {
+            return;
+        }
+
+        // Check if actually changed
+        const changed = (
+            oldConfig.sourceRangeInfo.range.startRow !== sourceRangeInfo.range.startRow ||
+            oldConfig.sourceRangeInfo.range.startColumn !== sourceRangeInfo.range.startColumn ||
+            oldConfig.sourceRangeInfo.range.endRow !== sourceRangeInfo.range.endRow ||
+            oldConfig.sourceRangeInfo.range.endColumn !== sourceRangeInfo.range.endColumn ||
+            oldConfig.sourceRangeInfo.unitId !== sourceRangeInfo.unitId ||
+            oldConfig.sourceRangeInfo.subUnitId !== sourceRangeInfo.subUnitId
+        );
+
+        if (!changed) {
+            return;
+        }
+
+        // Update pivot table instance
+        pivotTable.setSourceRangeInfo(sourceRangeInfo);
+
+        // Emit events
+        this._sourceRangeChanged$.next({
+            unitId,
+            subUnitId,
+            tableId: pivotTableId,
+            sourceRangeInfo,
+            oldSourceRangeInfo: oldConfig.sourceRangeInfo,
+        });
+
+        // Emit range change event (output range may have changed)
+        const outputRange = pivotTable.getOutputRange();
+        if (outputRange) {
+            this._tableRangeChanged$.next({
+                unitId,
+                subUnitId,
+                tableId: pivotTableId,
+                range: outputRange,
+            });
+        }
+    }
+
+    /**
+     * Set target cell info for a pivot table
+     */
+    setTargetCellInfo(
+        unitId: string,
+        subUnitId: string,
+        pivotTableId: string,
+        targetCellInfo: ITargetCellInfo
+    ): void {
+        const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
+        if (!pivotTable) {
+            return;
+        }
+
+        // Update pivot table instance
+        pivotTable.setTargetCellInfo(targetCellInfo);
+
+        // Emit events
+        this._targetCellChanged$.next({
+            unitId,
+            subUnitId,
+            tableId: pivotTableId,
+            targetCellInfo,
+        });
+
+        // Emit range change event (output range position changed)
+        const outputRange = pivotTable.getOutputRange();
+        if (outputRange) {
+            this._tableRangeChanged$.next({
+                unitId,
+                subUnitId,
+                tableId: pivotTableId,
+                range: outputRange,
+            });
+        }
+    }
+
+    /**
+     * Set fields config for a pivot table
+     */
+    setFieldsConfig(
+        unitId: string,
+        subUnitId: string,
+        pivotTableId: string,
+        fieldsConfig: IFieldsConfig
+    ): void {
+        const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
+        if (!pivotTable) {
+            return;
+        }
+
+        // Update pivot table instance
+        pivotTable.setValueFields(fieldsConfig.valueFields);
+        pivotTable.setRowFields(fieldsConfig.rowFields);
+        pivotTable.setColumnFields(fieldsConfig.columnFields);
+        pivotTable.setFilterFields(fieldsConfig.filterFields);
+
+        // Emit event
+        this._fieldsConfigChanged$.next({
+            unitId,
+            subUnitId,
+            tableId: pivotTableId,
+            fieldsConfig,
+        });
+    }
+
+    /**
+     * Notify that a pivot table's output range has changed
+     * Should be called after calculation completes
+     */
+    notifyRangeChanged(unitId: string, subUnitId: string, pivotTableId: string): void {
+        const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
+        if (pivotTable) {
+            const outputRange = pivotTable.getOutputRange();
+            if (outputRange) {
+                this._tableRangeChanged$.next({
+                    unitId,
+                    subUnitId,
+                    tableId: pivotTableId,
+                    range: outputRange,
+                });
+            }
+        }
+    }
+
+    /**
+     * Set calculated data for a pivot table
+     * Used in RPC environment to sync calculated data from Worker to Main thread
+     */
+    setCalculatedData(
+        unitId: string,
+        subUnitId: string,
+        pivotTableId: string,
+        pivotModel: IPivotModel
+    ): void {
+        const pivotTable = this.getPivotTableInstance(unitId, subUnitId, pivotTableId);
+        if (pivotTable) {
+            pivotTable.setCalculatedData(pivotModel);
+
+            // Emit range change event (output range may have changed)
+            const outputRange = pivotTable.getOutputRange();
+            if (outputRange) {
+                this._tableRangeChanged$.next({
+                    unitId,
+                    subUnitId,
+                    tableId: pivotTableId,
+                    range: outputRange,
+                });
+            }
+        }
+    }
+
+    /**
+     * Get all pivot tables in a subunit
+     */
+    getSubUnitPivotTables(unitId: string, subUnitId: string): Map<string, PivotTable> | undefined {
+        return this._pivotTableMap.get(unitId)?.get(subUnitId);
+    }
+
+    /**
+     * Get pivot table by target range
+     */
+    getPivotTableByTargetRange(unitId: string, subUnitId: string, targetRange: IRange): PivotTable | undefined {
+        const pivotTables = this.getSubUnitPivotTables(unitId, subUnitId);
+        if (!pivotTables) {
+            return undefined;
+        }
+
+        return Array.from(pivotTables.values()).find((pivotTable) => {
+            const outputRange = pivotTable.getAbsoluteOutputRange();
+            if (!outputRange) {
+                return false;
+            }
+            return Rectangle.intersects(outputRange, targetRange);
+        });
+    }
+
+    /**
+     * Delete all pivot tables for a unit
+     */
+    deleteUnitId(unitId: string): void {
+        const unitMap = this._pivotTableMap.get(unitId);
+        if (unitMap) {
+            unitMap.forEach((subUnitMap) => {
+                subUnitMap.forEach((pivotTable) => {
+                    pivotTable.dispose();
+                });
+            });
+        }
+
+        this._pivotTableMap.delete(unitId);
+    }
+
+    /**
+     * Serialize to JSON
+     */
+    toJSON(unitId: string): IPivotTableResource {
+        const result: IPivotTableResource = {
+            pivotTableConfigs: {},
+            pivotData: {},
+        };
+
+        const unitConfigMap = this._pivotTableMap.get(unitId);
+        if (!unitConfigMap) {
+            return result;
+        }
+
+        const unitResult: Record<string, Record<string, IPivotTableConfig>> = {};
+        const pivotData: Record<string, Record<string, IPivotModel>> = {};
+
+        unitConfigMap.forEach((subUnitMap, subUnitId) => {
+            const subUnitResult: Record<string, IPivotTableConfig> = {};
+            const subUnitPivotData: Record<string, IPivotModel> = {};
+
+            subUnitMap.forEach((pivotTable, pivotTableId) => {
+                subUnitResult[pivotTableId] = pivotTable.toJSON();
+                const calculatedData = pivotTable.getEngine().getPivotModel();
+                if (calculatedData) {
+                    subUnitPivotData[pivotTableId] = calculatedData;
+                }
+            });
+            pivotData[subUnitId] = subUnitPivotData;
+            unitResult[subUnitId] = subUnitResult;
+        });
+
+        result.pivotTableConfigs[unitId] = unitResult;
+        result.pivotData[unitId] = pivotData;
+        return result;
+    }
+
+    /**
+     * Deserialize from JSON
+     */
+    fromJSON(data: IPivotTableResource): void {
+        const pivotConfigs = data.pivotTableConfigs || {};
+        const pivotData = data.pivotData || {};
+        const skipAutoCalculation = this._shouldSkipAutoCalculation();
+
+        Object.keys(pivotConfigs).forEach((unitId) => {
+            const unitData = pivotConfigs[unitId];
+
+            Object.keys(unitData).forEach((subUnitId) => {
+                const subUnitData = unitData[subUnitId];
+
+                Object.keys(subUnitData).forEach((pivotTableId) => {
+                    const config = subUnitData[pivotTableId];
+                    const calculatedData = pivotData[unitId]?.[subUnitId]?.[pivotTableId];
+
+                    // Create PivotTable instance with skipAutoCalculation option
+                    // In RPC environment (notExecuteFormula: true), main thread skips auto-calculation
+                    // and receives calculated data from Worker via mutation
+                    const pivotTable = new PivotTable(
+                        pivotTableId,
+                        `Pivot_${pivotTableId}`,
+                        config.sourceRangeInfo,
+                        config.targetCellInfo,
+                        config.fieldsConfig,
+                        { skipAutoCalculation }
+                    );
+
+                    if (calculatedData) {
+                        pivotTable.setCalculatedData(calculatedData);
+                    }
+
+                    this.addPivotTable(unitId, subUnitId, pivotTableId, pivotTable);
+                });
+            });
+        });
+    }
+
+    private _ensureMaps(unitId: string, subUnitId: string): void {
+        if (!this._pivotTableMap.has(unitId)) {
+            this._pivotTableMap.set(unitId, new Map());
+        }
+        if (!this._pivotTableMap.get(unitId)!.has(subUnitId)) {
+            this._pivotTableMap.get(unitId)!.set(subUnitId, new Map());
+        }
+    }
+}

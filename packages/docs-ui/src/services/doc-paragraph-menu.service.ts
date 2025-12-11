@@ -20,7 +20,7 @@ import type { IMutiPageParagraphBound } from './doc-event-manager.service';
 import { Disposable, Inject, isInternalEditorID } from '@univerjs/core';
 import { DocSelectionManagerService, DocSkeletonManagerService } from '@univerjs/docs';
 import { DocumentEditArea } from '@univerjs/engine-render';
-import { combineLatest, first, throttleTime } from 'rxjs';
+import { combineLatest, take, throttleTime } from 'rxjs';
 import { VIEWPORT_KEY } from '../basics/docs-view-key';
 import { DocEventManagerService } from './doc-event-manager.service';
 import { DocCanvasPopManagerService } from './doc-popup-manager.service';
@@ -154,7 +154,7 @@ export class DocParagraphMenuService extends Disposable implements IRenderModule
                 componentKey: 'doc.paragraph.menu',
                 direction: 'left-center',
                 onClickOutside: () => {
-                    this._docSelectionManagerService.textSelection$.pipe(first()).subscribe(() => {
+                    this._docSelectionManagerService.textSelection$.pipe(take(1)).subscribe(() => {
                         if (!this._isCursorInActiveParagraph()) {
                             this.hideParagraphMenu(true);
                         }

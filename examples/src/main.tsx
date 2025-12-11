@@ -59,6 +59,9 @@ function Examples() {
         title: '🗂️ Sheets With Webcomponent',
         href: './sheets-webcomponent/',
     }, {
+        title: '🗂️ Sheets Pivot Table',
+        href: './sheets-pivot-table/',
+    }, {
         title: '🏡 Sheets Multi Units',
         href: './sheets-multi-units/',
     }, {

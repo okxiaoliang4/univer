@@ -21,26 +21,26 @@ import { OpenNumfmtPanelOperator } from '../commands/operations/open.numfmt.pane
 import { AddDecimalMenuItem, CurrencySymbolIconMenuItem, FactoryOtherMenuItem, PercentMenuItem, SubtractDecimalMenuItem } from './menu';
 
 export const menuSchema: MenuSchemaType = {
-    [RibbonStartGroup.LAYOUT]: {
-        [OpenNumfmtPanelOperator.id]: {
-            order: 9,
-            menuItemFactory: FactoryOtherMenuItem,
-        },
-        [SetPercentCommand.id]: {
-            order: 9.1,
-            menuItemFactory: PercentMenuItem,
-        },
+    [RibbonStartGroup.FORMAT]: {
         [SetCurrencyCommand.id]: {
-            order: 9.2,
+            order: 0,
             menuItemFactory: CurrencySymbolIconMenuItem,
         },
-        [AddDecimalCommand.id]: {
-            order: 9.3,
-            menuItemFactory: AddDecimalMenuItem,
+        [SetPercentCommand.id]: {
+            order: 1,
+            menuItemFactory: PercentMenuItem,
         },
         [SubtractDecimalCommand.id]: {
-            order: 9.4,
+            order: 2,
             menuItemFactory: SubtractDecimalMenuItem,
+        },
+        [AddDecimalCommand.id]: {
+            order: 3,
+            menuItemFactory: AddDecimalMenuItem,
+        },
+        [OpenNumfmtPanelOperator.id]: {
+            order: 4,
+            menuItemFactory: FactoryOtherMenuItem,
         },
     },
 };
