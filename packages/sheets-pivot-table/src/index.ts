@@ -17,11 +17,11 @@
 // Commands
 export {
     CreatePivotTableCommand,
-    RemovePivotTableCommand as DeletePivotTableCommand,
     type ICreatePivotTableCommandParams,
     type IRemovePivotTableCommandParams,
     type ISetPivotTableSourceRangeCommandParams,
     type IUpdatePivotTableFieldsCommandParams,
+    RemovePivotTableCommand,
     SetPivotTableSourceRangeCommand,
     UpdatePivotTableFieldsCommand,
 } from './commands/commands/pivot-table.command';
@@ -46,25 +46,16 @@ export {
 export type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
 
 // Models
-export type { PivotCellType } from './models/pivot-engine';
+export { type PivotCellType, PivotEngineV3 } from './models/pivot-engine';
 export { type IPivotTableOptions, PivotTable } from './models/pivot-table';
 
 // Plugin
 export { UniverSheetsPivotTablePlugin } from './plugin';
 // Services
-export { IPivotTableRangeService } from './services/pivot-table-range.service';
+export { type IPivotTableRangeService } from './services/pivot-table-range.service';
+export { type ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN } from './services/pivot-table.service';
 
-export { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN as SHEET_PIVOT_TABLE_SNAPSHOT_ID } from './services/pivot-table.service';
 export { AggregationType, PivotFieldAreaType, PivotSortOrder } from './types/enum';
 
 // Types
-export type {
-    IFieldsConfig,
-    IPivotField,
-    IPivotFilterCriteria,
-    IPivotTableConfig,
-    IPivotTableResource,
-    ISourceFields,
-    ISourceRangeInfo,
-    ITargetCellInfo,
-} from './types/type';
+export * from './types/type';

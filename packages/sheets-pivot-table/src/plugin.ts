@@ -15,9 +15,7 @@
  */
 
 import type { Dependency } from '@univerjs/core';
-import type { IAddPivotTableMutationParams, IRemovePivotTableMutationParams, ISetPivotTableCalculatedDataMutationParams, ISetPivotTableFieldsConfigMutationParams, ISetPivotTableSourceRangeMutationParams, ISetPivotTableTargetCellMutationParams } from './commands/mutations/pivot-table.mutation';
 import type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
-import type { IPivotTableResource } from './types/type';
 import { ICommandService, IConfigService, Inject, Injector, merge, Optional, Plugin, touchDependencies, UniverInstanceType } from '@univerjs/core';
 import { DataSyncPrimaryController } from '@univerjs/rpc';
 import { CreatePivotTableCommand, RemovePivotTableCommand, SetPivotTableSourceRangeCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
@@ -125,25 +123,3 @@ export class UniverSheetsPivotTablePlugin extends Plugin {
         ]);
     }
 }
-
-// Export mutations and their types for collaboration plugin
-export {
-    AddPivotTableMutation,
-    RemovePivotTableMutation,
-    SetPivotTableCalculatedDataMutation,
-    SetPivotTableFieldsConfigMutation,
-    SetPivotTableSourceRangeMutation,
-    SetPivotTableTargetCellMutation,
-};
-
-export type {
-    IAddPivotTableMutationParams,
-    IRemovePivotTableMutationParams,
-    ISetPivotTableCalculatedDataMutationParams,
-    ISetPivotTableFieldsConfigMutationParams,
-    ISetPivotTableSourceRangeMutationParams,
-    ISetPivotTableTargetCellMutationParams,
-};
-
-// Export resource types for collaboration plugin
-export type { IPivotTableResource };
