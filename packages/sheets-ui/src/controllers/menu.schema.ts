@@ -200,31 +200,31 @@ export const menuSchema: MenuSchemaType = {
                 menuItemFactory: FontSizeSelectorMenuItemFactory,
             },
             [SetRangeFontIncreaseCommand.id]: {
-                order: 2.1,
+                order: 7,
                 menuItemFactory: FontSizeIncreaseMenuItemFactory,
             },
             [SetRangeFontDecreaseCommand.id]: {
-                order: 2.2,
+                order: 8,
                 menuItemFactory: FontSizeDecreaseMenuItemFactory,
             },
             [SetRangeBoldCommand.id]: {
-                order: 7,
+                order: 9,
                 menuItemFactory: BoldMenuItemFactory,
             },
             [SetRangeItalicCommand.id]: {
-                order: 8,
+                order: 10,
                 menuItemFactory: ItalicMenuItemFactory,
             },
             [SetRangeUnderlineCommand.id]: {
-                order: 9,
+                order: 11,
                 menuItemFactory: UnderlineMenuItemFactory,
             },
             [SetRangeStrickThroughCommand.id]: {
-                order: 10,
+                order: 12,
                 menuItemFactory: StrikeThroughMenuItemFactory,
             },
             [SetRangeTextColorCommand.id]: {
-                order: 11,
+                order: 13,
                 menuItemFactory: TextColorSelectorMenuItemFactory,
                 [ResetTextColorCommand.id]: {
                     order: 0,
@@ -232,7 +232,7 @@ export const menuSchema: MenuSchemaType = {
                 },
             },
             [SetBackgroundColorCommand.id]: {
-                order: 12,
+                order: 14,
                 menuItemFactory: BackgroundColorSelectorMenuItemFactory,
                 [ResetBackgroundColorCommand.id]: {
                     order: 0,
@@ -240,11 +240,11 @@ export const menuSchema: MenuSchemaType = {
                 },
             },
             [SetBorderBasicCommand.id]: {
-                order: 13,
+                order: 15,
                 menuItemFactory: CellBorderSelectorMenuItemFactory,
             },
             [AddWorksheetMergeCommand.id]: {
-                order: 14,
+                order: 16,
                 menuItemFactory: CellMergeMenuItemFactory,
                 [AddWorksheetMergeAllCommand.id]: {
                     order: 0,
