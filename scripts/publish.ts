@@ -24,6 +24,7 @@ for await (const pkgGlob of [
     'packages/sheets-ui',
     'packages/sheets-numfmt-ui',
     'packages/sheets-formula',
+    'packages/sheets-formula-ui',
     'packages/sheets-table',
     'packages/sheets-pivot-table',
     'packages/sheets-pivot-table-ui',
