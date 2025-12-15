@@ -435,7 +435,7 @@ export interface IBeforeSheetCreateEventParams extends IEventBase {
     /** Optional index where the new sheet will be inserted */
     index?: number;
     /** Optional initial worksheet data */
-    sheet?: IWorksheetData;
+    sheet?: Partial<IWorksheetData>;
 }
 
 /**

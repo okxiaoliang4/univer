@@ -91,10 +91,7 @@ export const FieldRender = forwardRef<HTMLDivElement, IFieldRenderProps>((props,
                     {showCheckbox && (
                         <Checkbox
                             checked={checkboxChecked ?? false}
-                            onChange={handleCheckboxChange}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                            }}
+                            onChange={(value) => handleCheckboxChange(value as boolean)}
                         />
                     )}
                     <SequenceIcon className="univer-cursor-move" {...listeners} />
