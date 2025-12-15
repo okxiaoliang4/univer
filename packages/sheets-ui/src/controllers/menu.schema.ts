@@ -52,7 +52,7 @@ import {
 import { ContextMenuGroup, ContextMenuPosition, RibbonPosition, RibbonStartGroup } from '@univerjs/ui';
 import {
     SheetCopyCommand,
-    // SheetCutCommand,
+    SheetCutCommand,
     SheetPasteBesidesBorderCommand,
     SheetPasteColWidthCommand,
     SheetPasteCommand,
@@ -117,8 +117,10 @@ import {
     BoldMenuItemFactory,
     CancelFrozenMenuItemFactory,
     ColAutoWidthMenuItemFactory,
+    COPY_SPECIAL_MENU_ID,
     CopyMenuItemFactory,
-    // CutMenuItemFactory,
+    CopySpacialMenuItemFactory,
+    CutMenuItemFactory,
     FitContentMenuItemFactory,
     FontFamilySelectorMenuItemFactory,
     FormatPainterMenuItemFactory,
@@ -132,7 +134,6 @@ import {
     PASTE_SPECIAL_MENU_ID,
     PasteBesidesBorderMenuItemFactory,
     PasteColWidthMenuItemFactory,
-    // PasteColWidthMenuItemFactory,
     PasteFormatMenuItemFactory,
     PasteMenuItemFactory,
     PasteSpacialMenuItemFactory,
@@ -294,13 +295,17 @@ export const menuSchema: MenuSchemaType = {
                 order: 0,
                 menuItemFactory: CopyMenuItemFactory,
             },
-            // [SheetCutCommand.name]: {
-            //     order: 1,
-            //     menuItemFactory: CutMenuItemFactory,
-            // },
+            [SheetCutCommand.name]: {
+                order: 1,
+                menuItemFactory: CutMenuItemFactory,
+            },
             [SheetPasteCommand.name]: {
                 order: 2,
                 menuItemFactory: PasteMenuItemFactory,
+            },
+            [COPY_SPECIAL_MENU_ID]: {
+                order: 2.5,
+                menuItemFactory: CopySpacialMenuItemFactory,
             },
             [PASTE_SPECIAL_MENU_ID]: {
                 order: 3,
@@ -435,13 +440,17 @@ export const menuSchema: MenuSchemaType = {
                 order: 0,
                 menuItemFactory: CopyMenuItemFactory,
             },
-            // [SheetCutCommand.name]: {
-            //     order: 1,
-            //     menuItemFactory: CutMenuItemFactory,
-            // },
+            [SheetCutCommand.name]: {
+                order: 1,
+                menuItemFactory: CutMenuItemFactory,
+            },
             [SheetPasteCommand.name]: {
                 order: 2,
                 menuItemFactory: PasteMenuItemFactory,
+            },
+            [COPY_SPECIAL_MENU_ID]: {
+                order: 2.5,
+                menuItemFactory: CopySpacialMenuItemFactory,
             },
             [PASTE_SPECIAL_MENU_ID]: {
                 order: 3,
@@ -556,13 +565,17 @@ export const menuSchema: MenuSchemaType = {
                 order: 0,
                 menuItemFactory: CopyMenuItemFactory,
             },
-            // [SheetCutCommand.name]: {
-            //     order: 1,
-            //     menuItemFactory: CutMenuItemFactory,
-            // },
+            [SheetCutCommand.name]: {
+                order: 1,
+                menuItemFactory: CutMenuItemFactory,
+            },
             [SheetPasteCommand.name]: {
                 order: 2,
                 menuItemFactory: PasteMenuItemFactory,
+            },
+            [COPY_SPECIAL_MENU_ID]: {
+                order: 2.5,
+                menuItemFactory: CopySpacialMenuItemFactory,
             },
             [PASTE_SPECIAL_MENU_ID]: {
                 order: 3,

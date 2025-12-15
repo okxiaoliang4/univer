@@ -167,8 +167,7 @@ const locale: typeof enUS = {
         chooseText: 'Chọn màu',
 
         tipNameRepeat: 'Tên tab không được trùng! Vui lòng đổi lại',
-        noMoreSheet:
-            'Tài liệu phải có ít nhất một trang bảng hiển thị. Nếu bạn muốn xóa trang bảng đã chọn, vui lòng thêm một trang bảng mới hoặc hiển thị trang bảng đã ẩn.',
+        noMoreSheet: 'Tài liệu phải có ít nhất một trang bảng hiển thị. Nếu bạn muốn xóa trang bảng đã chọn, vui lòng thêm một trang bảng mới hoặc hiển thị trang bảng đã ẩn.',
         confirmDelete: 'Xác nhận xóa',
         redoDelete: 'Bạn có thể hoàn tác xóa bằng Ctrl+Z',
         noHide: 'Không thể ẩn, phải giữ lại ít nhất một tab trang',
@@ -178,7 +177,8 @@ const locale: typeof enUS = {
         sheetNameCannotIsEmptyError: 'Tên không được để trống.',
         sheetNameAlreadyExistsError: 'Trang bảng đã tồn tại, vui lòng nhập tên khác.',
         deleteSheet: 'Xóa trang bảng',
-        deleteSheetContent: 'Xác nhận xóa trang bảng này, sau khi xóa sẽ không thể khôi phục, bạn có chắc chắn muốn xóa không?',
+        deleteSheetContent: 'Xác nhận xóa trang bảng này?',
+        deleteLargeSheetContent: 'Xác nhận xóa trang bảng này, sau khi xóa sẽ không thể khôi phục, bạn có chắc chắn muốn xóa không?',
         addProtectSheet: 'Bảo vệ trang bảng',
         removeProtectSheet: 'Bỏ bảo vệ trang bảng',
         changeSheetPermission: 'Thay đổi quyền hạn trang bảng',
@@ -188,6 +188,7 @@ const locale: typeof enUS = {
         copy: 'Sao chép',
         cut: 'Cắt',
         paste: 'Dán',
+        copySpecial: 'Sao chép đặc biệt',
         pasteSpecial: 'Dán đặc biệt',
         pasteValue: 'Chỉ dán giá trị',
         pasteFormat: 'Chỉ dán định dạng',

@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-import type { IExecutionOptions, IMutation, Nullable } from '@univerjs/core';
+import type { IExecutionOptions, IMutation, IUnitRange, Nullable } from '@univerjs/core';
 import type {
+    IFormulaExecuteResultMap,
+    IFormulaStringMap,
     IRuntimeOtherUnitDataType,
     IRuntimeUnitDataPrimitiveType,
 } from '../../basics/common';
 
+import type { IFormulaDependencyTreeFullJson, IFormulaDependencyTreeJson } from '../../engine/dependency/dependency-tree';
 import type { IFormulaDirtyData } from '../../services/current-data.service';
 import type { FormulaExecutedStateType, IExecutionInProgressParams } from '../../services/runtime.service';
 import { CommandType } from '@univerjs/core';
@@ -27,6 +30,43 @@ import { CommandType } from '@univerjs/core';
 export interface ISetFormulaCalculationStartMutation extends IFormulaDirtyData {
     options: Nullable<IExecutionOptions>;
 }
+
+export interface ISetFormulaStringBatchCalculationMutation {
+    formulas: IFormulaStringMap;
+}
+
+export interface ISetFormulaStringBatchCalculationResultMutation {
+    result: IFormulaExecuteResultMap;
+}
+
+export interface ISetFormulaStringBatchCalculationResultMutation {
+    result: IFormulaExecuteResultMap;
+}
+
+export interface ISetFormulaDependencyCalculationMutation {
+    unitId: string;
+    sheetId: string;
+    row: number;
+    column: number;
+}
+
+export interface ISetFormulaDependencyCalculationResultMutation {
+    result: IFormulaDependencyTreeJson[];
+}
+
+export interface ISetCellFormulaDependencyCalculationResultMutation {
+    result: IFormulaDependencyTreeFullJson | undefined;
+}
+
+export interface ISetQueryFormulaDependencyMutation {
+    unitRanges: IUnitRange[];
+    isInRange?: boolean;
+}
+
+export interface ISetQueryFormulaDependencyResultMutation {
+    result: IFormulaDependencyTreeJson[];
+}
+
 /**
  * TODO: @DR-Univer
  * Trigger the calculation of the formula and stop the formula
@@ -37,7 +77,19 @@ export const SetFormulaCalculationStartMutation: IMutation<ISetFormulaCalculatio
     handler: () => true,
 };
 
-export interface ISetFormulaCalculationStopMutation {}
+export const SetFormulaStringBatchCalculationMutation: IMutation<ISetFormulaStringBatchCalculationMutation> = {
+    id: 'formula.mutation.set-formula-string-batch-calculation',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export const SetFormulaStringBatchCalculationResultMutation: IMutation<ISetFormulaStringBatchCalculationResultMutation> = {
+    id: 'formula.mutation.set-formula-string-batch-calculation-result',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export interface ISetFormulaCalculationStopMutation { }
 
 export const SetFormulaCalculationStopMutation: IMutation<ISetFormulaCalculationStopMutation> = {
     id: 'formula.mutation.set-formula-calculation-stop',
@@ -64,6 +116,42 @@ export interface ISetFormulaCalculationResultMutation {
 
 export const SetFormulaCalculationResultMutation: IMutation<ISetFormulaCalculationResultMutation> = {
     id: 'formula.mutation.set-formula-calculation-result',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export const SetFormulaDependencyCalculationMutation: IMutation<{}> = {
+    id: 'formula.mutation.set-formula-dependency-calculation',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export const SetFormulaDependencyCalculationResultMutation: IMutation<ISetFormulaDependencyCalculationResultMutation> = {
+    id: 'formula.mutation.set-formula-dependency-calculation-result',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export const SetCellFormulaDependencyCalculationMutation: IMutation<ISetFormulaDependencyCalculationMutation> = {
+    id: 'formula.mutation.set-cell-formula-dependency-calculation',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export const SetCellFormulaDependencyCalculationResultMutation: IMutation<ISetCellFormulaDependencyCalculationResultMutation> = {
+    id: 'formula.mutation.set-cell-formula-dependency-calculation-result',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export const SetQueryFormulaDependencyMutation: IMutation<ISetQueryFormulaDependencyMutation> = {
+    id: 'formula.mutation.set-query-formula-dependency',
+    type: CommandType.MUTATION,
+    handler: () => true,
+};
+
+export const SetQueryFormulaDependencyResultMutation: IMutation<ISetQueryFormulaDependencyResultMutation> = {
+    id: 'formula.mutation.set-query-formula-dependency-result',
     type: CommandType.MUTATION,
     handler: () => true,
 };

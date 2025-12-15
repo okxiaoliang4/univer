@@ -15,20 +15,29 @@
  */
 
 import type { ICommandInfo } from '@univerjs/core';
-
 import type { ISetArrayFormulaDataMutationParams } from '../commands/mutations/set-array-formula-data.mutation';
-import type { ISetFormulaCalculationStartMutation } from '../commands/mutations/set-formula-calculation.mutation';
+import type { ISetFormulaCalculationStartMutation, ISetFormulaDependencyCalculationMutation, ISetFormulaStringBatchCalculationMutation, ISetQueryFormulaDependencyMutation } from '../commands/mutations/set-formula-calculation.mutation';
+import type { IFormulaDependencyTreeJson } from '../engine/dependency/dependency-tree';
 import type { IFormulaDirtyData } from '../services/current-data.service';
 import type { IAllRuntimeData } from '../services/runtime.service';
 import { Disposable, ICommandService, Inject } from '@univerjs/core';
 import { convertRuntimeToUnitData } from '../basics/runtime';
 import { SetArrayFormulaDataMutation } from '../commands/mutations/set-array-formula-data.mutation';
 import {
+    SetCellFormulaDependencyCalculationMutation,
+    SetCellFormulaDependencyCalculationResultMutation,
     SetFormulaCalculationNotificationMutation,
     SetFormulaCalculationResultMutation,
     SetFormulaCalculationStartMutation,
     SetFormulaCalculationStopMutation,
+    SetFormulaDependencyCalculationMutation,
+    SetFormulaDependencyCalculationResultMutation,
+    SetFormulaStringBatchCalculationMutation,
+    SetFormulaStringBatchCalculationResultMutation,
+    SetQueryFormulaDependencyMutation,
+    SetQueryFormulaDependencyResultMutation,
 } from '../commands/mutations/set-formula-calculation.mutation';
+import { SetImageFormulaDataMutation } from '../commands/mutations/set-image-formula-data.mutation';
 import { FormulaDataModel } from '../models/formula-data.model';
 import { ICalculateFormulaService } from '../services/calculate-formula.service';
 import { FormulaExecutedStateType } from '../services/runtime.service';
@@ -67,6 +76,15 @@ export class CalculateController extends Disposable {
                     // TODO@Dushusir: Merge the array formula data into the formulaDataModel
                     this._formulaDataModel.setArrayFormulaRange(arrayFormulaRange);
                     this._formulaDataModel.setArrayFormulaCellData(arrayFormulaCellData);
+                } else if (command.id === SetFormulaStringBatchCalculationMutation.id) {
+                    this._calculateFormulaString(command.params as ISetFormulaStringBatchCalculationMutation);
+                } else if (command.id === SetFormulaDependencyCalculationMutation.id) {
+                    this._generateAllDependencyTreeJson();
+                } else if (command.id === SetCellFormulaDependencyCalculationMutation.id) {
+                    this._generateCellDependencyTreeJson(command.params as ISetFormulaDependencyCalculationMutation);
+                } else if (command.id === SetQueryFormulaDependencyMutation.id) {
+                    const params = command.params as ISetQueryFormulaDependencyMutation;
+                    this._queryFormulaDependencyJson(params);
                 }
             })
         );
@@ -96,6 +114,72 @@ export class CalculateController extends Disposable {
             maxIteration,
             rowData,
         });
+    }
+
+    private async _queryFormulaDependencyJson(param: ISetQueryFormulaDependencyMutation) {
+        const { unitRanges, isInRange } = param;
+        let result: IFormulaDependencyTreeJson[] = [];
+        if (isInRange) {
+            result = await this._calculateFormulaService.getInRangeFormulas(unitRanges);
+        } else {
+            result = await this._calculateFormulaService.getRangeDependents(unitRanges);
+        }
+
+        this._commandService.executeCommand(
+            SetQueryFormulaDependencyResultMutation.id,
+            {
+                result,
+            },
+            {
+                onlyLocal: true,
+            }
+        );
+    }
+
+    private async _generateAllDependencyTreeJson() {
+        const result = await this._calculateFormulaService.getAllDependencyJson();
+
+        this._commandService.executeCommand(
+            SetFormulaDependencyCalculationResultMutation.id,
+            {
+                result,
+            },
+            {
+                onlyLocal: true,
+            }
+        );
+    }
+
+    private async _generateCellDependencyTreeJson(param: ISetFormulaDependencyCalculationMutation) {
+        const { unitId, sheetId, row, column } = param;
+        const result = await this._calculateFormulaService.getCellDependencyJson(unitId, sheetId, row, column);
+
+        this._commandService.executeCommand(
+            SetCellFormulaDependencyCalculationResultMutation.id,
+            {
+                result,
+            },
+            {
+                onlyLocal: true,
+            }
+        );
+    }
+
+    private async _calculateFormulaString(param: ISetFormulaStringBatchCalculationMutation) {
+        const { formulas } = param;
+        const result = await this._calculateFormulaService.executeFormulas(
+            formulas
+        );
+
+        this._commandService.executeCommand(
+            SetFormulaStringBatchCalculationResultMutation.id,
+            {
+                result,
+            },
+            {
+                onlyLocal: true,
+            }
+        );
     }
 
     // Notification
@@ -145,7 +229,7 @@ export class CalculateController extends Disposable {
     }
 
     private async _applyResult(data: IAllRuntimeData) {
-        const { unitData, unitOtherData, arrayFormulaRange, arrayFormulaCellData, clearArrayFormulaCellData, arrayFormulaEmbedded } = data;
+        const { unitData, unitOtherData, arrayFormulaRange, arrayFormulaCellData, clearArrayFormulaCellData, arrayFormulaEmbedded, imageFormulaData } = data;
 
         if (!unitData) {
             console.error('No sheetData from Formula Engine!');
@@ -163,6 +247,19 @@ export class CalculateController extends Disposable {
                     arrayFormulaRange: this._formulaDataModel.getArrayFormulaRange(),
                     arrayFormulaCellData: this._formulaDataModel.getArrayFormulaCellData(),
                     arrayFormulaEmbedded,
+                },
+                {
+                    onlyLocal: true,
+                }
+            );
+        }
+
+        // handle image formula data
+        if (imageFormulaData && imageFormulaData.length > 0) {
+            this._commandService.executeCommand(
+                SetImageFormulaDataMutation.id,
+                {
+                    imageFormulaData,
                 },
                 {
                     onlyLocal: true,

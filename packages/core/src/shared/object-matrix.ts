@@ -514,6 +514,25 @@ export class ObjectMatrix<T> {
         return objectMatrix;
     }
 
+    getSliceDataAndCellCountByRows(startRow: number, endRow: number): {
+        sliceData: ObjectMatrix<T>;
+        cellCount: number;
+    } {
+        const objectMatrix = new ObjectMatrix<T>();
+        let cellCount = 0;
+        for (let r = startRow; r <= endRow; r++) {
+            const row = this.getRow(r);
+            if (row) {
+                objectMatrix.setRow(r, row);
+                cellCount += Object.keys(row).length;
+            }
+        }
+        return {
+            sliceData: objectMatrix,
+            cellCount,
+        };
+    }
+
     getSizeOf(): number {
         const keys = Object.keys(this._matrix);
         return keys.length;
@@ -542,6 +561,58 @@ export class ObjectMatrix<T> {
             startColumn,
             endRow,
             endColumn,
+        };
+    }
+
+    getRealRange(): IRange {
+        const rows = Object.keys(this._matrix);
+        const rowLength = rows.length;
+        const startRow = rowLength > 0 ? Number(rows[0]) : 0;
+        const endRow = rowLength > 0 ? Number(rows[rowLength - 1]) : 0;
+
+        let startColumn = -Infinity;
+        let endColumn = 0;
+
+        for (const rowKey of rows) {
+            const row = this.getRow(Number(rowKey));
+            if (row) {
+                const columns = Object.keys(row);
+                if (columns.length > 0) {
+                    const rowStartColumn = Number(columns[0]);
+                    const rowEndColumn = Number(columns[columns.length - 1]);
+
+                    if (startColumn === -Infinity || rowStartColumn < startColumn) {
+                        startColumn = rowStartColumn;
+                    }
+
+                    if (rowEndColumn > endColumn) {
+                        endColumn = rowEndColumn;
+                    }
+                }
+            }
+        }
+
+        if (startColumn === -Infinity) {
+            startColumn = 0;
+        }
+
+        return {
+            startRow,
+            endRow,
+            startColumn,
+            endColumn,
+        };
+    }
+
+    getRealRowRange() {
+        const rows = Object.keys(this._matrix);
+        const rowLength = rows.length;
+        const startRow = rowLength > 0 ? Number(rows[0]) : 0;
+        const endRow = rowLength > 0 ? Number(rows[rowLength - 1]) : 0;
+
+        return {
+            startRow,
+            endRow,
         };
     }
 
@@ -754,6 +825,14 @@ export class ObjectMatrix<T> {
                 this.setValue(row, column, cellValue);
             }
         });
+    }
+
+    concatRows(newObject: ObjectMatrix<T>) {
+        const newMatrix = newObject.getMatrix();
+        for (const rowKey in newMatrix) {
+            const rowIndex = Number(rowKey);
+            this.setRow(rowIndex, newMatrix[rowIndex]);
+        }
     }
 
     private _setOriginValue(matrix: IObjectMatrixPrimitiveType<T> = {}) {

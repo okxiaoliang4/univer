@@ -28,6 +28,7 @@ import { createRowColIter } from '../shared/row-col-iter';
 import { generateRandomId } from '../shared/tools';
 import { DEFAULT_STYLES } from '../types/const';
 import { CellValueType } from '../types/enum';
+import { cloneWorksheetData } from './clone';
 import { ColumnManager } from './column-manager';
 import { Range } from './range';
 import { RowManager } from './row-manager';
@@ -430,7 +431,7 @@ export class Worksheet {
      */
     clone(): Worksheet {
         const { _snapshot: _config } = this;
-        const copy = Tools.deepClone(_config);
+        const copy = cloneWorksheetData(_config);
 
         return new Worksheet(this.unitId, copy, this._styles);
     }
@@ -938,7 +939,7 @@ export class Worksheet {
      * @returns the position of the last row that has content.
      */
     getLastRowWithContent(): number {
-        return this._cellData.getLength() - 1;
+        return this._cellData.getRealRowRange().endRow;
     }
 
     /**
@@ -946,7 +947,11 @@ export class Worksheet {
      * @returns the position of the last column that has content.
      */
     getLastColumnWithContent(): number {
-        return this._cellData.getRange().endColumn;
+        return this.getDataRealRange().endColumn;
+    }
+
+    getDataRealRange(): IRange {
+        return this._cellData.getRealRange();
     }
 
     getDataRangeScope(): IRange {

@@ -1458,6 +1458,7 @@ export class SpreadsheetSkeleton extends SheetSkeleton {
 
         const cell = this.worksheet.getCell(row, col) || this.worksheet.getCellRaw(row, col);
         const style = this.worksheet.getComposedCellStyleByCellData(row, col, cell);
+        if (!cell && Object.keys(style).length === 0) return;
 
         this._setBgStylesCache(row, col, style, options);
         this._setBorderStylesCache(row, col, style, options);
@@ -1696,7 +1697,13 @@ export function getDocsSkeletonPageSize(documentSkeleton: DocumentSkeleton, angl
         return null;
     }
     const { pages } = skeletonData;
+    if (!pages || pages.length === 0) {
+        return null;
+    }
     const lastPage = pages[pages.length - 1];
+    if (!lastPage) {
+        return null;
+    }
     const { width, height } = lastPage;
 
     if (angle === 0) {

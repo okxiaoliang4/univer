@@ -75,7 +75,6 @@ import {
     CutCommand,
     FONT_FAMILY_COMPONENT,
     FONT_FAMILY_ITEM_COMPONENT,
-    FONT_FAMILY_LIST,
     getMenuHiddenObservable,
     IClipboardInterfaceService,
     MenuItemType,
@@ -400,13 +399,16 @@ export function FontFamilySelectorMenuItemFactory(accessor: IAccessor): IMenuSel
         tooltip: 'toolbar.font',
         type: MenuItemType.SELECTOR,
         label: FONT_FAMILY_COMPONENT,
-        selections: FONT_FAMILY_LIST.map((item) => ({
+        selections: [{
             label: {
                 name: FONT_FAMILY_ITEM_COMPONENT,
+                hoverable: false,
+                selectable: false,
+                props: {
+                    id: SetRangeFontFamilyCommand.id,
+                },
             },
-            value: item.value,
-        })),
-
+        }],
         disabled$: getCurrentRangeDisable$(accessor, {
             workbookTypes: [WorkbookEditablePermission],
             worksheetTypes: [WorksheetEditPermission, WorksheetSetCellStylePermission],
@@ -909,11 +911,12 @@ export function CutMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
         id: SheetCutCommand.name,
         commandId: CutCommand.id,
         type: MenuItemType.BUTTON,
-        title: 'contextMenu.cut',
+        title: 'rightClick.cut',
+        icon: 'CutIcon',
         disabled$: getCurrentRangeDisable$(accessor, {
-            workbookTypes: [WorkbookEditablePermission],
-            rangeTypes: [RangeProtectionPermissionEditPoint],
+            workbookTypes: [WorkbookCopyPermission, WorkbookEditablePermission],
             worksheetTypes: [WorksheetCopyPermission, WorksheetEditPermission],
+            rangeTypes: [RangeProtectionPermissionViewPoint, RangeProtectionPermissionEditPoint],
         }),
         hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
     };
@@ -938,6 +941,19 @@ export function PasteMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
     };
 }
 
+// Right click menu - Copy Special
+export const COPY_SPECIAL_MENU_ID = 'sheet.menu.copy-special';
+export function CopySpacialMenuItemFactory(accessor: IAccessor): IMenuSelectorItem {
+    return {
+        id: COPY_SPECIAL_MENU_ID,
+        type: MenuItemType.SUBITEMS,
+        icon: 'CopyDoubleIcon',
+        title: 'rightClick.copySpecial',
+        hidden$: getObservableWithExclusiveRange$(accessor, getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET)),
+    };
+}
+
+// Right click menu - Paste Special
 export const PASTE_SPECIAL_MENU_ID = 'sheet.menu.paste-special';
 export function PasteSpacialMenuItemFactory(accessor: IAccessor): IMenuSelectorItem {
     return {

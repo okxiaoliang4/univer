@@ -23,6 +23,8 @@ import { FBaseInitialable } from '@univerjs/core/facade';
 import { FormulaDataModel, serializeRange, serializeRangeWithSheet } from '@univerjs/engine-formula';
 import { addMergeCellsUtil, ClearSelectionAllCommand, ClearSelectionContentCommand, ClearSelectionFormatCommand, DeleteRangeMoveLeftCommand, DeleteRangeMoveUpCommand, DeleteWorksheetRangeThemeStyleCommand, getAddMergeMutationRangeByType, getPrimaryForRange, InsertRangeMoveDownCommand, InsertRangeMoveRightCommand, RemoveWorksheetMergeCommand, SetBorderBasicCommand, SetHorizontalTextAlignCommand, SetRangeValuesCommand, SetSelectionsOperation, SetStyleCommand, SetTextRotationCommand, SetTextWrapCommand, SetVerticalTextAlignCommand, SetWorksheetRangeThemeStyleCommand, SheetRangeThemeService, SplitTextToColumnsCommand } from '@univerjs/sheets';
 import { FWorkbook } from './f-workbook';
+import { FWorksheet } from './f-worksheet';
+import { FRangePermission } from './permission/f-range-permission';
 import { transformCoreHorizontalAlignment, transformCoreVerticalAlignment, transformFacadeHorizontalAlignment, transformFacadeVerticalAlignment } from './utils';
 
 export type FontLine = 'none' | 'underline' | 'line-through';
@@ -56,6 +58,17 @@ export class FRange extends FBaseInitialable {
         @Inject(FormulaDataModel) protected readonly _formulaDataModel: FormulaDataModel
     ) {
         super(_injector);
+
+        const maxRows = this._worksheet.getRowCount();
+        const maxColumns = this._worksheet.getColumnCount();
+        if (
+            this._range.startRow < 0 ||
+            this._range.startColumn < 0 ||
+            this._range.endRow >= maxRows ||
+            this._range.endColumn >= maxColumns
+        ) {
+            throw new Error(`Range is out of bounds. Max rows: ${maxRows}, Max columns: ${maxColumns}, Given range: ${JSON.stringify(this._range)}`);
+        }
 
         this._runInitializers(
             this._injector,
@@ -2570,5 +2583,45 @@ export class FRange extends FBaseInitialable {
      */
     setFormulas(formulas: string[][]): FRange {
         return this.setValues(formulas.map((row) => row.map((formula) => ({ f: formula }))));
+    }
+
+    /**
+     * Get the RangePermission instance for managing range-level permissions.
+     * This is the new permission API that provides range-specific permission control.
+     * @returns {FRangePermission} - The RangePermission instance.
+     * @example
+     * ```ts
+     * const fWorksheet = univerAPI.getActiveWorkbook().getActiveSheet();
+     * const fRange = fWorksheet.getRange('A1:B10');
+     * const permission = fRange.getRangePermission();
+     *
+     * // Protect the range
+     * await permission.protect({ name: 'Protected Area', allowEdit: false });
+     *
+     * // Check if range is protected
+     * const isProtected = permission.isProtected();
+     *
+     * // Check if current user can edit
+     * const canEdit = permission.canEdit();
+     *
+     * // Unprotect the range
+     * await permission.unprotect();
+     *
+     * // Subscribe to protection changes
+     * permission.protectionChange$.subscribe(change => {
+     *   console.log('Protection changed:', change);
+     * });
+     * ```
+     */
+    getRangePermission(): FRangePermission {
+        const fWorksheet = this._injector.createInstance(FWorksheet, this._injector.createInstance(FWorkbook, this._workbook), this._workbook, this._worksheet);
+
+        return this._injector.createInstance(
+            FRangePermission,
+            this._workbook.getUnitId(),
+            this._worksheet.getSheetId(),
+            this,
+            fWorksheet
+        );
     }
 }

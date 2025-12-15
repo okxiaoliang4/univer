@@ -167,8 +167,7 @@ const locale: typeof enUS = {
         chooseText: 'Confirmer la couleur',
 
         tipNameRepeat: 'Le nom de l\'onglet ne peut pas être répété ! Veuillez modifier',
-        noMoreSheet:
-            'Le classeur contient au moins une feuille de calcul visible. Pour supprimer la feuille sélectionnée, veuillez insérer une nouvelle feuille ou afficher une feuille masquée.',
+        noMoreSheet: 'Le classeur contient au moins une feuille de calcul visible. Pour supprimer la feuille sélectionnée, veuillez insérer une nouvelle feuille ou afficher une feuille masquée.',
         confirmDelete: 'Êtes-vous sûr de vouloir supprimer',
         redoDelete: 'Peut être annulé par Ctrl+Z',
         noHide: 'Impossible de masquer, au moins une étiquette de feuille doit être conservée',
@@ -178,8 +177,8 @@ const locale: typeof enUS = {
         sheetNameCannotIsEmptyError: 'Le nom de la feuille ne peut pas être vide.',
         sheetNameAlreadyExistsError: 'Le nom de la feuille existe déjà. Veuillez entrer un autre nom.',
         deleteSheet: 'Supprimer la feuille de calcul',
-        deleteSheetContent:
-            'Confirmer la suppression de cette feuille de calcul. Elle ne pourra pas être récupérée après suppression. Êtes-vous sûr de vouloir la supprimer ?',
+        deleteSheetContent: 'Confirmer la suppression de cette feuille de calcul ?',
+        deleteLargeSheetContent: 'Confirmer la suppression de cette feuille de calcul. Elle ne pourra pas être récupérée après suppression. Êtes-vous sûr de vouloir la supprimer ?',
         addProtectSheet: 'Protéger la feuille de calcul',
         removeProtectSheet: 'Déprotéger la feuille de calcul',
         changeSheetPermission: 'Modifier les autorisations de la feuille de calcul',
@@ -189,6 +188,7 @@ const locale: typeof enUS = {
         copy: 'Copier',
         cut: 'Couper',
         paste: 'Coller',
+        copySpecial: 'Collage spécial',
         pasteSpecial: 'Collage spécial',
         pasteValue: 'Coller la valeur',
         pasteFormat: 'Coller le format',

@@ -165,8 +165,7 @@ const locale = {
         chooseText: 'Confirm color',
 
         tipNameRepeat: 'The name of the tab page cannot be repeated! Please revise',
-        noMoreSheet:
-            'The workbook contains at least one visual worksheet. To delete the selected worksheet, please insert a new worksheet or show a hidden worksheet.',
+        noMoreSheet: 'The workbook contains at least one visual worksheet. To delete the selected worksheet, please insert a new worksheet or show a hidden worksheet.',
         confirmDelete: 'Are you sure to delete',
         redoDelete: 'Can be undo by Ctrl+Z',
         noHide: "Can't hide, at least keep one sheet tag",
@@ -176,8 +175,8 @@ const locale = {
         sheetNameCannotIsEmptyError: 'The sheet name cannot be empty.',
         sheetNameAlreadyExistsError: 'The sheet name already exists. Please enter another name.',
         deleteSheet: 'Delete worksheet',
-        deleteSheetContent:
-            'Confirm to delete this worksheet. It will not be retrieved after deletion. Are you sure you want to delete it?',
+        deleteSheetContent: 'Confirm to delete this worksheet?',
+        deleteLargeSheetContent: 'Confirm to delete this worksheet. It will not be retrieved after deletion. Are you sure you want to delete it?',
         addProtectSheet: 'Protect Worksheet',
         removeProtectSheet: 'Unprotect Worksheet',
         changeSheetPermission: 'Change Worksheet Permissions',
@@ -187,6 +186,7 @@ const locale = {
         copy: 'Copy',
         cut: 'Cut',
         paste: 'Paste',
+        copySpecial: 'Copy Special',
         pasteSpecial: 'Paste Special',
         pasteValue: 'Paste Value',
         pasteFormat: 'Paste Format',

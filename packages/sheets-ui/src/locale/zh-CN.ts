@@ -168,8 +168,7 @@ const locale: typeof enUS = {
         chooseText: '确定颜色',
 
         tipNameRepeat: '标签页的名称不能重复！请重新修改',
-        noMoreSheet:
-            '工作薄内至少含有一张可视工作表。若需删除选定的工作表，请先插入一张新工作表或显示一张隐藏的工作表。',
+        noMoreSheet: '工作薄内至少含有一张可视工作表。若需删除选定的工作表，请先插入一张新工作表或显示一张隐藏的工作表。',
         confirmDelete: '是否删除',
         redoDelete: '可以通过Ctrl+Z撤销删除',
         noHide: '不能隐藏, 至少保留一个sheet标签',
@@ -179,7 +178,8 @@ const locale: typeof enUS = {
         sheetNameCannotIsEmptyError: '名称不能为空。',
         sheetNameAlreadyExistsError: '工作表已存在，请输入其它名称。',
         deleteSheet: '删除工作表',
-        deleteSheetContent: '确认删除此工作表，删除后将不可找回，确定要删除吗？',
+        deleteSheetContent: '确认删除此工作表？',
+        deleteLargeSheetContent: '确认删除此工作表，删除后将不可找回，确定要删除吗？',
         addProtectSheet: '保护工作表',
         removeProtectSheet: '取消保护工作表',
         changeSheetPermission: '更改工作表权限',
@@ -189,6 +189,7 @@ const locale: typeof enUS = {
         copy: '复制',
         cut: '剪切',
         paste: '粘贴',
+        copySpecial: '选择性复制',
         pasteSpecial: '选择性粘贴',
         pasteValue: '仅粘贴值',
         pasteFormat: '仅粘贴格式',
