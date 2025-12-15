@@ -43,7 +43,6 @@ import {
     expandToWholeSheet,
     findNextGapRange,
     findNextRange,
-    getEdgeOfRange,
     getStartRange,
     shrinkToNextCell,
     shrinkToNextGapRange,
@@ -354,7 +353,7 @@ export const ExpandSelectionCommand: ICommand<IExpandSelectionCommandParams> = {
         const isInRefSelectionMode = contextService.getContextValue(REF_SELECTIONS_ENABLED);
 
         const selectionsService = accessor.get(IRefSelectionsService);
-        const selection = selectionsService.getCurrentLastSelection();
+        const selection = getSelectionsService(accessor).getCurrentLastSelection();
         if (!selection) return false;
 
         const { range: startRange, primary } = selection;
@@ -362,6 +361,7 @@ export const ExpandSelectionCommand: ICommand<IExpandSelectionCommandParams> = {
 
         let anchorRange: IRange;
 
+        let isShrink = false;
         if (isInRefSelectionMode) {
             const focusAnchor = selectionsService.getFocusAnchor();
             if (focusAnchor) {
@@ -377,11 +377,11 @@ export const ExpandSelectionCommand: ICommand<IExpandSelectionCommandParams> = {
                 };
                 selectionsService.setFocusAnchor(anchorRange);
             }
+            isShrink = checkIfShrink({ anchorRange, range: startRange }, direction, worksheet);
         } else {
-            anchorRange = getEdgeOfRange(startRange, direction, worksheet);
+            isShrink = checkIfShrink({ anchorRange: selection.primary, range: startRange }, direction, worksheet);
         }
 
-        const isShrink = checkIfShrink(selection, direction, anchorRange);
         const destRange = !isShrink
             ? jumpOver === JumpOver.moveGap
                 ? expandToNextGapRange(startRange, direction, worksheet)

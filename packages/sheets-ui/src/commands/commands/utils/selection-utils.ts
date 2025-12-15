@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { ICellData, IRange, ISelection, ISelectionCell, Nullable, ObjectMatrix, Worksheet } from '@univerjs/core';
+import type { ICellData, IRange, ISelectionCell, Nullable, ObjectMatrix, Worksheet } from '@univerjs/core';
 import { Direction, getReverseDirection, RANGE_TYPE, Rectangle } from '@univerjs/core';
 import { alignToMergedCellsBorders } from '@univerjs/sheets';
 
@@ -510,32 +510,36 @@ export function getStartRange(range: IRange, primary: Nullable<ISelectionCell>, 
     return ret;
 }
 
-export function checkIfShrink(selection: ISelection, direction: Direction, anchorRange: IRange): boolean {
-    const { primary, range } = selection;
+export function checkIfShrink(selection: {
+    anchorRange: IRange;
+    range: IRange;
+}, direction: Direction, worksheet: Worksheet): boolean {
+    const { anchorRange, range } = selection;
 
     const startRange: IRange = Rectangle.clone(range);
     switch (direction) {
         case Direction.UP:
         case Direction.DOWN:
-            startRange.startRow = primary?.startRow ?? range.startRow;
-            startRange.endRow = primary?.endRow ?? range.startRow;
+            startRange.startRow = anchorRange?.startRow ?? range.startRow;
+            startRange.endRow = anchorRange?.endRow ?? range.startRow;
             break;
         case Direction.LEFT:
         case Direction.RIGHT:
-            startRange.startColumn = primary?.startColumn ?? range.startColumn;
-            startRange.endColumn = primary?.endColumn ?? range.startColumn;
+            startRange.startColumn = anchorRange?.startColumn ?? range.startColumn;
+            startRange.endColumn = anchorRange?.endColumn ?? range.startColumn;
             break;
     }
 
+    const _anchorRange = getEdgeOfRange(startRange, direction, worksheet);
     switch (direction) {
         case Direction.DOWN:
-            return range.startRow < anchorRange.startRow;
+            return range.startRow < _anchorRange.startRow;
         case Direction.UP:
-            return range.endRow > anchorRange.endRow;
+            return range.endRow > _anchorRange.endRow;
         case Direction.LEFT:
-            return anchorRange.endColumn < range.endColumn;
+            return _anchorRange.endColumn < range.endColumn;
         case Direction.RIGHT:
-            return anchorRange.startColumn > range.startColumn;
+            return _anchorRange.startColumn > range.startColumn;
     }
 }
 

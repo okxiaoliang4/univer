@@ -68,23 +68,6 @@ export function useFormulaSelecting(opts: { editorId: string; isFocus: boolean; 
     const workbook = univerInstanceService.getUnit<Workbook>(unitId, UniverInstanceType.UNIVER_SHEET);
     const sourceSheet = workbook?.getSheetBySheetId(subUnitId);
 
-    useEffect(() => {
-        if (!refSelectionsRenderService) return;
-        if (isSelecting === FormulaSelectingType.CAN_EDIT) {
-            const activeRange = refSelectionsRenderService.getActiveRange();
-            if (activeRange) {
-                refSelectionsService.setFocusAnchor({
-                    startRow: activeRange.startRow,
-                    startColumn: activeRange.startColumn,
-                    endRow: activeRange.startRow,
-                    endColumn: activeRange.startColumn,
-                });
-                return;
-            }
-        }
-        refSelectionsService.setFocusAnchor(null);
-    }, [isSelecting, refSelectionsRenderService, refSelectionsService]);
-
     const setIsSelecting = useEvent((v: FormulaSelectingType) => {
         if (refSelectionsRenderService) {
             refSelectionsRenderService.setSkipLastEnabled(v === FormulaSelectingType.NEED_ADD || v === FormulaSelectingType.EDIT_OTHER_SHEET_REFERENCE || v === FormulaSelectingType.EDIT_OTHER_WORKBOOK_REFERENCE);
