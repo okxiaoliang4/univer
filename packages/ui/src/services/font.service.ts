@@ -50,7 +50,7 @@ export interface IFontConfig {
     isCustom?: boolean;
 }
 
-const DEFAULT_FONT_LIST: IFontConfig[] = [{
+export const DEFAULT_FONT_LIST: IFontConfig[] = [{
     value: 'Arial',
     label: 'fontFamily.arial',
     category: 'sans-serif',
