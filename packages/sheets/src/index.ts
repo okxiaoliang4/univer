@@ -15,7 +15,9 @@
  */
 
 export type { ICellOverGridPosition, ISheetOverGridPosition } from './basics/cell-position';
-export { checkCellValueType } from './basics/cell-type';
+export { handleStyle, mergeRichTextStyle, mergeStyle, transformStyle } from './basics/cell-style';
+export { checkCellValueType, getCellType } from './basics/cell-type';
+export { extractBooleanValue, getCellValue, setNull } from './basics/cell-value';
 export {
     COMMAND_LISTENER_SKELETON_CHANGE,
     COMMAND_LISTENER_VALUE_CHANGE,
@@ -272,6 +274,7 @@ export {
     type ISetRangeValuesRangeMutationParams,
     SetRangeValuesMutation,
     SetRangeValuesUndoMutationFactory,
+    updateCellProperty,
 } from './commands/mutations/set-range-values.mutation';
 export { type ISetRowDataMutationParams, SetRowDataMutation, SetRowDataMutationFactory } from './commands/mutations/set-row-data.mutation';
 export {

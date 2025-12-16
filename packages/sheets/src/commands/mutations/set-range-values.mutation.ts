@@ -171,7 +171,7 @@ function mergeCellData(newValue: ICellData, oldValue: ICellData, styles: Styles)
     return oldValue;
 }
 
-function updateCellProperty<K extends keyof ICellData>(
+export function updateCellProperty<K extends keyof ICellData>(
     cell: ICellData,
     key: K,
     value: ICellData[K]

@@ -123,7 +123,7 @@ function transformBorders(oldBorders: IBorderData, newBorders: Nullable<IBorderD
  * @param newStyle
  * @param isRichText
  */
-function mergeStyle(
+export function mergeStyle(
     oldStyle: Nullable<IStyleData>,
     newStyle: Nullable<IStyleData>,
     isRichText: boolean = false
@@ -183,7 +183,7 @@ function skipParagraphs(paragraphs: IParagraph[], offset: number): number {
  * @param p
  * @param newStyle
  */
-function mergeRichTextStyle(p: IDocumentData, newStyle: Nullable<IStyleData>) {
+export function mergeRichTextStyle(p: IDocumentData, newStyle: Nullable<IStyleData>) {
     if (p.body == null) {
         return;
     }
