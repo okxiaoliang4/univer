@@ -15,13 +15,14 @@
  */
 
 import type { Workbook, Worksheet } from '@univerjs/core';
+import type { IDefinedNamesServiceParam } from '@univerjs/engine-formula';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import type { IScrollToCellCommandParams } from '../../commands/commands/set-scroll.command';
-import { ICommandService, IUniverInstanceService, ThemeService, UniverInstanceType } from '@univerjs/core';
+import { AbsoluteRefType, ICommandService, IUniverInstanceService, ThemeService, UniverInstanceType } from '@univerjs/core';
 import { borderRightClassName, clsx, Dropdown } from '@univerjs/design';
-import { deserializeRangeWithSheet, IDefinedNamesService, isReferenceString } from '@univerjs/engine-formula';
+import { deserializeRangeWithSheet, IDefinedNamesService, isReferenceString, LexerTreeBuilder, serializeRangeWithSheet } from '@univerjs/engine-formula';
 import { MoreDownIcon } from '@univerjs/icons';
-import { getPrimaryForRange, SetSelectionsOperation } from '@univerjs/sheets';
+import { getPrimaryForRange, SetSelectionsOperation, SetWorksheetShowCommand, SheetsSelectionsService } from '@univerjs/sheets';
 import { useDependency } from '@univerjs/ui';
 import { useEffect, useState } from 'react';
 import { ScrollToCellCommand } from '../../commands/commands/set-scroll.command';
@@ -34,16 +35,88 @@ export function DefinedName({ disable }: { disable: boolean }) {
     const definedNamesService = useDependency(IDefinedNamesService);
     const commandService = useDependency(ICommandService);
     const univerInstanceService = useDependency(IUniverInstanceService);
-    const worksheet = univerInstanceService.getCurrentUnitOfType<Workbook>(UniverInstanceType.UNIVER_SHEET)!.getActiveSheet();
-    const unitId = worksheet?.getUnitId();
-    const subUnitId = worksheet?.getSheetId();
+    const selectionManagerService = useDependency(SheetsSelectionsService);
+    const lexerTreeBuilder = useDependency(LexerTreeBuilder);
+
+    const workbook = univerInstanceService.getCurrentUnitOfType<Workbook>(UniverInstanceType.UNIVER_SHEET)!;
+    const unitId = workbook?.getUnitId();
     const themeService = useDependency(ThemeService);
+
+    const getDefinedNameMap = () => {
+        const definedNameMap = definedNamesService.getDefinedNameMap(unitId);
+        if (definedNameMap) {
+            return Array.from(Object.values(definedNameMap));
+        }
+
+        return [];
+    };
+
+    const focusDefinedName = async (definedName: IDefinedNamesServiceParam) => {
+        // The worksheet may be hidden, so we need to show it first
+        const { formulaOrRefString, id } = definedName;
+        const worksheet = definedNamesService.getWorksheetByRef(unitId, formulaOrRefString);
+        if (!worksheet) {
+            return;
+        }
+
+        const isHidden = worksheet.isSheetHidden();
+        if (isHidden) {
+            await commandService.executeCommand(SetWorksheetShowCommand.id, { unitId, subUnitId: worksheet.getSheetId() });
+        }
+
+        definedNamesService.focusRange(unitId, id);
+    };
+
+    const focusSelection = (refString: string) => {
+        const worksheet = workbook.getActiveSheet();
+        const subUnitId = worksheet.getSheetId();
+
+        getSelections(worksheet, refString).then((selections) => {
+            if (!selections) return;
+
+            commandService.executeCommand(SetSelectionsOperation.id, {
+                unitId,
+                subUnitId,
+                selections,
+            });
+
+            commandService.executeCommand(
+                ScrollToCellCommand.id,
+                { range: selections[0].range } as IScrollToCellCommandParams
+            );
+        });
+    };
+
+    const [definedNames, setDefinedNames] = useState<IDefinedNamesServiceParam[]>(getDefinedNameMap());
+
+    useEffect(() => {
+        const definedNamesSubscription = definedNamesService.update$.subscribe(() => {
+            setDefinedNames(getDefinedNameMap());
+        });
+
+        return () => {
+            definedNamesSubscription.unsubscribe();
+        };
+    }, []);
 
     useEffect(() => {
         const subscription = definedNamesService.currentRange$.subscribe(() => {
-            const range = definedNamesService.getCurrentRangeForString();
-            setRangeString(range);
-            setInputValue(range);
+            const selections = selectionManagerService.getCurrentSelections();
+            const worksheet = workbook.getActiveSheet();
+            const formulaOrRefs = selections?.map((selection) => {
+                return serializeRangeWithSheet(worksheet.getName(), selection.range);
+            })?.join(',');
+            const absoluteRef = lexerTreeBuilder.convertRefersToAbsolute(formulaOrRefs, AbsoluteRefType.ALL, AbsoluteRefType.ALL, worksheet.getName());
+            const definedName = definedNamesService.getDefinedNameByRefString(unitId, absoluteRef);
+
+            if (definedName) {
+                setRangeString(definedName.name);
+                setInputValue(definedName.name);
+            } else {
+                const range = definedNamesService.getCurrentRangeForString();
+                setRangeString(range);
+                setInputValue(range);
+            }
         });
 
         return () => {
@@ -58,27 +131,17 @@ export function DefinedName({ disable }: { disable: boolean }) {
     // TODO: need implemented set defined name if value not referenceString
     function confirm() {
         if (inputValue === rangeString) return;
-        if (!isReferenceString(inputValue)) {
+
+        const definedName = definedNames.find((i) => i.name === inputValue);
+        if (definedName) {
+            setRangeString(inputValue);
+            focusDefinedName(definedName);
+        } else if (isReferenceString(inputValue)) {
+            setRangeString(inputValue);
+            focusSelection(inputValue);
+        } else {
             resetValue();
-            return;
-        };
-
-        setRangeString(inputValue);
-
-        getSelections(worksheet, inputValue).then((selections) => {
-            if (!selections) return;
-
-            commandService.executeCommand(SetSelectionsOperation.id, {
-                unitId,
-                subUnitId,
-                selections,
-            });
-
-            commandService.executeCommand(
-                ScrollToCellCommand.id,
-                { range: selections[0].range } as IScrollToCellCommandParams
-            );
-        });
+        }
     }
 
     function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -130,7 +193,7 @@ export function DefinedName({ disable }: { disable: boolean }) {
         >
             <input
                 className={clsx(`
-                  univer-box-border univer-h-full univer-w-full univer-appearance-none univer-px-1.5
+                  univer-box-border univer-h-full univer-w-full univer-appearance-none univer-pl-1.5 univer-pr-5
                   univer-text-gray-900
                   focus:univer-outline-none
                   dark:!univer-border-r-gray-700 dark:!univer-bg-gray-900 dark:!univer-text-white

@@ -69,6 +69,7 @@ import { MessageType } from '@univerjs/design';
 import { convertBodyToHtml, DocSelectionRenderService } from '@univerjs/docs-ui';
 import { IRenderManagerService, withCurrentTypeOfRenderer } from '@univerjs/engine-render';
 import {
+    AddWorksheetMergeCommand,
     InsertColMutation,
     InsertRowMutation,
     MAX_CELL_PER_SHEET_KEY,
@@ -84,7 +85,6 @@ import {
 } from '@univerjs/sheets';
 import { BuiltInUIPart, connectInjector, IMessageService, IUIPartsService } from '@univerjs/ui';
 import { Subject, takeUntil } from 'rxjs';
-import { AddWorksheetMergeCommand } from '../../commands/commands/add-worksheet-merge.command';
 import {
     SheetCopyCommand,
     SheetCutCommand,
@@ -261,7 +261,10 @@ export class SheetClipboardController extends RxDisposable {
                 }
 
                 const mergedCellByRowCol = currentSheet!.getMergedCell(row, col);
-
+                /**
+                 * This is for generating the copied HTML, which requires all the styles applied to the cell, including conditional formatting, data validation, number format, etc.
+                 * So here we use `getComposedCellStyle` to get the final style of the cell.
+                 */
                 const textStyle = currentSheet!.getComposedCellStyle(row, col);
 
                 let style = '';

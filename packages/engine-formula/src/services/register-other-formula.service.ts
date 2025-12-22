@@ -15,14 +15,27 @@
  */
 
 import type { IRange, Nullable } from '@univerjs/core';
-import type { IRemoveOtherFormulaMutationParams, ISetFormulaCalculationResultMutation, ISetOtherFormulaMutationParams } from '@univerjs/engine-formula';
+
 import type { IOtherFormulaMarkDirtyParams } from '../commands/mutations/formula.mutation';
+import type { ISetFormulaCalculationResultMutation } from '../commands/mutations/set-formula-calculation.mutation';
+import type { IRemoveOtherFormulaMutationParams, ISetOtherFormulaMutationParams } from '../commands/mutations/set-other-formula.mutation';
 import type { IOtherFormulaResult } from './formula-common';
 import { Disposable, generateRandomId, ICommandService, Inject, LifecycleService, ObjectMatrix } from '@univerjs/core';
-import { IActiveDirtyManagerService, RemoveOtherFormulaMutation, SetFormulaCalculationResultMutation, SetOtherFormulaMutation } from '@univerjs/engine-formula';
 import { BehaviorSubject, buffer, filter, skip, Subject } from 'rxjs';
 import { OtherFormulaMarkDirty } from '../commands/mutations/formula.mutation';
+import { SetFormulaCalculationResultMutation } from '../commands/mutations/set-formula-calculation.mutation';
+import { RemoveOtherFormulaMutation, SetOtherFormulaMutation } from '../commands/mutations/set-other-formula.mutation';
+import { IActiveDirtyManagerService } from './active-dirty-manager.service';
 import { FormulaResultStatus } from './formula-common';
+
+export enum OtherFormulaBizType {
+    DEFAULT = 'default',
+    DATA_VALIDATION = 'dv',
+    DATA_VALIDATION_CUSTOM = 'dv-custom',
+    CONDITIONAL_FORMATTING = 'cf',
+    DOC = 'doc',
+    SLIDE = 'slide',
+}
 
 export class RegisterOtherFormulaService extends Disposable {
     private _formulaCacheMap: Map<string, Map<string, Map<string, IOtherFormulaResult>>> = new Map();
@@ -72,8 +85,8 @@ export class RegisterOtherFormulaService extends Disposable {
         return subUnitMap;
     }
 
-    private _createFormulaId(unitId: string, subUnitId: string) {
-        return `formula.${unitId}_${subUnitId}_${generateRandomId(8)}`;
+    private _createFormulaId(unitId: string, subUnitId: string, bizType: OtherFormulaBizType, bizId: string) {
+        return `formula.${unitId}_${subUnitId}_${bizType}_${bizId}_${generateRandomId(8)}`;
     }
 
     private _initFormulaRegister() {
@@ -182,8 +195,8 @@ export class RegisterOtherFormulaService extends Disposable {
         }));
     }
 
-    registerFormulaWithRange(unitId: string, subUnitId: string, formulaText: string, ranges: IRange[] = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }], extra?: Record<string, any>) {
-        const formulaId = this._createFormulaId(unitId, subUnitId);
+    registerFormulaWithRange(unitId: string, subUnitId: string, formulaText: string, ranges: IRange[] = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 }], extra?: Record<string, any>, bizType: OtherFormulaBizType = OtherFormulaBizType.DEFAULT, bizId: string = '') {
+        const formulaId = this._createFormulaId(unitId, subUnitId, bizType, bizId);
         const cacheMap = this._ensureCacheMap(unitId, subUnitId);
 
         cacheMap.set(formulaId, {
