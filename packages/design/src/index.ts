@@ -82,6 +82,3 @@ export { clsx } from './helper/clsx';
 export { isBrowser } from './helper/is-browser';
 export { render, unmount } from './helper/react-dom';
 export { resizeObserverCtor } from './helper/resize-observer';
-
-/** @deprecated Only for compatibility with versions before 0.7.0, will be removed in future versions */
-export { defaultTheme, greenTheme } from '@univerjs/themes';
