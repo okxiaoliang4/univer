@@ -21,6 +21,7 @@ for await (const pkgGlob of [
     'packages/core',
     'packages/engine-formula',
     'packages/sheets',
+    'packages/sheets-conditional-formatting',
     'packages/sheets-ui',
     'packages/sheets-numfmt-ui',
     'packages/sheets-formula',
