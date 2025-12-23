@@ -103,11 +103,6 @@ export class FormulaController extends Disposable {
             SetCellFormulaDependencyCalculationMutation,
             SetCellFormulaDependencyCalculationResultMutation,
 
-            SetFormulaDependencyCalculationMutation,
-            SetFormulaDependencyCalculationResultMutation,
-            SetCellFormulaDependencyCalculationMutation,
-            SetCellFormulaDependencyCalculationResultMutation,
-
             SetDefinedNameMutation,
             RemoveDefinedNameMutation,
             SetFeatureCalculationMutation,
