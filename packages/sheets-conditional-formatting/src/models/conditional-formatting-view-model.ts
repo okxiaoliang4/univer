@@ -169,6 +169,16 @@ export class ConditionalFormattingViewModel extends Disposable {
         super.dispose();
     }
 
+    deleteUnitId(unitId: string) {
+        this._calculateUnitManagers.delete(unitId);
+        this._cellCache.forEach((_item, key) => {
+            if (key.startsWith(unitId)) {
+                this._cellCache.delete(key);
+            }
+        });
+        this._rTreeManager.removeById(unitId);
+    }
+
     private _handleCustomFormulasSeparately() {
         this.disposeWithMe(
             this._conditionalFormattingRuleModel.$ruleChange.subscribe((e) => {
