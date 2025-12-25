@@ -16,6 +16,7 @@
 
 import type { BuildOptions, Plugin, SameShape } from 'esbuild';
 import { execSync } from 'node:child_process';
+import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -27,9 +28,25 @@ import cleanPlugin from 'esbuild-plugin-clean';
 import copyPlugin from 'esbuild-plugin-copy';
 import vue3 from 'esbuild-plugin-vue3';
 import stylePlugin from 'esbuild-style-plugin';
+import httpServer from 'http-server';
 import minimist from 'minimist';
 import React from 'react';
 import tailwindcss from 'tailwindcss';
+
+/**
+ * Get local LAN IP address
+ */
+function getLocalLanIP(): string {
+    const nets = networkInterfaces();
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name]!) {
+            if (net.family === 'IPv4' && !net.internal) {
+                return net.address;
+            }
+        }
+    }
+    return 'localhost';
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -199,13 +216,19 @@ async function main() {
         await ctx.watch();
 
         const port = isE2E ? 3000 : await detect(3002);
-        await ctx.serve({
-            servedir: './local',
-            port,
+
+        // Use http-server instead of esbuild's built-in serve
+        // to ensure proper LAN access
+        const server = httpServer.createServer({
+            root: './local',
+            cache: -1, // Disable caching during development
         });
 
-        const url = `http://localhost:${port}`;
-        console.log(`Local server: ${url}`);
+        server.listen(port, '0.0.0.0', () => {
+            const lanIP = getLocalLanIP();
+            console.log(`\n➜  Local:   http://localhost:${port}/`);
+            console.log(`➜  Network: http://${lanIP}:${port}/\n`);
+        });
     } else {
         await esbuild.build(config);
     }
