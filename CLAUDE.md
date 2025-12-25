@@ -1,4 +1,4 @@
-# AGENTS.md
+# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -225,23 +225,3 @@ The Facade API provides a simplified user-facing API layer. When contributing:
 - Facade API contribution: [docs/CONTRIBUTING-FACADE.md](docs/CONTRIBUTING-FACADE.md)
 - Naming conventions: [docs/NAMING_CONVENTION.md](docs/NAMING_CONVENTION.md)
 - Community: Discord, GitHub Discussions, Stack Overflow (tag: `univer`)
-
-
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
