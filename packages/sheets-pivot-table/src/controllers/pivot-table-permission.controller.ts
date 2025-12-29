@@ -19,7 +19,6 @@ import type { IClearSelectionContentCommandParams, ISetRangeValuesCommandParams 
 import { CustomCommandExecutionError, Disposable, ICommandService, Inject, IUniverInstanceService, LocaleService, ObjectMatrix } from '@univerjs/core';
 import { ClearSelectionContentCommand, getSheetCommandTarget, SetRangeValuesCommand } from '@univerjs/sheets';
 import { IPivotTableRangeService } from '../services/pivot-table-range.service';
-import { ISheetsPivotTableService } from '../services/pivot-table.service';
 
 /**
  * Controller that protects pivot table output ranges from manual editing
@@ -43,7 +42,6 @@ import { ISheetsPivotTableService } from '../services/pivot-table.service';
 export class PivotTablePermissionController extends Disposable {
     constructor(
         @ICommandService private readonly _commandService: ICommandService,
-        @Inject(ISheetsPivotTableService) private readonly _pivotTableService: ISheetsPivotTableService,
         @Inject(IPivotTableRangeService) private readonly _pivotTableRangeService: IPivotTableRangeService,
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
         @Inject(LocaleService) private readonly _localeService: LocaleService

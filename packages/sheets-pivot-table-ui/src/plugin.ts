@@ -17,6 +17,7 @@
 import type { IUniverSheetsPivotTableUIConfig } from './controllers/config.schema';
 import { DependentOn, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
 import { UniverSheetsPivotTablePlugin } from '@univerjs/sheets-pivot-table';
+import { UniverSheetsUIPlugin } from '@univerjs/sheets-ui';
 import { ComponentManager } from '@univerjs/ui';
 import { PLUGIN_NAME } from './const/const';
 import { defaultPluginConfig, SHEETS_PIVOT_TABLE_UI_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
@@ -29,7 +30,7 @@ import { ISheetsPivotTablePanelService, SheetsPivotTablePanelService } from './s
 import { IPivotTableStyleService, PivotTableStyleService } from './services/pivot-table-style.service';
 import { registerPivotTableComponents } from './views/menu';
 
-@DependentOn(UniverSheetsPivotTablePlugin)
+@DependentOn(UniverSheetsUIPlugin, UniverSheetsPivotTablePlugin)
 export class UniverSheetsPivotTableUIPlugin extends Plugin {
     static override pluginName = PLUGIN_NAME;
     static override type = UniverInstanceType.UNIVER_SHEET;

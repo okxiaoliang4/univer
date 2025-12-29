@@ -16,7 +16,8 @@
 
 import type { Dependency } from '@univerjs/core';
 import type { IUniverSheetsPivotTableConfig } from './controllers/config.schema';
-import { ICommandService, IConfigService, Inject, Injector, merge, Optional, Plugin, touchDependencies, UniverInstanceType } from '@univerjs/core';
+import { DependentOn, ICommandService, IConfigService, Inject, Injector, merge, Optional, Plugin, touchDependencies, UniverInstanceType } from '@univerjs/core';
+import { UniverFormulaEnginePlugin } from '@univerjs/engine-formula';
 import { DataSyncPrimaryController } from '@univerjs/rpc';
 import { CreatePivotTableCommand, RemovePivotTableCommand, SetPivotTableSourceRangeCommand, UpdatePivotTableFieldsCommand } from './commands/commands/pivot-table.command';
 import {
@@ -36,6 +37,7 @@ import { SheetsPivotDataSourceModel } from './models/sheets-pivot-data-source-mo
 import { IPivotTableRangeService, PivotTableRangeService } from './services/pivot-table-range.service';
 import { ISheetsPivotTableService, SHEET_PIVOT_TABLE_PLUGIN, SheetsPivotTableService } from './services/pivot-table.service';
 
+@DependentOn(UniverFormulaEnginePlugin)
 export class UniverSheetsPivotTablePlugin extends Plugin {
     static override pluginName = SHEET_PIVOT_TABLE_PLUGIN;
     static override type = UniverInstanceType.UNIVER_SHEET;
