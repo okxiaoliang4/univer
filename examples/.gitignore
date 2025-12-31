@@ -1,3 +1,6 @@
 public
 !public/index.html
 !public/favicon.svg
+
+# SSL certificates for HTTPS development server
+.certs/

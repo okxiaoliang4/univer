@@ -35,6 +35,7 @@ import {
     IShortcutService,
     IUIPartsService,
 } from '@univerjs/ui';
+import { fromEvent } from 'rxjs';
 import { AutoClearContentCommand, AutoFillCommand } from '../../commands/commands/auto-fill.command';
 import { DeleteRangeMoveLeftConfirmCommand } from '../../commands/commands/delete-range-move-left-confirm.command';
 import { DeleteRangeMoveUpConfirmCommand } from '../../commands/commands/delete-range-move-up-confirm.command';
@@ -96,6 +97,7 @@ import { SidebarDefinedNameOperation } from '../../commands/operations/sidebar-d
 import { BorderPanel } from '../../components/border-panel/BorderPanel';
 import { BORDER_PANEL_COMPONENT } from '../../components/border-panel/interface';
 import { MENU_ITEM_INPUT_COMPONENT, MenuItemInput } from '../../components/menu-item-input';
+import { IMobileKeyboardService } from '../../services/mobile/mobile-keyboard.service';
 import { CellPopup } from '../../views/cell-popup';
 import { CELL_POPUP_COMPONENT_KEY } from '../../views/cell-popup/config';
 import { DEFINED_NAME_CONTAINER } from '../../views/defined-name/component-name';
@@ -180,6 +182,7 @@ export class SheetUIMobileController extends Disposable {
         this._initShortcuts();
         this._initWorkbenchParts();
         this._initFocusHandler();
+        this._initVisualViewportListener();
     }
 
     private _initComponents(): void {
@@ -349,18 +352,35 @@ export class SheetUIMobileController extends Disposable {
         this.disposeWithMe(uiController.registerComponent(BuiltInUIPart.CONTENT, () => connectInjector(RenderSheetContent, injector)));
     }
 
+    private _initVisualViewportListener(): void {
+        if (!window.visualViewport) return;
+        this.disposeWithMe(fromEvent(window.visualViewport, 'resize').subscribe(() => {
+            if (!window.visualViewport) return;
+            const offset = window.innerHeight - window.visualViewport.height;
+            return offset;
+        }));
+    }
+
     private _initFocusHandler(): void {
         this.disposeWithMe(
             this._layoutService.registerFocusHandler(UniverInstanceType.UNIVER_SHEET, (_unitId: string) => {
                 // DEBT: `_unitId` is not used hence we cannot support Univer mode now
                 // TODO@wzhudev: focus is different on mobile devices
 
+                const mobileKeyboardService = this._injector.get(IMobileKeyboardService);
                 const renderManagerService = this._injector.get(IRenderManagerService);
                 const instanceService = this._injector.get(IUniverInstanceService);
                 const currentEditorRender = getCurrentTypeOfRenderer(UniverInstanceType.UNIVER_DOC, instanceService, renderManagerService);
                 const docSelectionRenderService = currentEditorRender?.with(DocSelectionRenderService);
-
-                docSelectionRenderService?.focus();
+                this.disposeWithMe(mobileKeyboardService.keyboardMode$.subscribe((mode) => {
+                    if (mode === 'text') {
+                        docSelectionRenderService?.updateInputInputMode('');
+                        docSelectionRenderService?.focus();
+                    } else {
+                        docSelectionRenderService?.updateInputInputMode('none');
+                    }
+                }));
+                mobileKeyboardService.showKeyboard();
             })
         );
     }

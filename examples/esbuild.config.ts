@@ -16,6 +16,7 @@
 
 import type { BuildOptions, Plugin, SameShape } from 'esbuild';
 import { execSync } from 'node:child_process';
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +35,43 @@ import tailwindcss from 'tailwindcss';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const nodeModules = path.resolve(process.cwd(), './node_modules');
+
+/**
+ * Generate self-signed certificate for HTTPS development server
+ */
+function generateCertificate(keyPath: string, certPath: string) {
+    if (existsSync(keyPath) && existsSync(certPath)) {
+        return { keyPath, certPath };
+    }
+
+    console.log('Generating self-signed certificate for HTTPS...');
+
+    // Ensure certificate directory exists
+    const certDir = path.dirname(keyPath);
+    if (!existsSync(certDir)) {
+        mkdirSync(certDir, { recursive: true });
+    }
+
+    try {
+        // Generate private key and certificate in one command
+        // This creates a self-signed certificate valid for 365 days
+        const opensslCommand = `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 365 -nodes -subj "/C=US/ST=State/L=City/O=Univer/CN=localhost"`;
+
+        execSync(opensslCommand, { stdio: 'inherit' });
+
+        console.log(`✓ Certificate generated: ${certPath}`);
+        console.log(`✓ Private key generated: ${keyPath}`);
+    } catch (error) {
+        console.error('Failed to generate certificate:', error);
+        throw new Error(
+            'Cannot generate certificate: OpenSSL is required.\n' +
+            'Please install OpenSSL or generate certificates manually:\n' +
+            `  openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 365 -nodes -subj "/C=US/ST=State/L=City/O=Univer/CN=localhost"`
+        );
+    }
+
+    return { keyPath, certPath };
+}
 
 const args = minimist(process.argv.slice(2));
 const isE2E = !!args.e2e;
@@ -199,13 +237,24 @@ async function main() {
         await ctx.watch();
 
         const port = isE2E ? 3000 : await detect(3002);
+
+        // Generate certificates for HTTPS
+        const certDir = path.resolve(__dirname, './.certs');
+        const keyPath = path.join(certDir, 'localhost-key.pem');
+        const certPath = path.join(certDir, 'localhost-cert.pem');
+
+        const { keyPath: finalKeyPath, certPath: finalCertPath } = generateCertificate(keyPath, certPath);
+
         await ctx.serve({
             servedir: './local',
+            keyfile: finalKeyPath,
+            certfile: finalCertPath,
             port,
         });
 
-        const url = `http://localhost:${port}`;
+        const url = `https://localhost:${port}`;
         console.log(`Local server: ${url}`);
+        console.log('Note: You may need to accept the self-signed certificate in your browser.');
     } else {
         await esbuild.build(config);
     }

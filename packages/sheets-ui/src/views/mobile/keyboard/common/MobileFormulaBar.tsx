@@ -1,0 +1,306 @@
+/**
+ * Copyright 2023-present DreamNum Co., Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { Workbook } from '@univerjs/core';
+import type { IEditorBridgeServiceVisibleParam } from '../../../../services/editor-bridge.service';
+import {
+    DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY,
+    FOCUSING_FX_BAR_EDITOR,
+    ICommandService,
+    IContextService,
+    IPermissionService,
+    IUniverInstanceService,
+    UniverInstanceType,
+} from '@univerjs/core';
+import { clsx } from '@univerjs/design';
+import { IEditorService } from '@univerjs/docs-ui';
+import { DeviceInputEventType } from '@univerjs/engine-render';
+import { CheckMarkIcon } from '@univerjs/icons';
+import {
+    RangeProtectionCache,
+    RangeProtectionRuleModel,
+    SheetsSelectionsService,
+    UnitAction,
+    WorksheetEditPermission,
+    WorksheetProtectionRuleModel,
+    WorksheetViewPermission,
+} from '@univerjs/sheets';
+import { ComponentManager, useDependency, useObservable } from '@univerjs/ui';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { EMPTY, merge, of, switchMap } from 'rxjs';
+import { SetCellEditVisibleOperation } from '../../../../commands/operations/cell-edit.operation';
+import { EMBEDDING_FORMULA_EDITOR_COMPONENT_KEY } from '../../../../common/keys';
+import { IEditorBridgeService } from '../../../../services/editor-bridge.service';
+import { IFormulaEditorManagerService } from '../../../../services/editor/formula-editor-manager.service';
+import { useKeyEventConfig } from '../../../editor-container/hooks';
+
+interface IProps {
+    className?: string;
+}
+
+export function MobileFormulaBar(props: IProps) {
+    const { className } = props;
+    const formulaEditorManagerService = useDependency(IFormulaEditorManagerService);
+    const editorBridgeService = useDependency(IEditorBridgeService);
+    const worksheetProtectionRuleModel = useDependency(WorksheetProtectionRuleModel);
+    const rangeProtectionRuleModel = useDependency(RangeProtectionRuleModel);
+    const univerInstanceService = useDependency(IUniverInstanceService);
+    const selectionManager = useDependency(SheetsSelectionsService);
+    const permissionService = useDependency(IPermissionService);
+    const rangeProtectionCache = useDependency(RangeProtectionCache);
+    const commandService = useDependency(ICommandService);
+    const [disableInfo, setDisableInfo] = useState<{ editDisable: boolean; viewDisable: boolean }>({
+        editDisable: false,
+        viewDisable: false,
+    });
+    const [imageDisable, setImageDisable] = useState<boolean>(false);
+    const componentManager = useDependency(ComponentManager);
+    const workbook = useObservable(() => univerInstanceService.getCurrentTypeOfUnit$<Workbook>(UniverInstanceType.UNIVER_SHEET), undefined, undefined, [])!;
+    const isRefSelecting = useRef<0 | 1 | 2>(0);
+    const editState = useObservable(editorBridgeService.currentEditCellState$);
+    const keyCodeConfig = useKeyEventConfig(isRefSelecting, editState?.unitId ?? '');
+    const FormulaEditor = componentManager.get(EMBEDDING_FORMULA_EDITOR_COMPONENT_KEY);
+    const contextService = useDependency(IContextService);
+    useObservable(useMemo(() => contextService.subscribeContextValue$(FOCUSING_FX_BAR_EDITOR), [contextService]));
+    const isFocusFxBar = contextService.getContextValue(FOCUSING_FX_BAR_EDITOR);
+    const ref = useRef<HTMLDivElement>(null);
+    const editorService = useDependency(IEditorService);
+
+    useLayoutEffect(() => {
+        const subscription = workbook.activeSheet$.pipe(
+            switchMap((worksheet) => {
+                if (!worksheet) {
+                    return EMPTY;
+                }
+                return merge(
+                    worksheetProtectionRuleModel.ruleChange$,
+                    rangeProtectionRuleModel.ruleChange$,
+                    selectionManager.selectionMoveEnd$,
+                    selectionManager.selectionSet$
+                ).pipe(
+                    switchMap(() => {
+                        const unitId = workbook.getUnitId();
+                        const subUnitId = worksheet.getSheetId();
+                        const range = selectionManager.getCurrentLastSelection()?.range;
+                        if (!range) return EMPTY;
+                        const primary = selectionManager.getCurrentLastSelection()?.primary;
+                        if (!primary) {
+                            return of(null);
+                        }
+
+                        return of({
+                            unitId,
+                            subUnitId,
+                            primary,
+                        });
+                    })
+                );
+            })
+        ).subscribe((cellInfo) => {
+            if (cellInfo) {
+                const { unitId, subUnitId, primary } = cellInfo;
+                if (worksheetProtectionRuleModel.getRule(unitId, subUnitId)) {
+                    const editDisable = !(permissionService.getPermissionPoint(new WorksheetEditPermission(unitId, subUnitId).id)?.value ?? true);
+                    const viewDisable = !(permissionService.getPermissionPoint(new WorksheetViewPermission(unitId, subUnitId).id)?.value ?? true);
+                    setDisableInfo({
+                        viewDisable,
+                        editDisable,
+                    });
+                    return;
+                }
+                const { actualRow, actualColumn } = primary;
+                const cellInfoWithPermission = rangeProtectionCache.getCellInfo(unitId, subUnitId, actualRow, actualColumn);
+                setDisableInfo({
+                    editDisable: !(cellInfoWithPermission?.[UnitAction.Edit] ?? true),
+                    viewDisable: !(cellInfoWithPermission?.[UnitAction.View] ?? true),
+                });
+            } else {
+                setDisableInfo({
+                    viewDisable: false,
+                    editDisable: false,
+                });
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [workbook]);
+
+    useEffect(() => {
+        const subscription = editorBridgeService.currentEditCellState$.subscribe((state) => {
+            if (state?.documentLayoutObject.documentModel?.getBody()?.customBlocks?.length) {
+                setImageDisable(true);
+            } else {
+                setImageDisable(false);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, [editorBridgeService.currentEditCellState$]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (!ref.current) return;
+
+            const editorRect = ref.current.getBoundingClientRect();
+            formulaEditorManagerService.setPosition(editorRect);
+        };
+
+        if (ref.current) {
+            handleResize();
+            const a = new ResizeObserver(handleResize);
+
+            a.observe(ref.current);
+            return () => a.disconnect();
+        }
+    }, [formulaEditorManagerService]);
+
+    // Handle click the "√" button.
+    function handleConfirmBtnClick() {
+        const visibleState = editorBridgeService.isVisible();
+        if (visibleState.visible) {
+            commandService.executeCommand(SetCellEditVisibleOperation.id, {
+                visible: false,
+                eventType: DeviceInputEventType.PointerDown,
+                unitId: editState!.unitId,
+            });
+        }
+    }
+
+    // TODO Is there a need to disable an editor here?
+    const { viewDisable, editDisable } = disableInfo;
+    const disabled = editDisable || imageDisable;
+    const shouldSkipFocus = useRef(false);
+
+    const handlePointerDown = () => {
+        try {
+            // When clicking on the formula bar, the cell editor also needs to enter the edit state
+            const visibleState = editorBridgeService.isVisible();
+            if (visibleState.visible === false) {
+                const result = commandService.syncExecuteCommand(
+                    SetCellEditVisibleOperation.id,
+                    {
+                        visible: true,
+                        eventType: DeviceInputEventType.PointerDown,
+                        unitId: editState!.unitId,
+                    } as IEditorBridgeServiceVisibleParam
+                );
+                // cancel by event
+                if (!result) {
+                    shouldSkipFocus.current = true;
+                    return;
+                }
+                // undoRedoService.clearUndoRedo(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
+            }
+
+            // Open the normal editor first, and then we mark formula editor as activated.
+            contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
+        } catch (e) {
+            shouldSkipFocus.current = true;
+            throw e;
+        }
+    };
+
+    const handlePointerUp = () => {
+        if (shouldSkipFocus.current) {
+            setTimeout(() => {
+                editorService.blur(true);
+            }, 30);
+        }
+        shouldSkipFocus.current = false;
+    };
+
+    const isCellImage = (editState?.documentLayoutObject.documentModel?.getDrawingsOrder()?.length ?? 0) > 0;
+    const hideEditor = isCellImage || viewDisable;
+
+    return (
+        <div
+            data-u-comp="mobile-formula-bar"
+            className={clsx(`
+              huniver-h-7 univer-box-border univer-flex univer-bg-white
+              dark:!univer-bg-gray-900
+            `, className, {
+                'univer-pointer-events-none': editDisable,
+            })}
+        >
+            <div className="univer-flex univer-h-full univer-w-full univer-overflow-hidden univer-pl-3">
+                <div
+                    ref={ref}
+                    className="univer-relative univer-flex-1"
+                    onPointerDown={handlePointerDown}
+                    onPointerUp={handlePointerUp}
+                    style={{ pointerEvents: hideEditor ? 'none' : 'auto' }}
+                >
+                    {FormulaEditor && (
+                        <FormulaEditor
+                            className={`
+                              univer-relative univer-h-full univer-w-full univer-break-words univer-outline-none
+                              [&>div]:univer-ring-transparent
+                            `}
+                            disableSelectionOnClick
+                            editorId={DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY}
+                            initValue=""
+                            onChange={() => { }}
+                            isFocus={isFocusFxBar}
+                            unitId={editState?.unitId}
+                            subUnitId={editState?.sheetId}
+                            isSupportAcrossSheet
+                            resetSelectionOnBlur={false}
+                            isSingle={false}
+                            keyboardEventConfig={keyCodeConfig}
+                            onFormulaSelectingChange={(isSelecting: 0 | 1 | 2, isFocusing: boolean) => {
+                                isRefSelecting.current = isSelecting;
+                                if (!isFocusing) return;
+                                if (isSelecting) {
+                                    editorBridgeService.enableForceKeepVisible();
+                                } else {
+                                    editorBridgeService.disableForceKeepVisible();
+                                }
+                            }}
+                            autoScrollbar={false}
+                            disableContextMenu={false}
+                        />
+                    )}
+                    {/* When the editor is hidden, we just cover a div on the editor because re-instantiate
+                    the formula editor will be expensive. */}
+                    {hideEditor && (
+                        <div
+                            className={`
+                              univer-pointer-events-none univer-relative univer-left-0 univer-top-0 univer-z-[100]
+                              univer-h-full univer-w-full univer-cursor-not-allowed univer-bg-white
+                            `}
+                        />
+                    )}
+                </div>
+                {/* CheckMarkIcon moved to right side */}
+                <div
+                    className={clsx(`
+                      univer-flex univer-h-full univer-w-auto univer-cursor-pointer univer-items-center
+                      univer-justify-center univer-px-3 univer-text-base
+                      hover:univer-bg-gray-100
+                      dark:!univer-text-white dark:hover:!univer-bg-gray-700
+                    `, {
+                        'univer-cursor-not-allowed univer-text-gray-200 dark:!univer-text-gray-700': editDisable || !editState,
+                    })}
+                    onClick={handleConfirmBtnClick}
+                >
+                    <CheckMarkIcon />
+                </div>
+            </div>
+        </div>
+    );
+}

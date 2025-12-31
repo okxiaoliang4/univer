@@ -129,14 +129,12 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
     }
 
     private _initSelectionChangeListener() {
-        // When selection completes, we need to update the selections' rendering and clear event handlers.
-        // only ref selection need this. now mobile only has normal selection.
-        // this.disposeWithMe(this._workbookSelections.selectionMoveEnd$.subscribe((ISelectionWithStyleList) => {
-        //     this._reset();
-        //     for (const selectionWithStyle of ISelectionWithStyleList) {
-        //         this._addSelectionControlByModelData(selectionWithStyle);
-        //     }
-        // }));
+        this.disposeWithMe(this._workbookSelections.selectionMoveEnd$.subscribe((ISelectionWithStyleList) => {
+            this._reset();
+            for (const selectionWithStyle of ISelectionWithStyleList) {
+                this._addSelectionControlByModelData(selectionWithStyle);
+            }
+        }));
     }
 
     private _initEventListeners(sheetObject: ISheetObjectParam): void {

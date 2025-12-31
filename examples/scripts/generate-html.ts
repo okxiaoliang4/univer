@@ -45,7 +45,7 @@ const indexTemplate = `<!doctype html>
         <style>
             html,
             body {
-                height: 100%;
+                height: 100dvh;
                 margin: 0;
                 font-family: Arial;
             }
@@ -53,7 +53,7 @@ const indexTemplate = `<!doctype html>
     </head>
 
     <body style="overflow: hidden">
-        <div id="app" style="height: 100%"></div>
+        <div id="app" style="height: 100dvh"></div>
 
         <script type="module" src="./main.js"></script>
     </body>

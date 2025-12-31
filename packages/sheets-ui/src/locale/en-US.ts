@@ -479,6 +479,7 @@ const locale = {
             addNewPermission: 'Add new permission',
         },
     },
+
 };
 
 export default locale;

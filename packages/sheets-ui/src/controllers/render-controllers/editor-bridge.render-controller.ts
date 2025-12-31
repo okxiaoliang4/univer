@@ -40,6 +40,7 @@ import { getSheetObject } from '../utils/component-tools';
 
 export class EditorBridgeRenderController extends RxDisposable implements IRenderModule {
     private _d: Nullable<IDisposable>;
+    private _isUpdatingEditorPosition: boolean = false;
 
     constructor(
         private readonly _context: IRenderContext<Workbook>,
@@ -87,6 +88,9 @@ export class EditorBridgeRenderController extends RxDisposable implements IRende
     private _updateEditorPosition(params: Nullable<ISelectionWithStyle[]>) {
         if (this._editorBridgeService.isVisible().visible) return;
 
+        // Prevent re-entrant calls during SetActivateCellEditOperation execution
+        if (this._isUpdatingEditorPosition) return;
+
         const primary = params?.[params.length - 1]?.primary;
         if (primary) {
             const sheetObject = this._getSheetObject();
@@ -107,12 +111,16 @@ export class EditorBridgeRenderController extends RxDisposable implements IRende
                     isMergedMainCell: mergeInfo.isMergedMainCell,
                 }
                 : primary;
+
+            this._isUpdatingEditorPosition = true;
             this._commandService.executeCommand<ICurrentEditCellParam>(SetActivateCellEditOperation.id, {
                 scene,
                 engine,
                 primary: newPrimary,
                 unitId,
                 sheetId,
+            }).finally(() => {
+                this._isUpdatingEditorPosition = false;
             });
         }
     }

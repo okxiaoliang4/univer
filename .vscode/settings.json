@@ -57,5 +57,6 @@
 
     "editor.quickSuggestions": {
         "strings": "on"
-    }
+    },
+    "commentTranslate.hover.enabled": false
 }

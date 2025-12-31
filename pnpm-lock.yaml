@@ -3200,6 +3200,9 @@ importers:
       '@univerjs/sheets':
         specifier: workspace:*
         version: link:../sheets
+      '@univerjs/sheets-formula':
+        specifier: workspace:*
+        version: link:../sheets-formula
       '@univerjs/telemetry':
         specifier: workspace:*
         version: link:../telemetry
