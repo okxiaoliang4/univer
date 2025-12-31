@@ -337,6 +337,9 @@ importers:
       '@univerjs/icons':
         specifier: 1.0.2
         version: 1.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@univerjs/mobile-keyboard-ui':
+        specifier: workspace:*
+        version: link:../packages/mobile-keyboard-ui
       '@univerjs/mockdata':
         specifier: workspace:*
         version: link:../mockdata
@@ -1862,6 +1865,64 @@ importers:
         specifier: ^4.0.15
         version: 4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/mobile-keyboard-ui:
+    dependencies:
+      '@univerjs/core':
+        specifier: workspace:*
+        version: link:../core
+      '@univerjs/design':
+        specifier: workspace:*
+        version: link:../design
+      '@univerjs/docs':
+        specifier: workspace:*
+        version: link:../docs
+      '@univerjs/docs-ui':
+        specifier: workspace:*
+        version: link:../docs-ui
+      '@univerjs/engine-formula':
+        specifier: workspace:*
+        version: link:../engine-formula
+      '@univerjs/engine-render':
+        specifier: workspace:*
+        version: link:../engine-render
+      '@univerjs/icons':
+        specifier: ^1.0.2
+        version: 1.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@univerjs/sheets':
+        specifier: workspace:*
+        version: link:../sheets
+      '@univerjs/sheets-formula':
+        specifier: workspace:*
+        version: link:../sheets-formula
+      '@univerjs/sheets-formula-ui':
+        specifier: workspace:*
+        version: link:../sheets-formula-ui
+      '@univerjs/sheets-ui':
+        specifier: workspace:*
+        version: link:../sheets-ui
+      '@univerjs/ui':
+        specifier: workspace:*
+        version: link:../ui
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+    devDependencies:
+      '@univerjs-infra/shared':
+        specifier: workspace:*
+        version: link:../../common/shared
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.2.7
+        version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      vitest:
+        specifier: ^4.0.15
+        version: 4.0.15(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/network:
     dependencies:
       '@univerjs/core':
@@ -2835,7 +2896,7 @@ importers:
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
       vitest:
         specifier: ^3.2.4
-        version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1(postcss@8.5.6))(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/sheets-pivot-table-ui:
     dependencies:
@@ -2911,7 +2972,7 @@ importers:
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
       vitest:
         specifier: ^3.2.4
-        version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1(postcss@8.5.6))(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/sheets-sort:
     dependencies:
@@ -3200,9 +3261,6 @@ importers:
       '@univerjs/sheets':
         specifier: workspace:*
         version: link:../sheets
-      '@univerjs/sheets-formula':
-        specifier: workspace:*
-        version: link:../sheets-formula
       '@univerjs/telemetry':
         specifier: workspace:*
         version: link:../telemetry
@@ -6305,6 +6363,12 @@ packages:
 
   '@univerjs/icons@1.0.2':
     resolution: {integrity: sha512-aNO/KSqVubVpoUdtYfCVpdC3HgS24NH0lCFzz0TU+fvHg+QzsQgxg9+sfjKMYIpMHs/6UXSyv217SaHzsWQlWA==}
+    peerDependencies:
+      react: 19.2.3
+      react-dom: 19.2.3
+
+  '@univerjs/icons@1.1.0':
+    resolution: {integrity: sha512-p6r1qoUL/WyOGnxZ30D1+P3BXDQUq1gxjW/jssl1xKQ/pqascOH3ni/3JuHjMe4M4Zx1XNnEdvi07VURSaD12A==}
     peerDependencies:
       react: 19.2.3
       react-dom: 19.2.3
@@ -14385,7 +14449,7 @@ snapshots:
       '@radix-ui/react-popover': 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-separator': 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-slot': 1.2.4(@types/react@19.2.7)(react@19.2.3)
-      '@univerjs/icons': 1.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@univerjs/icons': 1.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
       dayjs: 1.11.19
@@ -14409,7 +14473,7 @@ snapshots:
       '@univerjs/docs': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/drawing': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/engine-render': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
-      '@univerjs/icons': 1.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@univerjs/icons': 1.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@univerjs/ui': 0.14.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rxjs@7.8.2)
       react: 19.2.3
       rxjs: 7.8.2
@@ -14464,6 +14528,11 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
+  '@univerjs/icons@1.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+
   '@univerjs/protocol@0.1.47': {}
 
   '@univerjs/rpc@0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)':
@@ -14492,7 +14561,7 @@ snapshots:
       '@univerjs/docs-ui': 0.14.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(@wendellhu/redi@1.0.1(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rxjs@7.8.2)
       '@univerjs/engine-formula': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/engine-render': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
-      '@univerjs/icons': 1.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@univerjs/icons': 1.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@univerjs/sheets': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/sheets-formula': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/sheets-ui': 0.14.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(@wendellhu/redi@1.0.1(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rxjs@7.8.2)
@@ -14523,7 +14592,7 @@ snapshots:
       '@univerjs/docs-ui': 0.14.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(@wendellhu/redi@1.0.1(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(rxjs@7.8.2)
       '@univerjs/engine-formula': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/engine-render': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
-      '@univerjs/icons': 1.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@univerjs/icons': 1.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@univerjs/protocol': 0.1.47
       '@univerjs/sheets': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/telemetry': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
@@ -14560,7 +14629,7 @@ snapshots:
       '@univerjs/core': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
       '@univerjs/design': 0.14.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@univerjs/engine-render': 0.14.0(@wendellhu/redi@1.0.1(react@19.2.3))(rxjs@7.8.2)
-      '@univerjs/icons': 1.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@univerjs/icons': 1.1.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@wendellhu/redi': 1.0.1(react@19.2.3)
       localforage: 1.10.0
       react: 19.2.3
@@ -20379,7 +20448,7 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.2
 
-  vitest@3.2.4(@types/debug@4.1.12)(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1(postcss@8.5.6))(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2):
+  vitest@3.2.4(@types/debug@4.1.12)(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.0.1)(sass@1.87.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.4

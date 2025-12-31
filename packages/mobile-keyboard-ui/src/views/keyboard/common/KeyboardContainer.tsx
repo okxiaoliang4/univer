@@ -17,7 +17,7 @@
 import { clsx } from '@univerjs/design';
 import { IEditorService } from '@univerjs/docs-ui';
 import { useDependency, useObservable } from '@univerjs/ui';
-import { IMobileKeyboardService } from '../../../../services/mobile/mobile-keyboard.service';
+import { IMobileKeyboardService, KeyboardMode } from '../../../services/mobile-keyboard.service';
 import { FormulaKeyboard } from '../formula-keyboard/FormulaKeyboard';
 import { NumberKeyboard } from '../number-keyboard/NumberKeyboard';
 import { TextKeyboard } from '../text-keyboard/TextKeyboard';
@@ -31,7 +31,7 @@ export { KeyboardItem };
 export function KeyboardContainer() {
     const mobileKeyboardService = useDependency(IMobileKeyboardService);
     const isVisible = useObservable(mobileKeyboardService.isKeyboardVisible$, false);
-    const currentMode = useObservable(mobileKeyboardService.keyboardMode$, 'number');
+    const currentMode = useObservable(mobileKeyboardService.keyboardMode$, KeyboardMode.NUMBER);
 
     const editorService = useDependency(IEditorService);
     if (!isVisible) {

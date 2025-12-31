@@ -42,7 +42,6 @@ import { ForceStringRenderController } from './controllers/force-string-render.c
 import { FormatPainterController } from './controllers/format-painter/format-painter.controller';
 import { HoverRenderController } from './controllers/hover-render.controller';
 import { MarkSelectionRenderController } from './controllers/mark-selection.controller';
-import { MobileKeyboardController } from './controllers/mobile/mobile-keyboard.controller';
 import { SheetUIMobileController } from './controllers/mobile/mobile-sheet-ui.controller';
 import { MobileViewportController } from './controllers/mobile/mobile-viewport.controller';
 import { MoveRangeRenderController } from './controllers/move-range.controller';
@@ -82,7 +81,6 @@ import { FormulaEditorManagerService, IFormulaEditorManagerService } from './ser
 import { FormatPainterService, IFormatPainterService } from './services/format-painter/format-painter.service';
 import { HoverManagerService } from './services/hover-manager.service';
 import { IMarkSelectionService, MarkSelectionService } from './services/mark-selection/mark-selection.service';
-import { IMobileKeyboardService, MobileKeyboardService } from './services/mobile/mobile-keyboard.service';
 import { SheetPermissionPanelModel } from './services/permission/sheet-permission-panel.model';
 import { SheetPermissionUserManagerService } from './services/permission/sheet-permission-user-list.service';
 import { SheetPrintInterceptorService } from './services/print-interceptor.service';
@@ -176,9 +174,7 @@ export class UniverSheetsMobileUIPlugin extends Plugin {
             [EditorDataSyncController],
             [SheetCheckboxController],
             [EditingRenderController],
-            [MobileKeyboardController],
             [MobileViewportController],
-            [IMobileKeyboardService, { useClass: MobileKeyboardService }],
 
             // permission
             [SheetPermissionPanelModel],
@@ -203,7 +199,6 @@ export class UniverSheetsMobileUIPlugin extends Plugin {
 
         touchDependencies(this._injector, [
             [SheetUIMobileController],
-            [MobileKeyboardController],
             [SheetsRenderService],
             [SheetPermissionCheckUIController],
             [SheetPermissionInitUIController],

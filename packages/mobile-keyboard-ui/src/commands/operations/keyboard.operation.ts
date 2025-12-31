@@ -1,0 +1,122 @@
+/**
+ * Copyright 2023-present DreamNum Co., Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { Direction, IOperation } from '@univerjs/core';
+import type { KeyboardMode } from '../../services/mobile-keyboard.service';
+import { CommandType } from '@univerjs/core';
+import { IMobileKeyboardService } from '../../services/mobile-keyboard.service';
+
+export interface IKeyboardInsertTextOperationParams {
+    text?: string;
+}
+
+export const KeyboardInsertTextOperation: IOperation<IKeyboardInsertTextOperationParams> = {
+    id: 'mobile-keyboard-ui.operation.insert-text',
+    type: CommandType.OPERATION,
+    handler: (accessor, params) => {
+        const { text } = params as IKeyboardInsertTextOperationParams;
+        if (!text) {
+            return false;
+        }
+        accessor.get(IMobileKeyboardService).insertText(text);
+        return true;
+    },
+};
+
+export interface IKeyboardInsertFunctionOperationParams {
+    funcName: string;
+}
+export const KeyboardInsertFunctionOperation: IOperation<IKeyboardInsertFunctionOperationParams> = {
+    id: 'mobile-keyboard-ui.operation.insert-function',
+    type: CommandType.OPERATION,
+    handler: (accessor, params) => {
+        const { funcName } = params as IKeyboardInsertFunctionOperationParams;
+        if (!funcName) {
+            return false;
+        }
+        accessor.get(IMobileKeyboardService).insertFunction(funcName);
+        return true;
+    },
+};
+
+export interface IKeyboardInsertQuotesOperationParams {
+    quotes: string;
+}
+export const KeyboardInsertQuotesOperation: IOperation<IKeyboardInsertQuotesOperationParams> = {
+    id: 'mobile-keyboard-ui.operation.insert-quotes',
+    type: CommandType.OPERATION,
+    handler: (accessor, params) => {
+        const { quotes } = params as IKeyboardInsertQuotesOperationParams;
+        if (!quotes) {
+            return false;
+        }
+        accessor.get(IMobileKeyboardService).insertQuotes(quotes);
+        return true;
+    },
+};
+
+export const KeyboardDeleteBackwardOperation: IOperation = {
+    id: 'mobile-keyboard-ui.operation.delete-backward',
+    type: CommandType.OPERATION,
+    handler: (accessor) => {
+        accessor.get(IMobileKeyboardService).deleteBackward();
+        return true;
+    },
+};
+
+export interface IKeyboardConfirmAndMoveOperationParams {
+    direction: Direction.DOWN | Direction.RIGHT;
+}
+export const KeyboardConfirmAndMoveOperation: IOperation<IKeyboardConfirmAndMoveOperationParams> = {
+    id: 'mobile-keyboard-ui.operation.confirm-and-move',
+    type: CommandType.OPERATION,
+    handler: (accessor, params) => {
+        const { direction } = params as IKeyboardConfirmAndMoveOperationParams;
+        accessor.get(IMobileKeyboardService).confirmAndMove(direction);
+        return true;
+    },
+};
+
+export interface IKeyboardSetModeOperationParams {
+    mode: KeyboardMode;
+}
+export const KeyboardSetModeOperation: IOperation<IKeyboardSetModeOperationParams> = {
+    id: 'mobile-keyboard-ui.operation.set-mode',
+    type: CommandType.OPERATION,
+    handler: (accessor, params) => {
+        const { mode } = params as IKeyboardSetModeOperationParams;
+        accessor.get(IMobileKeyboardService).setMode(mode);
+        return true;
+    },
+};
+
+export const KeyboardShowOperation: IOperation = {
+    id: 'mobile-keyboard-ui.operation.show',
+    type: CommandType.OPERATION,
+    handler: (accessor) => {
+        accessor.get(IMobileKeyboardService).showKeyboard();
+        return true;
+    },
+};
+
+export const KeyboardHideOperation: IOperation = {
+    id: 'mobile-keyboard-ui.operation.hide',
+    type: CommandType.OPERATION,
+    handler: (accessor) => {
+        accessor.get(IMobileKeyboardService).hideKeyboard();
+        return true;
+    },
+};

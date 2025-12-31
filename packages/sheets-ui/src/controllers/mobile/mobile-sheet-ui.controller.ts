@@ -97,7 +97,6 @@ import { SidebarDefinedNameOperation } from '../../commands/operations/sidebar-d
 import { BorderPanel } from '../../components/border-panel/BorderPanel';
 import { BORDER_PANEL_COMPONENT } from '../../components/border-panel/interface';
 import { MENU_ITEM_INPUT_COMPONENT, MenuItemInput } from '../../components/menu-item-input';
-import { IMobileKeyboardService } from '../../services/mobile/mobile-keyboard.service';
 import { CellPopup } from '../../views/cell-popup';
 import { CELL_POPUP_COMPONENT_KEY } from '../../views/cell-popup/config';
 import { DEFINED_NAME_CONTAINER } from '../../views/defined-name/component-name';
@@ -367,22 +366,12 @@ export class SheetUIMobileController extends Disposable {
                 // DEBT: `_unitId` is not used hence we cannot support Univer mode now
                 // TODO@wzhudev: focus is different on mobile devices
 
-                const mobileKeyboardService = this._injector.get(IMobileKeyboardService);
                 const renderManagerService = this._injector.get(IRenderManagerService);
                 const instanceService = this._injector.get(IUniverInstanceService);
                 const currentEditorRender = getCurrentTypeOfRenderer(UniverInstanceType.UNIVER_DOC, instanceService, renderManagerService);
                 const docSelectionRenderService = currentEditorRender?.with(DocSelectionRenderService);
 
-                docSelectionRenderService?.setInputMode('');
-                this.disposeWithMe(mobileKeyboardService.keyboardMode$.subscribe((mode) => {
-                    if (mode === 'text') {
-                        docSelectionRenderService?.setInputMode('');
-                        docSelectionRenderService?.focus();
-                    } else {
-                        docSelectionRenderService?.setInputMode('none');
-                    }
-                }));
-                // mobileKeyboardService.showKeyboard();
+                docSelectionRenderService?.focus();
             })
         );
     }

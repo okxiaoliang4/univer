@@ -20,6 +20,7 @@ export { SheetCopyFormulaOnlyCommand, SheetOnlyPasteFormulaCommand } from './com
 export { SelectEditorFormulaOperation } from './commands/operations/editor-formula.operation';
 export { HelpFunctionOperation } from './commands/operations/help-function.operation';
 export { InsertFunctionOperation } from './commands/operations/insert-function.operation';
+export type { IInsertFunctionOperationParams } from './commands/operations/insert-function.operation';
 export { MoreFunctionsOperation } from './commands/operations/more-functions.operation';
 export { ReferenceAbsoluteOperation } from './commands/operations/reference-absolute.operation';
 export { SearchFunctionOperation } from './commands/operations/search-function.operation';

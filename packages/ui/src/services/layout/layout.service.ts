@@ -39,7 +39,7 @@ export interface ILayoutService {
     focus(): void;
 
     /** Register a focus handler to focus on certain type of Univer unit. */
-    registerFocusHandler(type: UniverInstanceType, handler: FocusHandlerFn): IDisposable;
+    registerFocusHandler(type: UniverInstanceType, handler: FocusHandlerFn, replace?: boolean): IDisposable;
     /** Register the root container element. */
     registerRootContainerElement(container: HTMLElement): IDisposable;
     /** Register a content element. */
@@ -106,8 +106,8 @@ export class DesktopLayoutService extends Disposable implements ILayoutService {
         }
     }
 
-    registerFocusHandler(type: UniverInstanceType, handler: FocusHandlerFn): IDisposable {
-        if (this._focusHandlers.has(type)) {
+    registerFocusHandler(type: UniverInstanceType, handler: FocusHandlerFn, replace?: boolean): IDisposable {
+        if (!replace && this._focusHandlers.has(type)) {
             throw new Error(`[DesktopLayoutService]: handler of type ${type} bas been registered!`);
         }
 

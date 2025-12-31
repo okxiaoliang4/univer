@@ -16,6 +16,7 @@
 
 import { Direction } from '@univerjs/core';
 import { useState } from 'react';
+import { KeyboardMode } from '../../../services/mobile-keyboard.service';
 import { KeyboardItem } from '../common/KeyboardItem';
 import { useKeyboardInput } from '../hooks/use-keyboard-input';
 import { FunctionBrowser } from './FunctionBrowser';
@@ -23,7 +24,7 @@ import { FunctionBrowser } from './FunctionBrowser';
 type SubMode = 'formula' | 'english' | 'function-browser';
 
 export function FormulaKeyboard() {
-    const { insertText, deleteBackward, confirmAndMove, insertFunction, insertQuotes } = useKeyboardInput();
+    const { insertText, deleteBackward, confirmAndMove, insertFunction, insertQuotes, setMode } = useKeyboardInput();
     const [subMode, setSubMode] = useState<SubMode>('formula');
     const [isShiftActive, setIsShiftActive] = useState(false);
 
@@ -49,13 +50,13 @@ export function FormulaKeyboard() {
                 insertQuotes();
                 break;
             case 'A1':
-                setSubMode('english');
+                setMode(KeyboardMode.TEXT);
                 break;
             case 'f(x)':
-                setSubMode('function-browser');
+                // setSubMode('function-browser');
                 break;
             case 'back':
-                setSubMode('formula');
+                // setSubMode('formula');
                 break;
             case 'shift':
                 setIsShiftActive(!isShiftActive);

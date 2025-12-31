@@ -18,7 +18,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { clsx } from '@univerjs/design';
 import { forwardRef } from 'react';
 
-export interface KeyboardItemProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
+export interface IKeyboardItemProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
     /** Button variant */
     variant?: 'default' | 'primary' | 'danger' | 'success' | 'blue';
     /** Additional className for custom styling */
@@ -31,7 +31,7 @@ export interface KeyboardItemProps extends Omit<ButtonHTMLAttributes<HTMLButtonE
     rowSpan?: number;
 }
 
-export const KeyboardItem = forwardRef<HTMLButtonElement, KeyboardItemProps>(
+export const KeyboardItem = forwardRef<HTMLButtonElement, IKeyboardItemProps>(
     ({ variant = 'default', className, children, colSpan, rowSpan, ...rest }, ref) => {
         const variantStyles = {
             default: `

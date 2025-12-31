@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-import type { Plugin, PluginCtor } from '@univerjs/core';
-import { UniverSheetsFilterUIPlugin } from '@univerjs/sheets-filter-ui';
+import type { Config } from 'tailwindcss';
+import preset from '@univerjs-infra/shared/tailwind';
 
-export default function getLazyPlugins(): Array<[PluginCtor<Plugin>] | [PluginCtor<Plugin>, unknown]> {
-    return [
-        [UniverSheetsFilterUIPlugin],
-    ];
-}
+const config: Config = {
+    presets: [preset],
+    content: [
+        './src/**/*.{js,ts,jsx,tsx}',
+    ],
+};
+
+export default config;

@@ -14,30 +14,39 @@
  * limitations under the License.
  */
 
-import type { KeyboardMode } from '../../../../services/mobile/mobile-keyboard.service';
-import { Direction } from '@univerjs/core';
+import type { IKeyboardConfirmAndMoveOperationParams, IKeyboardSetModeOperationParams } from '../../../commands/operations/keyboard.operation';
+import { Direction, ICommandService } from '@univerjs/core';
 import { clsx } from '@univerjs/design';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback } from 'react';
-import { IMobileKeyboardService } from '../../../../services/mobile/mobile-keyboard.service';
-import { useKeyboardInput } from '../hooks/use-keyboard-input';
+import {
+    KeyboardConfirmAndMoveOperation,
+    KeyboardSetModeOperation,
+} from '../../../commands/operations/keyboard.operation';
+import { IMobileKeyboardService, KeyboardMode } from '../../../services/mobile-keyboard.service';
 
 export function ModeSwitcher() {
-    const { confirmAndMove } = useKeyboardInput();
+    const commandService = useDependency(ICommandService);
     const mobileKeyboardService = useDependency(IMobileKeyboardService);
-    const currentMode = useObservable(mobileKeyboardService.keyboardMode$, 'number');
+    const currentMode = useObservable(mobileKeyboardService.keyboardMode$, KeyboardMode.NUMBER);
 
     const handleTab = useCallback(async () => {
-        confirmAndMove(Direction.RIGHT);
-    }, [confirmAndMove]);
+        commandService.executeCommand(KeyboardConfirmAndMoveOperation.id, {
+            direction: Direction.RIGHT,
+        } satisfies IKeyboardConfirmAndMoveOperationParams);
+    }, [commandService]);
 
     const handleModeChange = useCallback((mode: KeyboardMode) => {
-        mobileKeyboardService.setMode(mode);
-    }, [mobileKeyboardService]);
+        commandService.executeCommand(KeyboardSetModeOperation.id, {
+            mode,
+        } satisfies IKeyboardSetModeOperationParams);
+    }, [commandService]);
 
     const handleEnter = useCallback(() => {
-        confirmAndMove(Direction.DOWN);
-    }, [confirmAndMove]);
+        commandService.executeCommand(KeyboardConfirmAndMoveOperation.id, {
+            direction: Direction.DOWN,
+        } satisfies IKeyboardConfirmAndMoveOperationParams);
+    }, [commandService]);
 
     return (
         <div
@@ -81,7 +90,7 @@ export function ModeSwitcher() {
                         'univer-bg-white univer-text-gray-700 dark:!univer-bg-gray-800 dark:!univer-text-gray-300': currentMode !== 'formula',
                     }
                 )}
-                onClick={() => handleModeChange('formula')}
+                onClick={() => handleModeChange(KeyboardMode.FORMULA)}
             >
                 f(x)
             </button>
@@ -99,7 +108,7 @@ export function ModeSwitcher() {
                         'univer-bg-white univer-text-gray-700 dark:!univer-bg-gray-800 dark:!univer-text-gray-300': currentMode !== 'number',
                     }
                 )}
-                onClick={() => handleModeChange('number')}
+                onClick={() => handleModeChange(KeyboardMode.NUMBER)}
             >
                 123
             </button>
@@ -117,7 +126,7 @@ export function ModeSwitcher() {
                         'univer-bg-white univer-text-gray-700 dark:!univer-bg-gray-800 dark:!univer-text-gray-300': currentMode !== 'text',
                     }
                 )}
-                onClick={() => handleModeChange('text')}
+                onClick={() => handleModeChange(KeyboardMode.TEXT)}
             >
                 ABC
             </button>

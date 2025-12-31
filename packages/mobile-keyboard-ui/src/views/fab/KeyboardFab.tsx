@@ -18,7 +18,7 @@ import { IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { clsx } from '@univerjs/design';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback } from 'react';
-import { IMobileKeyboardService } from '../../../services/mobile/mobile-keyboard.service';
+import { IMobileKeyboardService } from '../../services/mobile-keyboard.service';
 
 export function KeyboardFab() {
     const mobileKeyboardService = useDependency(IMobileKeyboardService);

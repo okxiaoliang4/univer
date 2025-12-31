@@ -15,7 +15,7 @@
  */
 
 import type { Workbook } from '@univerjs/core';
-import type { IEditorBridgeServiceVisibleParam } from '../../../../services/editor-bridge.service';
+import type { IEditorBridgeServiceVisibleParam } from '@univerjs/sheets-ui';
 import {
     DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY,
     FOCUSING_FX_BAR_EDITOR,
@@ -38,14 +38,10 @@ import {
     WorksheetProtectionRuleModel,
     WorksheetViewPermission,
 } from '@univerjs/sheets';
+import { EMBEDDING_FORMULA_EDITOR_COMPONENT_KEY, IEditorBridgeService, IFormulaEditorManagerService, SetCellEditVisibleOperation, useKeyEventConfig } from '@univerjs/sheets-ui';
 import { ComponentManager, useDependency, useObservable } from '@univerjs/ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EMPTY, merge, of, switchMap } from 'rxjs';
-import { SetCellEditVisibleOperation } from '../../../../commands/operations/cell-edit.operation';
-import { EMBEDDING_FORMULA_EDITOR_COMPONENT_KEY } from '../../../../common/keys';
-import { IEditorBridgeService } from '../../../../services/editor-bridge.service';
-import { IFormulaEditorManagerService } from '../../../../services/editor/formula-editor-manager.service';
-import { useKeyEventConfig } from '../../../editor-container/hooks';
 
 interface IProps {
     className?: string;

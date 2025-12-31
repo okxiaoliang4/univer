@@ -15,7 +15,7 @@
  */
 
 import { useDependency, useObservable } from '@univerjs/ui';
-import { MobileViewportController } from '../../../../controllers/mobile/mobile-viewport.controller';
+import { MobileViewportController } from '../../../controllers/mobile-viewport.controller';
 
 export function TextKeyboard() {
     const mobileViewportController = useDependency(MobileViewportController);

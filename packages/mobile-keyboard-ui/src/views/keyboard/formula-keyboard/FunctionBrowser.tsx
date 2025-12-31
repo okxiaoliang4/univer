@@ -100,6 +100,7 @@ export function FunctionBrowser(props: IFunctionBrowserProps) {
                 <div className="univer-flex univer-overflow-x-auto univer-px-2 univer-py-2 univer-scrollbar-none">
                     {categories.map((cat) => (
                         <button
+                            type="button"
                             key={cat.id}
                             className={`
                               univer-mr-2 univer-shrink-0 univer-rounded-full univer-px-4 univer-py-1.5 univer-text-sm
