@@ -726,7 +726,7 @@ export class DocSelectionRenderService extends RxDisposable implements IRenderMo
         );
     }
 
-    updateInputInputMode(inputMode: string) {
+    setInputMode(inputMode: string) {
         this._input.inputMode = inputMode;
     }
 
@@ -1278,6 +1278,14 @@ export class DocSelectionRenderService extends RxDisposable implements IRenderMo
         );
 
         return nodeInfo;
+    }
+
+    setInputContent(content: string) {
+        this._input.textContent = content;
+    }
+
+    dispatchInputDomEvent(e: Event | CompositionEvent | KeyboardEvent) {
+        this._input.dispatchEvent(e);
     }
 
     private _detachEvent() {

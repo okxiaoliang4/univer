@@ -14,16 +14,13 @@
  * limitations under the License.
  */
 
-import { ICommandService, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
+import { IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { clsx } from '@univerjs/design';
-import { DeviceInputEventType } from '@univerjs/engine-render';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback } from 'react';
-import { SetCellEditVisibleOperation } from '../../../commands/operations/cell-edit.operation';
 import { IMobileKeyboardService } from '../../../services/mobile/mobile-keyboard.service';
 
 export function KeyboardFab() {
-    const commandService = useDependency(ICommandService);
     const mobileKeyboardService = useDependency(IMobileKeyboardService);
     const univerInstanceService = useDependency(IUniverInstanceService);
 
@@ -36,12 +33,8 @@ export function KeyboardFab() {
         }
 
         // Trigger cell edit using the existing operation
-        commandService.executeCommand(SetCellEditVisibleOperation.id, {
-            visible: true,
-            eventType: DeviceInputEventType.PointerDown,
-            unitId: workbook.getUnitId(),
-        });
-    }, [commandService, univerInstanceService]);
+        mobileKeyboardService.showKeyboard();
+    }, [mobileKeyboardService, univerInstanceService]);
 
     // FAB is only visible when keyboard is NOT visible
     if (isKeyboardVisible) {

@@ -372,15 +372,17 @@ export class SheetUIMobileController extends Disposable {
                 const instanceService = this._injector.get(IUniverInstanceService);
                 const currentEditorRender = getCurrentTypeOfRenderer(UniverInstanceType.UNIVER_DOC, instanceService, renderManagerService);
                 const docSelectionRenderService = currentEditorRender?.with(DocSelectionRenderService);
+
+                docSelectionRenderService?.setInputMode('');
                 this.disposeWithMe(mobileKeyboardService.keyboardMode$.subscribe((mode) => {
                     if (mode === 'text') {
-                        docSelectionRenderService?.updateInputInputMode('');
+                        docSelectionRenderService?.setInputMode('');
                         docSelectionRenderService?.focus();
                     } else {
-                        docSelectionRenderService?.updateInputInputMode('none');
+                        docSelectionRenderService?.setInputMode('none');
                     }
                 }));
-                mobileKeyboardService.showKeyboard();
+                // mobileKeyboardService.showKeyboard();
             })
         );
     }
