@@ -16,7 +16,6 @@
 
 import { Direction } from '@univerjs/core';
 import { useState } from 'react';
-import { KeyboardMode } from '../../../services/mobile-keyboard.service';
 import { KeyboardItem } from '../common/KeyboardItem';
 import { useKeyboardInput } from '../hooks/use-keyboard-input';
 import { FunctionBrowser } from './FunctionBrowser';
@@ -24,7 +23,7 @@ import { FunctionBrowser } from './FunctionBrowser';
 type SubMode = 'formula' | 'english' | 'function-browser';
 
 export function FormulaKeyboard() {
-    const { insertText, deleteBackward, confirmAndMove, insertFunction, insertQuotes, setMode } = useKeyboardInput();
+    const { insertText, deleteBackward, confirmAndMove, insertFunction, insertQuotes } = useKeyboardInput();
     const [subMode, setSubMode] = useState<SubMode>('formula');
     const [isShiftActive, setIsShiftActive] = useState(false);
 
@@ -48,9 +47,6 @@ export function FormulaKeyboard() {
                 break;
             case 'quotes':
                 insertQuotes();
-                break;
-            case 'A1':
-                setMode(KeyboardMode.TEXT);
                 break;
             case 'f(x)':
                 // setSubMode('function-browser');
@@ -110,7 +106,7 @@ export function FormulaKeyboard() {
                     ))}
                 </div>
                 <div className="univer-mb-1 univer-grid univer-grid-cols-10 univer-gap-1">
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-base" onClick={() => handleKeyPress('shift')}>
+                    <KeyboardItem className="univer-p-2 univer-text-base" onClick={() => handleKeyPress('shift')}>
                         {isShiftActive ? '⬆️' : '⇧'}
                     </KeyboardItem>
                     {['z', 'x', 'c', 'v', 'b', 'n', 'm'].map((key) => (
@@ -128,10 +124,15 @@ export function FormulaKeyboard() {
                             {key}
                         </KeyboardItem>
                     ))}
-                    <KeyboardItem variant="default" className="univer-col-span-3 univer-p-2 univer-text-sm" onClick={() => handleKeyPress('space')}>
+                    <KeyboardItem className="univer-col-span-3 univer-p-2 univer-text-sm" onClick={() => handleKeyPress('space')}>
                         space
                     </KeyboardItem>
-                    <KeyboardItem variant="success" className="univer-p-2 univer-text-base" onClick={() => handleKeyPress('enter')}>
+                    <KeyboardItem
+                        type="submit"
+                        variant="primary"
+                        className="univer-row-span-2 univer-p-2 univer-text-base"
+                        onClick={() => handleKeyPress('enter')}
+                    >
                         ↵
                     </KeyboardItem>
                     <KeyboardItem variant="primary" className="univer-col-span-2 univer-p-2 univer-text-sm" onClick={() => handleKeyPress('back')}>
@@ -159,32 +160,38 @@ export function FormulaKeyboard() {
             </div>
             <div className="univer-grid univer-grid-cols-5 univer-gap-1">
                 <div className="univer-col-span-3 univer-grid univer-grid-cols-4 univer-gap-1">
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('+')}>+</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('-')}>−</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('*')}>×</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('/')}>÷</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('+')}>+</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('(')}>(</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress(')')}>)</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress(',')}>,</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('<')}>&lt;</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('>')}>&gt;</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress(':')}>:</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('.')}>.</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('$')}>$</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('%')}>%</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('&')}>&amp;</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('^')}>^</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('+')}>+</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('-')}>−</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('*')}>×</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('/')}>÷</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('+')}>+</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('(')}>(</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress(')')}>)</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress(',')}>,</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('<')}>&lt;</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('>')}>&gt;</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress(':')}>:</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('.')}>.</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('$')}>$</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('%')}>%</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('&')}>&amp;</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('^')}>^</KeyboardItem>
                 </div>
                 <div className="univer-col-span-2 univer-grid univer-grid-cols-2 univer-gap-1">
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-sm" onClick={() => handleKeyPress('f(x)')}>f(x)</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-sm" onClick={() => handleKeyPress('f(x)')}>f(x)</KeyboardItem>
                     <KeyboardItem variant="danger" className="univer-p-2 univer-text-base" onClick={() => handleKeyPress('del')}>⌫</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('SUM()')}>Σ</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-sm" onClick={() => handleKeyPress('tab')}>Tab</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-sm" onClick={() => handleKeyPress('quotes')}>&quot;&quot;</KeyboardItem>
-                    <KeyboardItem variant="success" className="univer-p-2 univer-text-base" onClick={() => handleKeyPress('enter')}>↵</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-xs" onClick={() => handleKeyPress('space')}>space</KeyboardItem>
-                    <KeyboardItem variant="default" className="univer-p-2 univer-text-sm" onClick={() => handleKeyPress('A1')}>A1</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-lg" onClick={() => handleKeyPress('SUM()')}>Σ</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-sm" onClick={() => handleKeyPress('tab')}>Tab</KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-sm" onClick={() => handleKeyPress('quotes')}>&quot;&quot;</KeyboardItem>
+                    <KeyboardItem
+                        type="submit"
+                        variant="primary"
+                        className="univer-row-span-2 univer-h-auto univer-p-2 univer-text-base"
+                        onClick={() => handleKeyPress('enter')}
+                    >
+                        ↵
+                    </KeyboardItem>
+                    <KeyboardItem className="univer-p-2 univer-text-xs" onClick={() => handleKeyPress('space')}>space</KeyboardItem>
                 </div>
             </div>
         </div>

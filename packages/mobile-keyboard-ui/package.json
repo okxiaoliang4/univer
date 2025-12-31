@@ -22,6 +22,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./*": "./src/*",
+        "./locale/*": "./src/locale/*.ts",
         "./facade": "./src/facade/index.ts"
     },
     "main": "./src/index.ts",
@@ -40,6 +41,11 @@
                 "import": "./lib/es/*",
                 "require": "./lib/cjs/*",
                 "types": "./lib/types/index.d.ts"
+            },
+            "./locale/*": {
+                "import": "./lib/es/locale/*.js",
+                "require": "./lib/cjs/locale/*.js",
+                "types": "./lib/types/locale/*.d.ts"
             },
             "./lib/*": "./lib/*"
         }
@@ -64,7 +70,6 @@
     "dependencies": {
         "@univerjs/core": "workspace:*",
         "@univerjs/design": "workspace:*",
-        "@univerjs/docs": "workspace:*",
         "@univerjs/docs-ui": "workspace:*",
         "@univerjs/engine-formula": "workspace:*",
         "@univerjs/engine-render": "workspace:*",

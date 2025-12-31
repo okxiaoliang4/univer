@@ -14,17 +14,29 @@
  * limitations under the License.
  */
 
-import { ICommandService, IUndoRedoService, LocaleService, RedoCommandId, UndoCommandId } from '@univerjs/core';
-import { clsx } from '@univerjs/design';
+import type {
+    IEditorBridgeServiceVisibleParam,
+} from '@univerjs/sheets-ui';
+import { FOCUSING_FX_BAR_EDITOR, ICommandService, IContextService, IUndoRedoService, LocaleService, RedoCommandId, UndoCommandId } from '@univerjs/core';
+import { DeviceInputEventType } from '@univerjs/engine-render';
+import { CopyIcon, CutIcon, DeleteIcon, KeyboardIcon, PasteSpecialDoubleIcon, RedoIcon, UndoIcon } from '@univerjs/icons';
 import { ClearSelectionContentCommand } from '@univerjs/sheets';
-import { SheetCopyCommand, SheetCutCommand, SheetPasteCommand } from '@univerjs/sheets-ui';
-import { useDependency } from '@univerjs/ui';
+import { IEditorBridgeService, SetCellEditVisibleOperation, SheetCopyCommand, SheetCutCommand, SheetPasteCommand } from '@univerjs/sheets-ui';
+import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useState } from 'react';
+import { KeyboardItem } from '../../..';
+import { IMobileKeyboardService } from '../../../services/mobile-keyboard.service';
 
 export function OperationToolbar() {
     const commandService = useDependency(ICommandService);
     const undoRedoService = useDependency(IUndoRedoService);
     const localeService = useDependency(LocaleService);
+    const mobileKeyboardService = useDependency(IMobileKeyboardService);
+    const editorBridgeService = useDependency(IEditorBridgeService);
+    const contextService = useDependency(IContextService);
+    const isKeyboardVisible = useObservable(mobileKeyboardService.isKeyboardVisible$, false);
+    const isKeyboardEnabled = useObservable(mobileKeyboardService.keyboardEnabled$, true);
+    const editState = useObservable(editorBridgeService.currentEditCellState$);
 
     const handleUndo = useCallback(() => {
         commandService.executeCommand(UndoCommandId);
@@ -50,6 +62,27 @@ export function OperationToolbar() {
         commandService.executeCommand(ClearSelectionContentCommand.id);
     }, [commandService]);
 
+    const handleKeyboard = useCallback(() => {
+        mobileKeyboardService.toggleKeyboard();
+        if (!isKeyboardVisible) {
+            // When clicking on the formula bar, the cell editor also needs to enter the edit state
+            const visibleState = editorBridgeService.isVisible();
+            if (visibleState.visible === false) {
+                commandService.syncExecuteCommand(
+                    SetCellEditVisibleOperation.id,
+                    {
+                        visible: true,
+                        eventType: DeviceInputEventType.PointerDown,
+                        unitId: editState!.unitId,
+                    } as IEditorBridgeServiceVisibleParam
+                );
+            }
+
+            // Open the normal editor first, and then we mark formula editor as activated.
+            contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
+        }
+    }, [isKeyboardVisible, mobileKeyboardService, commandService, editorBridgeService, contextService, editState]);
+
     // Use observables to track undo/redo availability
     const [canUndo, setCanUndo] = useState(false);
     const [canRedo, setCanRedo] = useState(false);
@@ -71,158 +104,67 @@ export function OperationToolbar() {
     return (
         <div
             className={`
-              univer-flex univer-items-center univer-justify-between univer-border-b univer-border-gray-200
-              univer-bg-gray-50 univer-px-1 univer-py-2
+              univer-flex univer-items-center univer-justify-between univer-border-b univer-border-gray-200 univer-px-1
+              univer-py-2
               dark:!univer-border-gray-700 dark:!univer-bg-gray-800
             `}
         >
             <div className="univer-flex univer-flex-1 univer-gap-2">
-                <button
-                    type="button"
-                    className={clsx(
-                        `
-                          univer-rounded-md univer-border-none univer-px-2 univer-py-1 univer-text-xs
-                          univer-transition-colors
-                        `,
-                        `
-                          univer-bg-white
-                          dark:!univer-bg-gray-700
-                        `,
-                        `
-                          hover:univer-bg-gray-100
-                          dark:hover:!univer-bg-gray-600
-                        `,
-                        {
-                            'univer-cursor-not-allowed univer-text-gray-400 dark:!univer-text-gray-500': !canUndo,
-                            'univer-text-gray-700 dark:!univer-text-gray-300': canUndo,
-                        }
-                    )}
+                <KeyboardItem
                     onClick={handleUndo}
                     disabled={!canUndo}
+                    size="small"
+                    variant="text"
                 >
-                    {t('toolbar.undo')}
-                </button>
-                <button
-                    type="button"
-                    className={clsx(
-                        `
-                          univer-rounded-md univer-border-none univer-px-2 univer-py-1 univer-text-xs
-                          univer-transition-colors
-                        `,
-                        `
-                          univer-bg-white
-                          dark:!univer-bg-gray-700
-                        `,
-                        `
-                          hover:univer-bg-gray-100
-                          dark:hover:!univer-bg-gray-600
-                        `,
-                        {
-                            'univer-cursor-not-allowed univer-text-gray-400 dark:!univer-text-gray-500': !canRedo,
-                            'univer-text-gray-700 dark:!univer-text-gray-300': canRedo,
-                        }
-                    )}
+                    <UndoIcon />
+                </KeyboardItem>
+                <KeyboardItem
                     onClick={handleRedo}
                     disabled={!canRedo}
+                    variant="text"
+                    size="small"
                 >
-                    {t('toolbar.redo')}
-                </button>
-                <button
-                    type="button"
-                    className={clsx(
-                        `
-                          univer-rounded-md univer-border-none univer-px-2 univer-py-1 univer-text-xs univer-font-medium
-                          univer-transition-colors
-                        `,
-                        `
-                          univer-bg-white
-                          dark:!univer-bg-gray-700
-                        `,
-                        `
-                          hover:univer-bg-gray-100
-                          dark:hover:!univer-bg-gray-600
-                        `,
-                        `
-                          univer-text-gray-700
-                          dark:!univer-text-gray-300
-                        `
-                    )}
+                    <RedoIcon />
+                </KeyboardItem>
+                <KeyboardItem
                     onClick={handleCopy}
+                    variant="text"
+                    size="small"
                 >
-                    {t('rightClick.copy')}
-                </button>
-                <button
-                    type="button"
-                    className={clsx(
-                        `
-                          univer-rounded-md univer-border-none univer-px-2 univer-py-1 univer-text-xs univer-font-medium
-                          univer-transition-colors
-                        `,
-                        `
-                          univer-bg-white
-                          dark:!univer-bg-gray-700
-                        `,
-                        `
-                          hover:univer-bg-gray-100
-                          dark:hover:!univer-bg-gray-600
-                        `,
-                        `
-                          univer-text-gray-700
-                          dark:!univer-text-gray-300
-                        `
-                    )}
+                    <CopyIcon />
+                </KeyboardItem>
+                <KeyboardItem
                     onClick={handlePaste}
+                    variant="text"
+                    size="small"
                 >
-                    {t('rightClick.paste')}
-                </button>
-                <button
-                    type="button"
-                    className={clsx(
-                        `
-                          univer-rounded-md univer-border-none univer-px-2 univer-py-1 univer-text-xs univer-font-medium
-                          univer-transition-colors
-                        `,
-                        `
-                          univer-bg-white
-                          dark:!univer-bg-gray-700
-                        `,
-                        `
-                          hover:univer-bg-gray-100
-                          dark:hover:!univer-bg-gray-600
-                        `,
-                        `
-                          univer-text-gray-700
-                          dark:!univer-text-gray-300
-                        `
-                    )}
+                    <PasteSpecialDoubleIcon />
+                </KeyboardItem>
+                <KeyboardItem
                     onClick={handleCut}
+                    variant="text"
+                    size="small"
                 >
-                    {t('rightClick.cut')}
-                </button>
-                <button
-                    type="button"
-                    className={clsx(
-                        `
-                          univer-rounded-md univer-border-none univer-px-2 univer-py-1 univer-text-xs univer-font-medium
-                          univer-transition-colors
-                        `,
-                        `
-                          univer-bg-white
-                          dark:!univer-bg-gray-700
-                        `,
-                        `
-                          hover:univer-bg-gray-100
-                          dark:hover:!univer-bg-gray-600
-                        `,
-                        `
-                          univer-text-gray-700
-                          dark:!univer-text-gray-300
-                        `
-                    )}
+                    <CutIcon />
+                </KeyboardItem>
+                <KeyboardItem
                     onClick={handleClear}
+                    variant="danger"
+                    size="small"
                 >
-                    {t('rightClick.delete')}
-                </button>
+                    <DeleteIcon />
+                </KeyboardItem>
+            </div>
+            <div>
+                <KeyboardItem
+                    size="small"
+                    onClick={handleKeyboard}
+                    disabled={!isKeyboardEnabled}
+                    variant={isKeyboardVisible ? 'primary' : 'text'}
+                >
+                    <KeyboardIcon />
+                    {t('keyboard')}
+                </KeyboardItem>
             </div>
         </div>
     );

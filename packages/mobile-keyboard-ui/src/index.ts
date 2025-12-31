@@ -26,7 +26,6 @@ export { UniverMobileKeyboardUIPlugin } from './plugin';
 // Services
 export { IMobileKeyboardService, type KeyboardMode, MobileKeyboardService } from './services/mobile-keyboard.service';
 
-export { KeyboardFab } from './views/fab/KeyboardFab';
 export { KeyboardContainer, KeyboardItem } from './views/keyboard/common/KeyboardContainer';
 export { MobileFormulaBar } from './views/keyboard/common/MobileFormulaBar';
 export { ModeSwitcher } from './views/keyboard/common/ModeSwitcher';

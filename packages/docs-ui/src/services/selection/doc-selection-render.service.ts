@@ -739,7 +739,7 @@ export class DocSelectionRenderService extends RxDisposable implements IRenderMo
         `;
 
         this._input.contentEditable = 'true';
-        this._input.inputMode = 'none';
+        // this._input.inputMode = 'none';
 
         // TODO: to be removed
         this._input.dataset.uComp = 'editor';

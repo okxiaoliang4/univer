@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-import { clsx } from '@univerjs/design';
-import { IEditorService } from '@univerjs/docs-ui';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { IMobileKeyboardService, KeyboardMode } from '../../../services/mobile-keyboard.service';
 import { FormulaKeyboard } from '../formula-keyboard/FormulaKeyboard';
 import { NumberKeyboard } from '../number-keyboard/NumberKeyboard';
 import { TextKeyboard } from '../text-keyboard/TextKeyboard';
 import { KeyboardItem } from './KeyboardItem';
-import { MobileFormulaBar } from './MobileFormulaBar';
 import { ModeSwitcher } from './ModeSwitcher';
-import { OperationToolbar } from './OperationToolbar';
 
 export { KeyboardItem };
 
@@ -33,57 +29,25 @@ export function KeyboardContainer() {
     const isVisible = useObservable(mobileKeyboardService.isKeyboardVisible$, false);
     const currentMode = useObservable(mobileKeyboardService.keyboardMode$, KeyboardMode.NUMBER);
 
-    const editorService = useDependency(IEditorService);
     if (!isVisible) {
         return null;
     }
 
-    const handleSwipeDown = () => {
-        editorService.blur();
-        mobileKeyboardService.hideKeyboard();
+    const stopEventHandler = (e: React.MouseEvent<HTMLDivElement> | React.PointerEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
     };
 
     return (
         <div
-            className={clsx(
-                // Use sticky instead of fixed to allow keyboard toolbar to move up
-                'univer-sticky univer-bottom-0 univer-left-0 univer-right-0 univer-z-50',
-                `
-                  univer-bg-white
-                  dark:!univer-bg-gray-900
-                `,
-                `
-                  univer-border-t univer-border-gray-200 univer-shadow-lg
-                  dark:!univer-border-gray-700
-                `,
-                'univer-transition-transform univer-duration-200 univer-ease-in-out',
-                // Slide up animation
-                'univer-translate-y-0'
-            )}
+            onClick={stopEventHandler}
+            onPointerDown={stopEventHandler}
+            className={`
+              univer-translate-y-0 univer-border-t univer-border-gray-200 univer-bg-white univer-shadow-lg
+              univer-transition-transform univer-duration-200 univer-ease-in-out
+              dark:!univer-border-gray-700 dark:!univer-bg-gray-900
+            `}
         >
-            {/* Swipe-down indicator area */}
-            <div
-                className={`
-                  univer-flex univer-h-2 univer-w-full univer-cursor-pointer univer-items-center univer-justify-center
-                `}
-                onClick={handleSwipeDown}
-            >
-                <div
-                    className={`
-                      univer-h-1 univer-w-12 univer-rounded-full univer-bg-gray-300
-                      dark:!univer-bg-gray-600
-                    `}
-                />
-            </div>
-
-            {/* Operation Toolbar: Undo, Redo, Copy, Paste, Cut, Clear */}
-            <OperationToolbar />
-
-            {/* Mobile FormulaBar */}
-            <div className="univer-px-2">
-                <MobileFormulaBar />
-            </div>
-
             {/* Mode Switcher: Tab, f(x), 123, ABC, Enter */}
             <ModeSwitcher />
 

@@ -14,21 +14,17 @@
  * limitations under the License.
  */
 
-import type { IRange, Workbook } from '@univerjs/core';
-import type { IScrollToCellOperationParams } from '@univerjs/sheets';
+import type { Workbook } from '@univerjs/core';
 import type { IInsertFunctionOperationParams } from '@univerjs/sheets-formula-ui';
 import type { IEditorBridgeService, IEditorBridgeServiceVisibleParam, IMoveSelectionEnterAndTabCommandParams } from '@univerjs/sheets-ui';
 import type { Observable } from 'rxjs';
-import { CellValueType, createIdentifier, Direction, Disposable, DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY, FOCUSING_FX_BAR_EDITOR, ICommandService, IContextService, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
+import { CellValueType, createIdentifier, createInternalEditorID, Direction, Disposable, ICommandService, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { DeleteLeftCommand, IEditorService } from '@univerjs/docs-ui';
 import { DeviceInputEventType } from '@univerjs/engine-render';
-import {
-    ScrollToCellOperation,
-} from '@univerjs/sheets';
 import { InsertFunctionOperation } from '@univerjs/sheets-formula-ui';
 import { IEditorBridgeService as IEditorBridgeServiceToken, MoveSelectionEnterAndTabCommand, SetCellEditVisibleOperation } from '@univerjs/sheets-ui';
-import { KeyCode } from '@univerjs/ui';
-import { BehaviorSubject, distinctUntilChanged } from 'rxjs';
+import { IDialogService, ISidebarService, KeyCode } from '@univerjs/ui';
+import { BehaviorSubject, combineLatest, distinctUntilChanged, map, startWith } from 'rxjs';
 
 export enum KeyboardMode {
     FORMULA = 'formula',
@@ -37,17 +33,23 @@ export enum KeyboardMode {
 }
 
 export interface IMobileKeyboardService {
+    /** Whether the mobile keyboard is enabled */
+    keyboardEnabled$: Observable<boolean>;
+
     /** Mobile keyboard UI visibility (NOT the same as editor visibility) */
     isKeyboardVisible$: Observable<boolean>;
-    /** Show the mobile keyboard UI */
-    showKeyboard(): void;
-    /** Hide the mobile keyboard UI */
-    hideKeyboard(): void;
+    /** Toggle the mobile keyboard UI */
+    toggleKeyboard(visible?: boolean): void;
+
+    /** Auto select mode */
+    autoSelectMode(): void;
 
     /** Active keyboard mode */
     keyboardMode$: Observable<KeyboardMode>;
+    /** Get the active keyboard mode */
+    getKeyboardMode(): KeyboardMode;
     /** Set the active keyboard mode */
-    setMode(mode: KeyboardMode): void;
+    setKeyboardMode(mode: KeyboardMode): void;
 
     /** Insert text into the FormulaBar editor at current cursor position */
     insertText(text: string): void;
@@ -64,66 +66,48 @@ export interface IMobileKeyboardService {
 export const IMobileKeyboardService = createIdentifier<IMobileKeyboardService>('mobile-keyboard-ui.mobile-keyboard.service');
 
 export class MobileKeyboardService extends Disposable implements IMobileKeyboardService {
+    readonly keyboardEnabled$: Observable<boolean>;
+
     private readonly _isKeyboardVisible$ = new BehaviorSubject<boolean>(false);
     readonly isKeyboardVisible$ = this._isKeyboardVisible$.asObservable();
 
-    private readonly _keyboardMode$ = new BehaviorSubject<KeyboardMode>(KeyboardMode.NUMBER);
+    private readonly _keyboardMode$ = new BehaviorSubject<KeyboardMode>(KeyboardMode.FORMULA);
     readonly keyboardMode$ = this._keyboardMode$.asObservable();
 
-    private _lastUsedMode: KeyboardMode = KeyboardMode.NUMBER;
+    private _lastUsedMode: KeyboardMode = KeyboardMode.FORMULA;
 
     constructor(
-        @IContextService private readonly _contextService: IContextService,
         @ICommandService private readonly _commandService: ICommandService,
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
         @IEditorBridgeServiceToken private readonly _editorBridgeService: IEditorBridgeService,
-        @IEditorService private readonly _editorService: IEditorService
+        @IEditorService private readonly _editorService: IEditorService,
+        @ISidebarService private readonly _sidebarService: ISidebarService,
+        @IDialogService private readonly _dialogService: IDialogService
     ) {
         super();
 
-        this.disposeWithMe(this.isKeyboardVisible$.pipe(distinctUntilChanged()).subscribe((visible) => {
-            if (!visible) return;
-            this._autoSelectMode();
-            const workbook = this._univerInstanceService.getCurrentUnitForType<Workbook>(UniverInstanceType.UNIVER_SHEET);
-            if (!workbook) {
-                return;
-            }
-
-            // When clicking on the formula bar, the cell editor also needs to enter the edit state
-            const visibleState = this._editorBridgeService.isVisible();
-            const editState = this._editorBridgeService.getEditCellState();
-            if (visibleState.visible === false) {
-                this._commandService.syncExecuteCommand(
-                    SetCellEditVisibleOperation.id,
-                    {
-                        visible: true,
-                        eventType: DeviceInputEventType.PointerDown,
-                        unitId: editState!.unitId,
-                    } as IEditorBridgeServiceVisibleParam
-                );
-            }
-
-             // Open the normal editor first, and then we mark formula editor as activated.
-            this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
-
-            setTimeout(() => {
-                this._commandService.executeCommand(ScrollToCellOperation.id, {
-                    range: {
-                        startRow: editState!.row,
-                        startColumn: editState!.column,
-                        endRow: editState!.row,
-                        endColumn: editState!.column,
-                    } as IRange,
-                    unitId: editState!.unitId,
-                } satisfies IScrollToCellOperationParams);
-            }, 100);
-        }));
+        this.keyboardEnabled$ = combineLatest([
+            this._sidebarService.sidebarOptions$,
+            this._dialogService.getDialogs$().pipe(startWith([])),
+        ])
+            .pipe(
+                map(([sidebarOptions, dialogOptions]) => !sidebarOptions.visible && !dialogOptions.some((option) => option.open)),
+                distinctUntilChanged()
+            );
     }
 
-    private _autoSelectMode(): void {
+    autoSelectMode(): void {
+        const editor = this._editorService.getFocusEditor();
+        const editorId = editor?.getEditorId();
+        const isRichTextEditor = editorId?.startsWith(createInternalEditorID('RICH_TEXT_EDITOR'));
+        if (isRichTextEditor) {
+            this.setKeyboardMode(KeyboardMode.TEXT);
+            return;
+        }
+
         const editState = this._editorBridgeService.getEditCellState();
         if (!editState) {
-            this.setMode(this._lastUsedMode);
+            this.setKeyboardMode(this._lastUsedMode);
             return;
         }
 
@@ -131,57 +115,44 @@ export class MobileKeyboardService extends Disposable implements IMobileKeyboard
         const sheet = workbook?.getSheetBySheetId(editState.sheetId);
         const cell = sheet?.getCell(editState.row, editState.column);
         if (cell?.f) {
-            this.setMode(KeyboardMode.FORMULA);
+            this.setKeyboardMode(KeyboardMode.FORMULA);
             return;
         }
         if (cell?.t === CellValueType.NUMBER) {
-            this.setMode(KeyboardMode.NUMBER);
+            this.setKeyboardMode(KeyboardMode.NUMBER);
             return;
         }
         if (cell?.t === CellValueType.STRING) {
-            this.setMode(KeyboardMode.TEXT);
+            this.setKeyboardMode(KeyboardMode.TEXT);
             return;
         }
-        this.setMode(KeyboardMode.FORMULA);
+        this.setKeyboardMode(KeyboardMode.FORMULA);
     }
 
-    showKeyboard(): void {
-        this._isKeyboardVisible$.next(true);
+    getVisible() {
+        return this._isKeyboardVisible$.getValue();
     }
 
-    hideKeyboard(): void {
-        this._isKeyboardVisible$.next(false);
+    toggleKeyboard(visible?: boolean): void {
+        this._isKeyboardVisible$.next(visible === undefined ? !this._isKeyboardVisible$.getValue() : visible);
     }
 
-    setMode(mode: KeyboardMode): void {
+    getKeyboardMode(): KeyboardMode {
+        return this._keyboardMode$.getValue();
+    }
+
+    setKeyboardMode(mode: KeyboardMode): void {
         this._keyboardMode$.next(mode);
         this._lastUsedMode = mode;
     }
 
     insertText(text: string): void {
-        // When clicking on the formula bar, the cell editor also needs to enter the edit state
-        const visibleState = this._editorBridgeService.isVisible();
-        const editState = this._editorBridgeService.getEditCellState();
-        if (visibleState.visible === false) {
-            this._commandService.syncExecuteCommand(
-                SetCellEditVisibleOperation.id,
-                {
-                    visible: true,
-                    eventType: DeviceInputEventType.Keyboard,
-                    unitId: editState!.unitId,
-                } as IEditorBridgeServiceVisibleParam
-            );
-        }
-
-        // Open the normal editor first, and then we mark formula editor as activated.
-        this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
-
-        const formulaEditor = this._editorService.getEditor(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
-        if (!formulaEditor) {
+        const focusEditor = this._editorService.getFocusEditor();
+        if (!focusEditor) {
             return;
         }
-        formulaEditor.docSelectionRenderService.setInputContent(text);
-        formulaEditor.docSelectionRenderService.dispatchInputDomEvent(new InputEvent('input', {
+        focusEditor.docSelectionRenderService.setInputContent(text);
+        focusEditor.docSelectionRenderService.dispatchInputDomEvent(new InputEvent('input', {
             data: text,
             inputType: 'insertText',
         }));

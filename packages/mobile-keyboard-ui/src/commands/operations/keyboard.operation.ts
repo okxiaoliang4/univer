@@ -98,25 +98,20 @@ export const KeyboardSetModeOperation: IOperation<IKeyboardSetModeOperationParam
     type: CommandType.OPERATION,
     handler: (accessor, params) => {
         const { mode } = params as IKeyboardSetModeOperationParams;
-        accessor.get(IMobileKeyboardService).setMode(mode);
+        accessor.get(IMobileKeyboardService).setKeyboardMode(mode);
         return true;
     },
 };
 
-export const KeyboardShowOperation: IOperation = {
-    id: 'mobile-keyboard-ui.operation.show',
+export interface IKeyboardToggleKeyboardOperationParams {
+    visible?: boolean;
+}
+export const KeyboardToggleKeyboardOperation: IOperation<IKeyboardToggleKeyboardOperationParams> = {
+    id: 'mobile-keyboard-ui.operation.toggle-keyboard',
     type: CommandType.OPERATION,
-    handler: (accessor) => {
-        accessor.get(IMobileKeyboardService).showKeyboard();
-        return true;
-    },
-};
-
-export const KeyboardHideOperation: IOperation = {
-    id: 'mobile-keyboard-ui.operation.hide',
-    type: CommandType.OPERATION,
-    handler: (accessor) => {
-        accessor.get(IMobileKeyboardService).hideKeyboard();
+    handler: (accessor, params) => {
+        const { visible } = params as IKeyboardToggleKeyboardOperationParams;
+        accessor.get(IMobileKeyboardService).toggleKeyboard(visible);
         return true;
     },
 };

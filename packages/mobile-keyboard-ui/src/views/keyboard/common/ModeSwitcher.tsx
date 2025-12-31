@@ -16,7 +16,7 @@
 
 import type { IKeyboardConfirmAndMoveOperationParams, IKeyboardSetModeOperationParams } from '../../../commands/operations/keyboard.operation';
 import { Direction, ICommandService } from '@univerjs/core';
-import { clsx } from '@univerjs/design';
+import { Button } from '@univerjs/design';
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback } from 'react';
 import {
@@ -56,101 +56,50 @@ export function ModeSwitcher() {
               dark:!univer-border-gray-700 dark:!univer-bg-gray-900
             `}
         >
-            <button
+            <Button
                 type="button"
-                className={clsx(
-                    `
-                      univer-flex-1 univer-rounded-md univer-border-none univer-px-3 univer-py-2 univer-text-sm
-                      univer-font-medium
-                    `,
-                    `
-                      univer-bg-white univer-transition-colors
-                      dark:!univer-bg-gray-800
-                    `,
-                    `
-                      univer-text-gray-700
-                      dark:!univer-text-gray-300
-                    `
-                )}
+                className="univer-flex-1"
+                variant="default"
                 onClick={handleTab}
             >
                 Tab
-            </button>
+            </Button>
 
-            <button
+            <Button
                 type="button"
-                className={clsx(
-                    `
-                      univer-flex-1 univer-rounded-md univer-border-none univer-px-3 univer-py-2 univer-text-sm
-                      univer-font-medium
-                    `,
-                    'univer-transition-colors',
-                    {
-                        'univer-bg-blue-500 univer-text-white dark:!univer-bg-blue-600': currentMode === 'formula',
-                        'univer-bg-white univer-text-gray-700 dark:!univer-bg-gray-800 dark:!univer-text-gray-300': currentMode !== 'formula',
-                    }
-                )}
+                className="univer-flex-1"
+                variant={currentMode === 'formula' ? 'primary' : 'default'}
                 onClick={() => handleModeChange(KeyboardMode.FORMULA)}
             >
                 f(x)
-            </button>
+            </Button>
 
-            <button
+            <Button
                 type="button"
-                className={clsx(
-                    `
-                      univer-flex-1 univer-rounded-md univer-border-none univer-px-3 univer-py-2 univer-text-sm
-                      univer-font-medium
-                    `,
-                    'univer-transition-colors',
-                    {
-                        'univer-bg-blue-500 univer-text-white dark:!univer-bg-blue-600': currentMode === 'number',
-                        'univer-bg-white univer-text-gray-700 dark:!univer-bg-gray-800 dark:!univer-text-gray-300': currentMode !== 'number',
-                    }
-                )}
+                className="univer-flex-1"
+                variant={currentMode === 'number' ? 'primary' : 'default'}
                 onClick={() => handleModeChange(KeyboardMode.NUMBER)}
             >
                 123
-            </button>
+            </Button>
 
-            <button
+            <Button
                 type="button"
-                className={clsx(
-                    `
-                      univer-flex-1 univer-rounded-md univer-border-none univer-px-3 univer-py-2 univer-text-sm
-                      univer-font-medium
-                    `,
-                    'univer-transition-colors',
-                    {
-                        'univer-bg-blue-500 univer-text-white dark:!univer-bg-blue-600': currentMode === 'text',
-                        'univer-bg-white univer-text-gray-700 dark:!univer-bg-gray-800 dark:!univer-text-gray-300': currentMode !== 'text',
-                    }
-                )}
+                className="univer-flex-1"
+                variant={currentMode === 'text' ? 'primary' : 'default'}
                 onClick={() => handleModeChange(KeyboardMode.TEXT)}
             >
                 ABC
-            </button>
+            </Button>
 
-            <button
+            <Button
                 type="button"
-                className={clsx(
-                    `
-                      univer-flex-1 univer-rounded-md univer-border-none univer-px-3 univer-py-2 univer-text-sm
-                      univer-font-medium
-                    `,
-                    `
-                      univer-bg-white univer-transition-colors
-                      dark:!univer-bg-gray-800
-                    `,
-                    `
-                      univer-text-gray-700
-                      dark:!univer-text-gray-300
-                    `
-                )}
+                className="univer-flex-1"
+                variant="default"
                 onClick={handleEnter}
             >
                 ↵
-            </button>
+            </Button>
         </div>
     );
 }

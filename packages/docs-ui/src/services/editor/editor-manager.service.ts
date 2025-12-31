@@ -21,7 +21,7 @@ import type { IEditorConfigParams } from './editor';
 import { createIdentifier, DEFAULT_EMPTY_DOCUMENT_VALUE, Disposable, EDITOR_ACTIVATED, FOCUSING_COMMENT_EDITOR, FOCUSING_EDITOR_STANDALONE, HorizontalAlign, ICommandService, IContextService, Inject, Injector, isCommentEditorID, isInternalEditorID, IUndoRedoService, IUniverInstanceService, toDisposable, UniverInstanceType, VerticalAlign } from '@univerjs/core';
 import { DocSelectionManagerService } from '@univerjs/docs';
 import { IRenderManagerService } from '@univerjs/engine-render';
-import { fromEvent, Subject } from 'rxjs';
+import { BehaviorSubject, fromEvent, Subject } from 'rxjs';
 import { Editor } from './editor';
 
 /**
@@ -56,6 +56,10 @@ export interface IEditorService {
 
     isSheetEditor(editorUnitId: string): boolean;
 
+    focusEditorUnitId$: Observable<Nullable<string>>;
+
+    editorAdd$: Observable<string>;
+
     blur$: Observable<unknown>;
     blur(force?: boolean): void;
 
@@ -69,7 +73,11 @@ export interface IEditorService {
 export class EditorService extends Disposable implements IEditorService, IDisposable {
     private _editors = new Map<string, Editor>();
 
-    private _focusEditorUnitId: Nullable<string>;
+    private _focusEditorUnitId$: BehaviorSubject<Nullable<string>> = new BehaviorSubject<Nullable<string>>(null);
+    readonly focusEditorUnitId$ = this._focusEditorUnitId$.asObservable();
+
+    private _editorAdd$ = new Subject<string>();
+    readonly editorAdd$ = this._editorAdd$.asObservable();
 
     private readonly _blur$ = new Subject();
     readonly blur$ = this._blur$.asObservable();
@@ -113,8 +121,12 @@ export class EditorService extends Disposable implements IEditorService, IDispos
         }
     }
 
+    private get _focusEditorUnitId() {
+        return this._focusEditorUnitId$.getValue();
+    }
+
     private _setFocusId(id: Nullable<string>) {
-        this._focusEditorUnitId = id;
+        this._focusEditorUnitId$.next(id);
     }
 
     getFocusId() {
@@ -233,6 +245,8 @@ export class EditorService extends Disposable implements IEditorService, IDispos
             );
 
             this._editors.set(editorUnitId, editor);
+
+            this._editorAdd$.next(editorUnitId);
 
             // Delete scroll bar
             if (!config.scrollBar) {

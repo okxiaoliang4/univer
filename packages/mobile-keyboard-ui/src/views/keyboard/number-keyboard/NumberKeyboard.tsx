@@ -53,7 +53,6 @@ export function NumberKeyboard() {
 
             <div className="univer-grid univer-grid-cols-5 univer-gap-1">
                 <KeyboardItem
-                    variant="default"
                     className="univer-p-2 univer-text-lg"
                     onClick={() => handleKeyPress('+/-')}
                 >
@@ -77,7 +76,6 @@ export function NumberKeyboard() {
                 </KeyboardItem>
 
                 <KeyboardItem
-                    variant="default"
                     className="univer-p-2 univer-text-lg"
                     onClick={() => handleKeyPress('%')}
                 >
@@ -93,14 +91,12 @@ export function NumberKeyboard() {
                     </KeyboardItem>
                 ))}
                 <KeyboardItem
-                    variant="default"
                     className="univer-p-2 univer-text-sm"
                     onClick={() => handleKeyPress('tab')}
                 >
                     Tab
                 </KeyboardItem>
                 <KeyboardItem
-                    variant="default"
                     className="univer-p-2 univer-text-lg"
                     onClick={() => handleKeyPress('$')}
                 >
@@ -116,21 +112,19 @@ export function NumberKeyboard() {
                     </KeyboardItem>
                 ))}
                 <KeyboardItem
-                    variant="success"
-                    className="univer-row-span-2 univer-p-2 univer-text-base"
+                    variant="primary"
+                    className="univer-row-span-2 univer-h-auto univer-p-2 univer-text-base"
                     onClick={() => handleKeyPress('enter')}
                 >
                     ↵
                 </KeyboardItem>
                 <KeyboardItem
-                    variant="default"
                     className="univer-p-2 univer-text-lg"
                     onClick={() => handleKeyPress('¥')}
                 >
                     ¥
                 </KeyboardItem>
                 <KeyboardItem
-                    variant="default"
                     className="univer-p-2 univer-text-base"
                     onClick={() => handleKeyPress('00')}
                 >

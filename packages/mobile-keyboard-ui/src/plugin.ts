@@ -44,6 +44,11 @@ export class UniverMobileKeyboardUIPlugin extends Plugin {
     override onReady(): void {
         touchDependencies(this._injector, [
             [MobileKeyboardController],
+        ]);
+    }
+
+    override onRendered(): void {
+        touchDependencies(this._injector, [
             [MobileViewportController],
         ]);
     }

@@ -42,6 +42,7 @@ import { EMBEDDING_FORMULA_EDITOR_COMPONENT_KEY, IEditorBridgeService, IFormulaE
 import { ComponentManager, useDependency, useObservable } from '@univerjs/ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EMPTY, merge, of, switchMap } from 'rxjs';
+import { IMobileKeyboardService } from '../../../services/mobile-keyboard.service';
 
 interface IProps {
     className?: string;
@@ -56,6 +57,7 @@ export function MobileFormulaBar(props: IProps) {
     const univerInstanceService = useDependency(IUniverInstanceService);
     const selectionManager = useDependency(SheetsSelectionsService);
     const permissionService = useDependency(IPermissionService);
+    const mobileKeyboardService = useDependency(IMobileKeyboardService);
     const rangeProtectionCache = useDependency(RangeProtectionCache);
     const commandService = useDependency(ICommandService);
     const [disableInfo, setDisableInfo] = useState<{ editDisable: boolean; viewDisable: boolean }>({
@@ -205,6 +207,7 @@ export function MobileFormulaBar(props: IProps) {
 
             // Open the normal editor first, and then we mark formula editor as activated.
             contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
+            mobileKeyboardService.toggleKeyboard(true);
         } catch (e) {
             shouldSkipFocus.current = true;
             throw e;
@@ -227,7 +230,7 @@ export function MobileFormulaBar(props: IProps) {
         <div
             data-u-comp="mobile-formula-bar"
             className={clsx(`
-              huniver-h-7 univer-box-border univer-flex univer-bg-white
+              univer-box-border univer-flex univer-h-7 univer-bg-white
               dark:!univer-bg-gray-900
             `, className, {
                 'univer-pointer-events-none': editDisable,

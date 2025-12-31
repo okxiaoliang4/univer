@@ -92,7 +92,7 @@ export const Button = forwardRef<HTMLButtonElement, IButtonProps>(
         const Comp = asChild ? Slot : 'button';
         return (
             <Comp
-                className={clsx(buttonVariants({ variant, size, className }))}
+                className={clsx(buttonVariants({ variant, size }), className)}
                 ref={ref}
                 data-u-comp="button"
                 {...props}

@@ -36,8 +36,11 @@ export interface IUniverAppProps extends IWorkbenchOptions {
 export function MobileWorkbench(props: IUniverAppProps) {
     const {
         header = true,
+        toolbar = true,
         footer = true,
+        headerMenu = true,
         contextMenu = true,
+        ribbonType = 'default',
         mountContainer,
         onRendered,
     } = props;
@@ -50,9 +53,11 @@ export function MobileWorkbench(props: IUniverAppProps) {
 
     const footerComponents = useComponentsOfPart(BuiltInUIPart.FOOTER);
     const headerComponents = useComponentsOfPart(BuiltInUIPart.HEADER);
+    const headerMenuComponents = useComponentsOfPart(BuiltInUIPart.HEADER_MENU);
     const contentComponents = useComponentsOfPart(BuiltInUIPart.CONTENT);
     const leftSidebarComponents = useComponentsOfPart(BuiltInUIPart.LEFT_SIDEBAR);
     const globalComponents = useComponentsOfPart(BuiltInUIPart.GLOBAL);
+    const toolbarComponents = useComponentsOfPart(BuiltInUIPart.TOOLBAR);
 
     const [darkMode, setDarkMode] = useState<boolean>(false);
     useEffect(() => {
@@ -168,6 +173,18 @@ export function MobileWorkbench(props: IUniverAppProps) {
                     {/* footer */}
                     {footer && (
                         <footer>
+                            {/* toolbar */}
+                            {toolbar && (
+                                <ComponentContainer
+                                    key="toolbar"
+                                    components={toolbarComponents}
+                                    sharedProps={{
+                                        ribbonType,
+                                        headerMenuComponents,
+                                        headerMenu,
+                                    }}
+                                />
+                            )}
                             <ComponentContainer key="footer" components={footerComponents} />
                         </footer>
                     )}
