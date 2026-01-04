@@ -29,6 +29,7 @@ import {
 } from '@univerjs/core';
 import { SHEET_CONDITIONAL_FORMATTING_PLUGIN, UniverSheetsConditionalFormattingPlugin } from '@univerjs/sheets-conditional-formatting';
 import { UniverSheetsFormulaPlugin } from '@univerjs/sheets-formula';
+import { UniverUIPlugin } from '@univerjs/ui';
 import { AddAverageCfCommand } from './commands/commands/add-average-cf.command';
 import { AddColorScaleConditionalRuleCommand } from './commands/commands/add-color-scale-cf.command';
 import { AddDataBarConditionalRuleCommand } from './commands/commands/add-data-bar-cf.command';
@@ -54,7 +55,7 @@ import { SheetsCfRenderController } from './controllers/cf.render.controller';
 import { ConditionalFormattingViewportController } from './controllers/cf.viewport.controller';
 import { defaultPluginConfig, SHEETS_CONDITIONAL_FORMATTING_UI_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
 
-@DependentOn(UniverSheetsConditionalFormattingPlugin, UniverSheetsFormulaPlugin)
+@DependentOn(UniverSheetsConditionalFormattingPlugin, UniverSheetsFormulaPlugin, UniverUIPlugin)
 export class UniverSheetsConditionalFormattingUIPlugin extends Plugin {
     static override pluginName = `${SHEET_CONDITIONAL_FORMATTING_PLUGIN}_UI_PLUGIN`;
     static override type = UniverInstanceType.UNIVER_SHEET;

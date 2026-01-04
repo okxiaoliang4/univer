@@ -51,6 +51,8 @@ import { DeleteConditionalRuleMutation, DeleteConditionalRuleMutationUndoFactory
 import { ConditionalFormattingRuleModel } from '../models/conditional-formatting-rule-model';
 import { ConditionalFormattingViewModel } from '../models/conditional-formatting-view-model';
 
+const getUnitId = (u: IUniverInstanceService) => u.getCurrentUnitOfType<Workbook>(UniverInstanceType.UNIVER_SHEET)!.getUnitId();
+const getSubUnitId = (u: IUniverInstanceService) => u.getCurrentUnitOfType<Workbook>(UniverInstanceType.UNIVER_SHEET)!.getActiveSheet()?.getSheetId();
 export class ConditionalFormattingService extends Disposable {
     get _conditionalFormattingViewModelV2() {
         return this._injector.get(ConditionalFormattingViewModel);
@@ -355,6 +357,3 @@ export class ConditionalFormattingService extends Disposable {
         );
     }
 }
-
-const getUnitId = (u: IUniverInstanceService) => u.getCurrentUnitForType<Workbook>(UniverInstanceType.UNIVER_SHEET)!.getUnitId();
-const getSubUnitId = (u: IUniverInstanceService) => u.getCurrentUnitForType<Workbook>(UniverInstanceType.UNIVER_SHEET)!.getActiveSheet()?.getSheetId();
