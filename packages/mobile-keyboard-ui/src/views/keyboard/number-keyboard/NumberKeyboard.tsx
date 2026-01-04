@@ -19,7 +19,7 @@ import { KeyboardItem } from '../common/KeyboardItem';
 import { useKeyboardInput } from '../hooks/use-keyboard-input';
 
 export function NumberKeyboard() {
-    const { insertText, deleteBackward, confirmAndMove } = useKeyboardInput();
+    const { insertText, deleteBackward, confirmAndMove, negativeNumber } = useKeyboardInput();
 
     const handleKeyPress = (value: string) => {
         // Special keys
@@ -35,7 +35,7 @@ export function NumberKeyboard() {
                 break;
             case '+/-': {
                 // Toggle negative sign logic could be complex, let's just insert it for now
-                insertText('-');
+                negativeNumber();
                 break;
             }
             default:

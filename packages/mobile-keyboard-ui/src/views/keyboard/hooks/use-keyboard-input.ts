@@ -34,6 +34,7 @@ import { IMobileKeyboardService } from '../../../services/mobile-keyboard.servic
  * Provides methods to insert text, delete, and navigate in the FormulaBar
  */
 
+// eslint-disable-next-line max-lines-per-function
 export function useKeyboardInput() {
     const commandService = useDependency(ICommandService);
     const mobileKeyboardService = useDependency(IMobileKeyboardService);
@@ -102,6 +103,13 @@ export function useKeyboardInput() {
         [commandService]
     );
 
+    /**
+     * Toggle negative sign
+     */
+    const negativeNumber = useCallback(() => {
+        mobileKeyboardService.negativeNumber();
+    }, [mobileKeyboardService]);
+
     return {
         insertText,
         deleteBackward,
@@ -109,5 +117,6 @@ export function useKeyboardInput() {
         insertFunction,
         insertQuotes,
         setMode,
+        negativeNumber,
     };
 }

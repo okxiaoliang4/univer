@@ -59,6 +59,8 @@ export interface IMobileKeyboardService {
     insertQuotes(quotes: string): void;
     /** Delete character before cursor */
     deleteBackward(): void;
+    /** Toggle negative sign */
+    negativeNumber(): void;
     /** Confirm input and move to next cell */
     confirmAndMove(direction: Direction.DOWN | Direction.RIGHT): void;
 }
@@ -158,10 +160,10 @@ export class MobileKeyboardService extends Disposable implements IMobileKeyboard
                     unitId: this._editorBridgeService.getEditCellState()!.unitId,
                 } as IEditorBridgeServiceVisibleParam
             );
-        }
 
             // Open the normal editor first, and then we mark formula editor as activated.
-        this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
+            this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
+        }
 
         const focusEditor = this._editorService.getFocusEditor();
 
@@ -191,6 +193,25 @@ export class MobileKeyboardService extends Disposable implements IMobileKeyboard
 
     deleteBackward() {
         this._commandService.executeCommand(DeleteLeftCommand.id);
+    }
+
+    negativeNumber(): void {
+        const editor = this._editorService.getFocusEditor();
+        const documentData = editor?.getDocumentData();
+        const num = Number(documentData?.body?.dataStream);
+        if (Number.isNaN(num)) {
+            return;
+        }
+        const newValue = (-num).toString();
+        if (!editor) {
+            return;
+        }
+        editor.setSelectionRanges([{ startOffset: 0, endOffset: documentData?.body ? documentData.body.dataStream.length - 2 : 0 }]);
+        editor.docSelectionRenderService.setInputContent(newValue);
+        editor.docSelectionRenderService.dispatchInputDomEvent(new InputEvent('input', {
+            data: newValue,
+            inputType: 'insertText',
+        }));
     }
 
     confirmAndMove(direction: Direction.DOWN | Direction.RIGHT = Direction.DOWN): void {
