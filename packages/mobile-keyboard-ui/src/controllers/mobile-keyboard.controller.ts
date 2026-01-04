@@ -109,7 +109,7 @@ export class MobileKeyboardController extends Disposable {
             }
         }));
 
-        this.disposeWithMe(this._mobileKeyboardService.isKeyboardVisible$.subscribe((isKeyboardVisible) => {
+        this.disposeWithMe(this._mobileKeyboardService.isKeyboardVisible$.pipe(distinctUntilChanged()).subscribe((isKeyboardVisible) => {
             if (isKeyboardVisible) {
                 this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
                 this._mobileKeyboardService.autoSelectMode();
@@ -123,7 +123,7 @@ export class MobileKeyboardController extends Disposable {
             }
         }));
 
-        this.disposeWithMe(this._mobileKeyboardService.keyboardMode$.subscribe((mode) => {
+        this.disposeWithMe(this._mobileKeyboardService.keyboardMode$.pipe(distinctUntilChanged()).subscribe((mode) => {
             const editor = this._editorService.getEditor(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
             if (!editor) return;
             if (mode === KeyboardMode.TEXT) {

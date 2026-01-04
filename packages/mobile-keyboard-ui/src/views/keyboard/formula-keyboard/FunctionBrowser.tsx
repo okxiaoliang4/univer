@@ -55,7 +55,7 @@ export function FunctionBrowser(props: IFunctionBrowserProps) {
     }, [descriptionService, selectedCategory, searchText]);
 
     return (
-        <Drawer {...rest} modal={false} shouldScaleBackground>
+        <Drawer {...rest} shouldScaleBackground>
             <DrawerContent>
                 <DrawerHeader>
                     <DrawerTitle className="univer-space-y-4">
@@ -74,7 +74,7 @@ export function FunctionBrowser(props: IFunctionBrowserProps) {
                         {/* Categories */}
                         <div
                             className={`
-                              univer-overflow-x-auto univer-px-1
+                              univer-max-w-[90vw] univer-px-1
                               ${scrollbarClassName}
                             `}
                         >
@@ -82,7 +82,7 @@ export function FunctionBrowser(props: IFunctionBrowserProps) {
                                 items={categories.map((cat) => ({ label: cat.label, value: cat.id }))}
                                 value={selectedCategory}
                                 onChange={(value) => setSelectedCategory(value as number)}
-                                className="univer-inline-flex univer-w-max"
+                                className="univer-inline-flex univer-w-full univer-overflow-x-auto"
                             />
                         </div>
                     </DrawerTitle>
@@ -106,8 +106,8 @@ export function FunctionBrowser(props: IFunctionBrowserProps) {
                                           hover:univer-bg-primary-50/50 hover:univer-border-primary-300
                                           hover:univer-shadow-sm
                                           dark:hover:!univer-bg-gray-700/50 dark:hover:!univer-border-primary-600
-                                          univer-group univer-w-full univer-rounded-lg univer-border
-                                          univer-border-gray-200 univer-bg-white univer-p-4 univer-text-left
+                                          univer-group univer-w-full univer-rounded-lg univer-border univer-border-solid
+                                          univer-border-gray-200 univer-bg-white univer-p-2 univer-text-left
                                           univer-transition-all
                                           active:univer-scale-[0.98]
                                           dark:!univer-border-gray-700 dark:!univer-bg-gray-800
@@ -126,15 +126,14 @@ export function FunctionBrowser(props: IFunctionBrowserProps) {
                                                 >
                                                     {func.name}
                                                 </div>
-                                                <p
+                                                <div
                                                     className={`
-                                                      univer-mt-1.5 univer-text-sm univer-leading-relaxed
-                                                      univer-text-gray-600
+                                                      univer-text-xs univer-leading-relaxed univer-text-gray-600
                                                       dark:!univer-text-gray-300
                                                     `}
                                                 >
                                                     {func.desc}
-                                                </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </button>
