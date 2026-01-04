@@ -17,12 +17,11 @@
 import type { Dependency } from '@univerjs/core';
 import { DependentOn, Inject, Injector, mergeOverrideWithDependencies, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
 import { UniverSheetsFormulaUIPlugin } from '@univerjs/sheets-formula-ui';
-import { UniverSheetsUIPlugin } from '@univerjs/sheets-ui';
+import { UniverSheetsMobileUIPlugin } from '@univerjs/sheets-ui';
 import { MobileKeyboardController } from './controllers/mobile-keyboard.controller';
-import { MobileViewportController } from './controllers/mobile-viewport.controller';
 import { IMobileKeyboardService, MobileKeyboardService } from './services/mobile-keyboard.service';
 
-@DependentOn(UniverSheetsUIPlugin, UniverSheetsFormulaUIPlugin)
+@DependentOn(UniverSheetsMobileUIPlugin, UniverSheetsFormulaUIPlugin)
 export class UniverMobileKeyboardUIPlugin extends Plugin {
     static override pluginName = 'MOBILE_KEYBOARD_UI_PLUGIN';
     static override type = UniverInstanceType.UNIVER_SHEET;
@@ -37,7 +36,6 @@ export class UniverMobileKeyboardUIPlugin extends Plugin {
         registerDependencies(this._injector, mergeOverrideWithDependencies([
             [IMobileKeyboardService, { useClass: MobileKeyboardService }],
             [MobileKeyboardController],
-            [MobileViewportController],
         ] as Dependency[], undefined));
     }
 
@@ -48,8 +46,5 @@ export class UniverMobileKeyboardUIPlugin extends Plugin {
     }
 
     override onRendered(): void {
-        touchDependencies(this._injector, [
-            [MobileViewportController],
-        ]);
     }
 }

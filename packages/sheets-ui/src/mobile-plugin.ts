@@ -96,7 +96,7 @@ import { IStatusBarService, StatusBarService } from './services/status-bar.servi
 
 @DependentOn(UniverSheetsPlugin, UniverMobileUIPlugin)
 export class UniverSheetsMobileUIPlugin extends Plugin {
-    static override pluginName = 'SHEET_UI_PLUGIN';
+    static override pluginName = 'SHEET_MOBILE_UI_PLUGIN';
     static override type = UniverInstanceType.UNIVER_SHEET;
 
     /** @ignore */

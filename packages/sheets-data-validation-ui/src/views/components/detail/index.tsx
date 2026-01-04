@@ -344,7 +344,13 @@ export function DataValidationDetail() {
                 </Checkbox>
             </FormLayout>
             <DataValidationOptions value={options} onChange={handleUpdateRuleOptions} extraComponent={validator.optionsInput} />
-            <div className="univer-mt-5 univer-flex univer-flex-row univer-justify-end">
+            <div
+                className={`
+                  univer-sticky univer-bottom-0 univer-mt-5 univer-flex univer-flex-row univer-justify-end
+                  univer-bg-white univer-py-2
+                  dark:univer-bg-gray-200
+                `}
+            >
                 <Button className="univer-ml-3" onClick={handleDelete}>
                     {localeService.t('dataValidation.panel.removeRule')}
                 </Button>

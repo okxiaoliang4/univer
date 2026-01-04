@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-import { MobileViewportController } from '@univerjs/sheets-ui';
-import { useDependency, useObservable } from '@univerjs/ui';
+import type { Meta } from '@storybook/react';
+import { Drawer } from './Drawer';
 
-export function TextKeyboard() {
-    const mobileViewportController = useDependency(MobileViewportController);
-    const offset = useObservable(mobileViewportController.offset$, 0);
+const meta: Meta<typeof Drawer> = {
+    title: 'Components / Drawer',
+    component: Drawer,
+    parameters: {
+        layout: 'centered',
+    },
+    tags: ['autodocs'],
+};
 
-    // placeholder for native keyboard
-    return (
-        <div style={{ height: `${offset}px` }} />
-    );
-}
+export default meta;

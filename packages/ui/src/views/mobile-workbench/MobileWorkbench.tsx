@@ -24,7 +24,7 @@ import { useDependency } from '../../utils/di';
 import { ComponentContainer, useComponentsOfPart } from '../components/ComponentContainer';
 import { MobileContextMenu } from '../components/context-menu/MobileContextMenu';
 import { GlobalZone } from '../components/global-zone/GlobalZone';
-import { Sidebar } from '../components/sidebar/Sidebar';
+import { MobileSidebar } from '../components/sidebar/MobileSidebar';
 import { ZenZone } from '../components/zen-zone/ZenZone';
 
 export interface IUniverAppProps extends IWorkbenchOptions {
@@ -166,7 +166,7 @@ export function MobileWorkbench(props: IUniverAppProps) {
                         </section>
 
                         <aside className="univer-h-full">
-                            <Sidebar />
+                            <MobileSidebar />
                         </aside>
                     </div>
 

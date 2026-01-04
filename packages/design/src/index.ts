@@ -32,6 +32,7 @@ export { DatePicker } from './components/date-picker/DatePicker';
 export { DateRangePicker } from './components/date-range-picker';
 export { Dialog, type IDialogProps } from './components/dialog/Dialog';
 export { DraggableList, type IDraggableListProps, ReactGridLayout } from './components/draggable-list';
+export * from './components/drawer/Drawer';
 export { DropdownLegacy, type IDropdownLegacyProps } from './components/dropdown-legacy';
 export { DropdownMenu, type IDropdownMenuProps } from './components/dropdown-menu/DropdownMenu';
 export { Dropdown, type IDropdownProps } from './components/dropdown/Dropdown';

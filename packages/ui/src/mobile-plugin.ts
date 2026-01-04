@@ -50,7 +50,7 @@ import { IPlatformService, PlatformService } from './services/platform/platform.
 import { CanvasPopupService, ICanvasPopupService } from './services/popup/canvas-popup.service';
 import { ShortcutPanelService } from './services/shortcut/shortcut-panel.service';
 import { IShortcutService, ShortcutService } from './services/shortcut/shortcut.service';
-import { DesktopSidebarService } from './services/sidebar/desktop-sidebar.service';
+import { MobileSidebarService } from './services/sidebar/mobile-sidebar.service';
 import { ISidebarService } from './services/sidebar/sidebar.service';
 import { ThemeSwitcherService } from './services/theme-switcher/theme-switcher.service';
 import { DesktopZenZoneService } from './services/zen-zone/desktop-zen-zone.service';
@@ -110,7 +110,7 @@ export class UniverMobileUIPlugin extends Plugin {
             [IGalleryService, { useClass: DesktopGalleryService, lazy: true }],
             [IDialogService, { useClass: DesktopDialogService, lazy: true }],
             [IConfirmService, { useClass: DesktopConfirmService, lazy: true }],
-            [ISidebarService, { useClass: DesktopSidebarService, lazy: true }],
+            [ISidebarService, { useClass: MobileSidebarService, lazy: true }],
             [IZenZoneService, { useClass: DesktopZenZoneService, lazy: true }],
             [IGlobalZoneService, { useClass: DesktopGlobalZoneService, lazy: true }],
             [IMessageService, { useClass: DesktopMessageService, lazy: true }],

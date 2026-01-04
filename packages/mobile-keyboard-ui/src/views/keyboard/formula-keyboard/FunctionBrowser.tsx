@@ -14,32 +14,32 @@
  * limitations under the License.
  */
 
+import type { IDrawerProps } from '@univerjs/design';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, Input, scrollbarClassName, Segmented } from '@univerjs/design';
 import { FunctionType } from '@univerjs/engine-formula';
 import { IDescriptionService } from '@univerjs/sheets-formula';
 import { useDependency } from '@univerjs/ui';
 import { useMemo, useState } from 'react';
 
-interface IFunctionBrowserProps {
+export type IFunctionBrowserProps = IDrawerProps & {
     onSelect: (funcName: string) => void;
-    onClose: () => void;
-}
-
+};
 export function FunctionBrowser(props: IFunctionBrowserProps) {
-    const { onSelect, onClose } = props;
+    const { onSelect, ...rest } = props;
     const descriptionService = useDependency(IDescriptionService);
 
     const [searchText, setSearchText] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<number>(-1); // -1 for All
 
     const categories = useMemo(() => [
-        { id: -1, name: 'All' },
-        { id: FunctionType.Math, name: 'Math' },
-        { id: FunctionType.Statistical, name: 'Statistical' },
-        { id: FunctionType.Financial, name: 'Financial' },
-        { id: FunctionType.Date, name: 'Date' },
-        { id: FunctionType.Logical, name: 'Logical' },
-        { id: FunctionType.Text, name: 'Text' },
-        { id: FunctionType.Lookup, name: 'Lookup' },
+        { id: -1, name: 'All', label: 'All' },
+        { id: FunctionType.Math, name: 'Math', label: 'Math' },
+        { id: FunctionType.Statistical, name: 'Statistical', label: 'Statistical' },
+        { id: FunctionType.Financial, name: 'Financial', label: 'Financial' },
+        { id: FunctionType.Date, name: 'Date', label: 'Date' },
+        { id: FunctionType.Logical, name: 'Logical', label: 'Logical' },
+        { id: FunctionType.Text, name: 'Text', label: 'Text' },
+        { id: FunctionType.Lookup, name: 'Lookup', label: 'Lookup' },
     ], []);
 
     const filteredFunctions = useMemo(() => {
@@ -55,120 +55,113 @@ export function FunctionBrowser(props: IFunctionBrowserProps) {
     }, [descriptionService, selectedCategory, searchText]);
 
     return (
-        <div className="univer-fixed univer-inset-0 univer-z-[1000] univer-flex univer-flex-col univer-justify-end">
-            {/* Backdrop */}
-            <div
-                className="univer-bg-black/40 univer-absolute univer-inset-0 univer-transition-opacity"
-                onClick={onClose}
-            />
+        <Drawer {...rest} modal={false} shouldScaleBackground>
+            <DrawerContent>
+                <DrawerHeader>
+                    <DrawerTitle className="univer-space-y-4">
+                        {/* Search */}
+                        <div className="univer-px-1">
+                            <Input
+                                placeholder="Search functions..."
+                                size="middle"
+                                value={searchText}
+                                onChange={setSearchText}
+                                allowClear
+                                className="univer-w-full"
+                            />
+                        </div>
 
-            {/* Panel */}
-            <div
-                className={`
-                  univer-relative univer-flex univer-h-[80vh] univer-w-full univer-flex-col univer-rounded-t-2xl
-                  univer-bg-white univer-shadow-2xl univer-transition-transform univer-duration-300
-                  dark:!univer-bg-gray-900
-                `}
-            >
-                {/* Header/Indicator */}
-                <div className="univer-flex univer-h-10 univer-shrink-0 univer-items-center univer-justify-center" onClick={onClose}>
-                    <div
-                        className={`
-                          univer-h-1.5 univer-w-12 univer-rounded-full univer-bg-gray-300
-                          dark:!univer-bg-gray-700
-                        `}
-                    />
-                </div>
-
-                {/* Search */}
-                <div className="univer-px-4 univer-pb-2">
-                    <input
-                        type="text"
-                        autoFocus
-                        placeholder="Search functions..."
-                        className={`
-                          univer-w-full univer-rounded-lg univer-border-none univer-bg-gray-100 univer-px-4 univer-py-2
-                          univer-text-base univer-outline-none
-                          dark:!univer-bg-gray-800 dark:!univer-text-white
-                        `}
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                    />
-                </div>
-
-                {/* Categories */}
-                <div className="univer-flex univer-overflow-x-auto univer-px-2 univer-py-2 univer-scrollbar-none">
-                    {categories.map((cat) => (
-                        <button
-                            type="button"
-                            key={cat.id}
+                        {/* Categories */}
+                        <div
                             className={`
-                              univer-mr-2 univer-shrink-0 univer-rounded-full univer-px-4 univer-py-1.5 univer-text-sm
-                              univer-font-medium univer-transition-colors
-                              ${selectedCategory === cat.id
-                            ? 'univer-bg-blue-500 univer-text-white'
-                            : `
-                              univer-bg-gray-100 univer-text-gray-600
-                              dark:!univer-bg-gray-800 dark:!univer-text-gray-400
+                              univer-overflow-x-auto univer-px-1
+                              ${scrollbarClassName}
                             `}
-                            `}
-                            onClick={() => setSelectedCategory(cat.id)}
                         >
-                            {cat.name}
-                        </button>
-                    ))}
-                </div>
+                            <Segmented
+                                items={categories.map((cat) => ({ label: cat.label, value: cat.id }))}
+                                value={selectedCategory}
+                                onChange={(value) => setSelectedCategory(value as number)}
+                                className="univer-inline-flex univer-w-max"
+                            />
+                        </div>
+                    </DrawerTitle>
+                </DrawerHeader>
 
                 {/* Function List */}
-                <div className="univer-flex-1 univer-overflow-y-auto univer-px-4 univer-pb-8">
+                <div
+                    className={`
+                      univer-flex-1 univer-overflow-y-auto univer-px-4 univer-pb-6
+                      ${scrollbarClassName}
+                    `}
+                >
                     {filteredFunctions.length > 0
                         ? (
-                            filteredFunctions.map((func) => (
-                                <div
-                                    key={func.name}
-                                    className={`
-                                      dark:hover:!univer-bg-gray-800/50
-                                      univer-mb-2 univer-rounded-xl univer-border univer-border-gray-100 univer-p-4
-                                      univer-transition-colors
-                                      hover:univer-bg-gray-50
-                                      dark:!univer-border-gray-800
-                                    `}
-                                    onClick={() => onSelect(func.name)}
-                                >
-                                    <div className="univer-flex univer-items-center univer-justify-between">
-                                        <span
-                                            className={`
-                                              univer-text-lg univer-font-bold univer-text-blue-600
-                                              dark:!univer-text-blue-400
-                                            `}
-                                        >
-                                            {func.name}
-                                        </span>
-                                    </div>
-                                    <p
+                            <div className="univer-space-y-2">
+                                {filteredFunctions.map((func) => (
+                                    <button
+                                        key={func.name}
+                                        type="button"
                                         className={`
-                                          univer-mt-1 univer-text-sm univer-text-gray-500
-                                          dark:!univer-text-gray-400
+                                          hover:univer-bg-primary-50/50 hover:univer-border-primary-300
+                                          hover:univer-shadow-sm
+                                          dark:hover:!univer-bg-gray-700/50 dark:hover:!univer-border-primary-600
+                                          univer-group univer-w-full univer-rounded-lg univer-border
+                                          univer-border-gray-200 univer-bg-white univer-p-4 univer-text-left
+                                          univer-transition-all
+                                          active:univer-scale-[0.98]
+                                          dark:!univer-border-gray-700 dark:!univer-bg-gray-800
                                         `}
+                                        onClick={() => onSelect(func.name)}
                                     >
-                                        {func.desc}
-                                    </p>
-                                </div>
-                            ))
+                                        <div className="univer-flex univer-items-start univer-justify-between">
+                                            <div className="univer-flex-1">
+                                                <div
+                                                    className={`
+                                                      univer-text-base univer-font-semibold univer-text-primary-600
+                                                      group-hover:univer-text-primary-700
+                                                      dark:!univer-text-primary-400
+                                                      dark:group-hover:!univer-text-primary-300
+                                                    `}
+                                                >
+                                                    {func.name}
+                                                </div>
+                                                <p
+                                                    className={`
+                                                      univer-mt-1.5 univer-text-sm univer-leading-relaxed
+                                                      univer-text-gray-600
+                                                      dark:!univer-text-gray-300
+                                                    `}
+                                                >
+                                                    {func.desc}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
                         )
                         : (
                             <div
                                 className={`
-                                  univer-flex univer-h-40 univer-flex-col univer-items-center univer-justify-center
+                                  univer-flex univer-h-64 univer-flex-col univer-items-center univer-justify-center
                                   univer-text-gray-400
                                 `}
                             >
-                                <span className="univer-text-4xl">🔍</span>
-                                <p className="univer-mt-2">No functions found</p>
+                                <div className="univer-mb-3 univer-text-5xl">🔍</div>
+                                <p className="univer-text-base univer-font-medium">No functions found</p>
+                                <p
+                                    className={`
+                                      univer-mt-1 univer-text-sm univer-text-gray-500
+                                      dark:!univer-text-gray-500
+                                    `}
+                                >
+                                    Try a different search term or category
+                                </p>
                             </div>
                         )}
                 </div>
-            </div>
-        </div>
+            </DrawerContent>
+        </Drawer>
     );
 }

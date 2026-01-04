@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import { Disposable, ILogService, Inject, Injector, IUniverInstanceService, toDisposable, UniverInstanceType } from '@univerjs/core';
-import { DocSelectionRenderService } from '@univerjs/docs-ui';
-import { getCurrentTypeOfRenderer, IRenderManagerService } from '@univerjs/engine-render';
+import { Disposable, DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY, DOCS_NORMAL_EDITOR_UNIT_ID_KEY, Inject, Injector, toDisposable } from '@univerjs/core';
+import { IEditorService } from '@univerjs/docs-ui';
 import { BehaviorSubject } from 'rxjs';
 
 export class MobileViewportController extends Disposable {
@@ -24,7 +23,7 @@ export class MobileViewportController extends Disposable {
 
     constructor(
         @Inject(Injector) protected readonly _injector: Injector,
-        @ILogService private readonly _logService: ILogService
+        @IEditorService private readonly _editorService: IEditorService
     ) {
         super();
         this._initVisualViewportListener();
@@ -44,19 +43,18 @@ export class MobileViewportController extends Disposable {
             window.visualViewport.removeEventListener('resize', this._handleVisualViewportResize.bind(this));
         }));
 
-        const renderManagerService = this._injector.get(IRenderManagerService);
-        const instanceService = this._injector.get(IUniverInstanceService);
-        const currentEditorRender = getCurrentTypeOfRenderer(UniverInstanceType.UNIVER_DOC, instanceService, renderManagerService);
-        const docSelectionRenderService = currentEditorRender?.with(DocSelectionRenderService);
-        if (!docSelectionRenderService) {
-            this._logService.warn('[MobileViewportController]', 'DocSelectionRenderService not found');
-            return;
-        }
-        this.disposeWithMe(docSelectionRenderService.onBlur$.subscribe(() => {
-            this.offset$.next(0);
-        }));
-        this.disposeWithMe(docSelectionRenderService.onFocus$.subscribe(() => {
-            this._handleVisualViewportResize();
+        this.disposeWithMe(this._editorService.editorAdd$.subscribe((editorUnitId) => {
+            const editor = this._editorService.getEditor(editorUnitId);
+            if (!editor) return;
+            if (editor.getEditorId() !== DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY && editor.getEditorId() !== DOCS_NORMAL_EDITOR_UNIT_ID_KEY) return;
+            const docSelectionRenderService = editor.docSelectionRenderService;
+            if (!docSelectionRenderService) return;
+            editor.disposeWithMe(docSelectionRenderService.onBlur$.subscribe(() => {
+                this.offset$.next(0);
+            }));
+            editor.disposeWithMe(docSelectionRenderService.onFocus$.subscribe(() => {
+                this._handleVisualViewportResize();
+            }));
         }));
     }
 }

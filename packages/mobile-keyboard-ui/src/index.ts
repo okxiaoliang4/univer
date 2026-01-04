@@ -18,7 +18,6 @@ import './global.css';
 
 // Controllers
 export { MobileKeyboardController } from './controllers/mobile-keyboard.controller';
-export { MobileViewportController } from './controllers/mobile-viewport.controller';
 
 // Plugin
 export { UniverMobileKeyboardUIPlugin } from './plugin';

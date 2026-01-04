@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-import { MobileViewportController } from '@univerjs/sheets-ui';
-import { useDependency, useObservable } from '@univerjs/ui';
+import { cleanup, render } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { Drawer } from '../Drawer';
+import '@testing-library/jest-dom/vitest';
 
-export function TextKeyboard() {
-    const mobileViewportController = useDependency(MobileViewportController);
-    const offset = useObservable(mobileViewportController.offset$, 0);
+afterEach(cleanup);
 
-    // placeholder for native keyboard
-    return (
-        <div style={{ height: `${offset}px` }} />
-    );
-}
+describe('Drawer', () => {
+    it('renders correctly', () => {
+        const { container } = render(<Drawer>drawer</Drawer>);
+        expect(container);
+    });
+});
