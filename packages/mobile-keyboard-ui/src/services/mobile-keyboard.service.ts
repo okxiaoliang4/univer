@@ -18,7 +18,7 @@ import type { Workbook } from '@univerjs/core';
 import type { IInsertFunctionOperationParams } from '@univerjs/sheets-formula-ui';
 import type { IEditorBridgeService, IEditorBridgeServiceVisibleParam, IMoveSelectionEnterAndTabCommandParams } from '@univerjs/sheets-ui';
 import type { Observable } from 'rxjs';
-import { CellValueType, createIdentifier, createInternalEditorID, Direction, Disposable, ICommandService, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
+import { CellValueType, createIdentifier, createInternalEditorID, Direction, Disposable, FOCUSING_FX_BAR_EDITOR, ICommandService, IContextService, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { DeleteLeftCommand, IEditorService } from '@univerjs/docs-ui';
 import { DeviceInputEventType } from '@univerjs/engine-render';
 import { InsertFunctionOperation } from '@univerjs/sheets-formula-ui';
@@ -82,7 +82,8 @@ export class MobileKeyboardService extends Disposable implements IMobileKeyboard
         @IEditorBridgeServiceToken private readonly _editorBridgeService: IEditorBridgeService,
         @IEditorService private readonly _editorService: IEditorService,
         @ISidebarService private readonly _sidebarService: ISidebarService,
-        @IDialogService private readonly _dialogService: IDialogService
+        @IDialogService private readonly _dialogService: IDialogService,
+        @IContextService private readonly _contextService: IContextService
     ) {
         super();
 
@@ -147,10 +148,32 @@ export class MobileKeyboardService extends Disposable implements IMobileKeyboard
     }
 
     insertText(text: string): void {
+        const visibleState = this._editorBridgeService.isVisible();
+        if (visibleState.visible === false) {
+            this._commandService.syncExecuteCommand(
+                SetCellEditVisibleOperation.id,
+                {
+                    visible: true,
+                    eventType: DeviceInputEventType.PointerDown,
+                    unitId: this._editorBridgeService.getEditCellState()!.unitId,
+                } as IEditorBridgeServiceVisibleParam
+            );
+        }
+
+            // Open the normal editor first, and then we mark formula editor as activated.
+        this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
+
         const focusEditor = this._editorService.getFocusEditor();
+
         if (!focusEditor) {
             return;
         }
+        const activeTextRange = focusEditor.docSelectionRenderService.getActiveTextRange();
+        if (!activeTextRange) {
+            const documentData = focusEditor?.getDocumentData();
+            focusEditor.setSelectionRanges([{ startOffset: 0, endOffset: documentData?.body ? documentData.body.dataStream.length - 2 : 0 }]);
+        }
+
         focusEditor.docSelectionRenderService.setInputContent(text);
         focusEditor.docSelectionRenderService.dispatchInputDomEvent(new InputEvent('input', {
             data: text,

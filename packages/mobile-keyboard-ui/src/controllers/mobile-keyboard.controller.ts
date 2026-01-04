@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Disposable, DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY, DOCS_NORMAL_EDITOR_UNIT_ID_KEY, ICommandService, Inject, Injector, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
+import { Disposable, DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY, DOCS_NORMAL_EDITOR_UNIT_ID_KEY, FOCUSING_FX_BAR_EDITOR, ICommandService, IContextService, Inject, Injector, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { DocSelectionRenderService, IEditorService } from '@univerjs/docs-ui';
 import { getCurrentTypeOfRenderer, IRenderManagerService } from '@univerjs/engine-render';
-import { BuiltInUIPart, connectInjector, ILayoutService, ISidebarService, IUIPartsService } from '@univerjs/ui';
+import { BuiltInUIPart, connectInjector, ILayoutService, IUIPartsService } from '@univerjs/ui';
 import { distinctUntilChanged, filter } from 'rxjs';
 import { KeyboardConfirmAndMoveOperation, KeyboardDeleteBackwardOperation, KeyboardInsertFunctionOperation, KeyboardInsertQuotesOperation, KeyboardInsertTextOperation, KeyboardSetModeOperation, KeyboardToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
 import { IMobileKeyboardService, KeyboardMode } from '../services/mobile-keyboard.service';
@@ -33,7 +33,7 @@ export class MobileKeyboardController extends Disposable {
         @IUIPartsService private readonly _uiPartsService: IUIPartsService,
         @ILayoutService private readonly _layoutService: ILayoutService,
         @IEditorService private readonly _editorService: IEditorService,
-        @ISidebarService private readonly _sidebarService: ISidebarService
+        @IContextService private readonly _contextService: IContextService
     ) {
         super();
 
@@ -111,9 +111,9 @@ export class MobileKeyboardController extends Disposable {
 
         this.disposeWithMe(this._mobileKeyboardService.isKeyboardVisible$.subscribe((isKeyboardVisible) => {
             if (isKeyboardVisible) {
-                // this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
+                this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
                 this._mobileKeyboardService.autoSelectMode();
-                // this._editorService.focus(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
+                this._editorService.focus(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
             } else {
                 const formulaEditor = this._editorService.getEditor(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
                 if (formulaEditor) {
