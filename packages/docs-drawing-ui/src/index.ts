@@ -29,5 +29,6 @@ export { EditDocDrawingOperation } from './commands/operations/edit-doc-drawing.
 export { SidebarDocDrawingOperation } from './commands/operations/open-drawing-panel.operation';
 export { type IUniverDocsDrawingUIConfig } from './controllers/config.schema';
 export { DocFloatDomController } from './controllers/doc-float-dom.controller';
+export { UniverDocsDrawingMobileUIPlugin } from './mobile-plugin';
 export { UniverDocsDrawingUIPlugin } from './plugin';
 export { DOCS_IMAGE_MENU_ID } from './views/menu/image.menu';

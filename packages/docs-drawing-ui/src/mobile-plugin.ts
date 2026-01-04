@@ -21,7 +21,7 @@ import { UniverDocsDrawingPlugin } from '@univerjs/docs-drawing';
 import { UniverDrawingPlugin } from '@univerjs/drawing';
 import { UniverDrawingUIPlugin } from '@univerjs/drawing-ui';
 import { IRenderManagerService } from '@univerjs/engine-render';
-import { UniverUIPlugin } from '@univerjs/ui';
+import { UniverMobileUIPlugin } from '@univerjs/ui';
 import { defaultPluginConfig, DOCS_DRAWING_UI_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
 import { DocDrawingAddRemoveController } from './controllers/doc-drawing-notification.controller';
 import { DocDrawingPrintingController } from './controllers/doc-drawing-printing.controller';
@@ -33,10 +33,10 @@ import { DocDrawingTransformUpdateController } from './controllers/render-contro
 import { DocDrawingUpdateRenderController } from './controllers/render-controllers/doc-drawing-update.render-controller';
 import { DocRefreshDrawingsService } from './services/doc-refresh-drawings.service';
 
-const PLUGIN_NAME = 'DOC_DRAWING_UI_PLUGIN';
+const PLUGIN_NAME = 'DOC_DRAWING_MOBILE_UI_PLUGIN';
 
-@DependentOn(UniverDrawingUIPlugin, UniverDrawingPlugin, UniverDocsDrawingPlugin, UniverUIPlugin)
-export class UniverDocsDrawingUIPlugin extends Plugin {
+@DependentOn(UniverDrawingUIPlugin, UniverDrawingPlugin, UniverDocsDrawingPlugin, UniverMobileUIPlugin)
+export class UniverDocsDrawingMobileUIPlugin extends Plugin {
     static override type = UniverInstanceType.UNIVER_DOC;
     static override pluginName = PLUGIN_NAME;
 
