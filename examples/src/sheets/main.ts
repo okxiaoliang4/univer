@@ -54,6 +54,7 @@ import { UniverWebComponentAdapterPlugin } from '@univerjs/ui-adapter-web-compon
 import { customRegisterEvent } from './custom/custom-register-event';
 import { UniverSheetsCustomShortcutPlugin } from './custom/custom-shortcut';
 import ImportCSVButtonPlugin from './custom/import-csv-button';
+import { simpleRangePopupDemo } from './custom/simple-range-popup';
 
 import '@univerjs/sheets/facade';
 import '@univerjs/ui/facade';
@@ -124,10 +125,13 @@ function createNewInstance() {
         [UniverUIPlugin, {
             container: 'app',
             // ribbonType: 'classic',
-            customFontFamily: [
-                { value: 'PingFang SC', label: '苹方（简）', category: 'sans-serif' },
-                { value: 'Helvetica Neue', label: 'Helvetica Neue', category: 'sans-serif' },
-            ],
+            customFontFamily: {
+                list: [
+                    { value: 'PingFang SC', label: '苹方（简）', category: 'sans-serif' },
+                    { value: 'Helvetica Neue', label: 'Helvetica Neue', category: 'sans-serif' },
+                ],
+                // override: true,
+            },
         }],
         [UniverWebComponentAdapterPlugin],
         [UniverVue3AdapterPlugin],
@@ -202,6 +206,7 @@ function createNewInstance() {
 
     customRegisterEvent(univer, window.univerAPI!);
     // customRangePopups(univer, window.univerAPI!);
+    simpleRangePopupDemo(univer, window.univerAPI!);
 }
 
 createNewInstance();
