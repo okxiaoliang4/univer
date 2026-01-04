@@ -61,6 +61,7 @@ import { HeaderResizeRenderController } from './controllers/render-controllers/h
 import { HeaderUnhideRenderController } from './controllers/render-controllers/header-unhide.render-controller';
 // import { SheetContextMenuMobileRenderController } from './controllers/render-controllers/mobile/mobile-contextmenu.render-controller';
 import { MobileSheetsScrollRenderController } from './controllers/render-controllers/mobile/mobile-scroll.render-controller';
+import { MobileZoomRenderController } from './controllers/render-controllers/mobile/mobile-zoom.render-controller';
 import { SheetsScrollRenderController } from './controllers/render-controllers/scroll.render-controller';
 import { SheetRenderController } from './controllers/render-controllers/sheet.render-controller';
 import { SheetSkeletonRenderController } from './controllers/render-controllers/skeleton.render-controller';
@@ -257,6 +258,7 @@ export class UniverSheetsMobileUIPlugin extends Plugin {
             [MobileSheetsScrollRenderController],
             [HeaderFreezeRenderController],
             [SheetsZoomRenderController],
+            [MobileZoomRenderController],
 
             [FormatPainterRenderController],
             [ClipboardRenderController],
