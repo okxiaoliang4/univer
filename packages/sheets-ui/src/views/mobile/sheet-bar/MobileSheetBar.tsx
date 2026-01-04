@@ -18,8 +18,10 @@ import type { ICommandInfo, Workbook } from '@univerjs/core';
 import type { ISetWorksheetActiveOperationParams } from '@univerjs/sheets';
 import type { IBaseSheetBarProps } from '../../sheet-bar/sheet-bar-tabs/SheetBarItem';
 import { ICommandService } from '@univerjs/core';
-import { borderRightClassName, clsx } from '@univerjs/design';
+import { borderRightClassName, Button, clsx } from '@univerjs/design';
+import { IncreaseIcon } from '@univerjs/icons';
 import {
+    InsertSheetCommand,
     InsertSheetMutation,
     RemoveSheetMutation,
     SetWorksheetActiveOperation,
@@ -108,10 +110,21 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
     return (
         <div
             className={`
-              univer-h-8 univer-w-full univer-overflow-x-scroll univer-bg-gray-100
+              univer-flex univer-h-8 univer-w-full univer-overflow-x-scroll univer-bg-gray-100
               dark:!univer-bg-gray-900
             `}
         >
+            <Button
+                variant="text"
+                onClick={() => commandService.executeCommand(InsertSheetCommand.id)}
+                className={`
+                  univer-sticky univer-left-0 univer-z-10 univer-rounded-none univer-border-0 univer-border-r
+                  univer-border-solid !univer-border-gray-200 univer-bg-white
+                  dark:!univer-bg-gray-900
+                `}
+            >
+                <IncreaseIcon />
+            </Button>
             <div className="univer-flex univer-h-8 univer-flex-nowrap univer-items-center">
                 {sheetList.map((sheet) => (
                     <div
