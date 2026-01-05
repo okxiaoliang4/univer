@@ -223,6 +223,11 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
         const spreadsheetPointerDownSub = spreadsheet?.onPointerDown$.subscribeEvent((evt: IPointerEvent | IMouseEvent, state) => {
             pointerDownPos.x = evt.offsetX;
             pointerDownPos.y = evt.offsetY;
+
+            // Clear drawing selection when clicking on cells (same as desktop behavior)
+            const { scene } = this._context;
+            scene.getTransformer()?.clearSelectedObjects();
+
             longPressTimer = setTimeout(() => {
                 createNewSelection(evt, true);
             }, longPressDuration);
