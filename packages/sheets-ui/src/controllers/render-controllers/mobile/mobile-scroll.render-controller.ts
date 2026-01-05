@@ -41,6 +41,23 @@ import { getSheetObject } from '../../utils/component-tools';
 const SHEET_NAVIGATION_COMMANDS = [MoveSelectionCommand.id, MoveSelectionEnterAndTabCommand.id];
 
 /**
+ * Touch history data structure for calculating velocity
+ */
+interface ITouchHistory {
+    x: number;
+    y: number;
+    timestamp: number;
+}
+
+/**
+ * Configuration constants for momentum scrolling
+ */
+const MAX_HISTORY_SIZE = 10; // Maximum number of touch history frames to keep
+const DECELERATION = 0.96; // Per-frame deceleration factor (0.96 = 4% slower each frame)
+const MIN_VELOCITY_PX = 0.01; // Minimum velocity in pixels to continue animation
+const VELOCITY_MULTIPLIER = 20; // Multiplier to convert px/ms to px/frame (approx 60fps)
+
+/**
  * This controller handles scroll logic in sheet interaction.
  */
 export class MobileSheetsScrollRenderController extends Disposable implements IRenderModule {
@@ -308,79 +325,189 @@ export class MobileSheetsScrollRenderController extends Disposable implements IR
     }
 
     /**
+     * Calculate velocity from touch history using the last few points
+     * @param history Array of touch history records
+     * @returns Calculated velocity in px/ms
+     */
+    private _calculateVelocity(history: ITouchHistory[]): { x: number; y: number } {
+        if (history.length < 2) {
+            return { x: 0, y: 0 };
+        }
+
+        // Use the last few points (or all if less than 4) for more stable velocity
+        const recentCount = Math.min(4, history.length);
+        const startIdx = history.length - recentCount;
+        const endIdx = history.length - 1;
+
+        const first = history[startIdx];
+        const last = history[endIdx];
+        const dt = last.timestamp - first.timestamp;
+
+        // Avoid division by zero and very small time intervals
+        if (dt < 10) {
+            // If time is too short, use last two points
+            const prev = history[history.length - 2];
+            const curr = history[history.length - 1];
+            const smallDt = curr.timestamp - prev.timestamp;
+            if (smallDt <= 0) {
+                return { x: 0, y: 0 };
+            }
+            const result = {
+                x: (curr.x - prev.x) / smallDt,
+                y: (curr.y - prev.y) / smallDt,
+            };
+            return result;
+        }
+
+        const result = {
+            x: (last.x - first.x) / dt,
+            y: (last.y - first.y) / dt,
+        };
+        return result;
+    }
+
+    /**
      * for mobile
      */
     // eslint-disable-next-line max-lines-per-function
     private _initPointerScrollEvent() {
         const sheetObject = this._getSheetObject();
         if (!sheetObject) return;
-        // const workbook = this._univerInstanceService.getCurrentUnitForType<Workbook>(UniverInstanceType.UNIVER_SHEET)!;
 
-        const scrollManagerService = this._scrollManagerService;
         const scene = sheetObject.scene;
         const spreadsheet = sheetObject.spreadsheet;
         const viewportMain = scene.getViewport(SHEET_VIEWPORT_KEY.VIEW_MAIN);
+        if (!viewportMain) return;
+
         const lastPointerPos: IPoint = { x: 0, y: 0 };
         let _pointerScrolling: boolean = false;
+        const touchHistory: ITouchHistory[] = [];
 
+        // Track active pointer IDs to detect multi-touch
+        const activePointerIds = new Set<number>();
+        let primaryPointerId: number | null = null; // The pointer ID we're tracking for scrolling
+
+        // Current velocity for momentum scrolling (in pixels per frame)
         const velocity = { x: 0, y: 0 };
-        const deceleration = 0.95;
         let scrollInertiaAnimationID: null | number = null;
+        let inertiaStartTime: number = 0; // Track when inertia started to prevent immediate cancellation
+
+        /**
+         * Simple per-frame deceleration momentum scrolling
+         * Each frame, velocity is reduced by DECELERATION factor
+         */
         const pointerScrollInertia = () => {
-            if (!viewportMain) return;
-            velocity.x *= deceleration;
-            velocity.y *= deceleration;
-            lastPointerPos.x += velocity.x;
-            lastPointerPos.y += velocity.y;
+            // Check if velocity is below threshold - stop animation
+            if (Math.abs(velocity.x) < MIN_VELOCITY_PX && Math.abs(velocity.y) < MIN_VELOCITY_PX) {
+                scrollInertiaAnimationID = null;
+                velocity.x = 0;
+                velocity.y = 0;
+                return;
+            }
+
+            // Apply scroll first (before deceleration)
             const offsetX = velocity.x;
             const offsetY = velocity.y;
 
-            if (offsetY !== 0 || offsetX !== 0) {
-                this._commandService.executeCommand(SetScrollRelativeCommand.id, { offsetY, offsetX });
+            if (Math.abs(offsetX) > 0.1 || Math.abs(offsetY) > 0.1) {
+                this._commandService.executeCommand(SetScrollRelativeCommand.id, { offsetX, offsetY });
+                // Mark scene as dirty to trigger redraw
+                scene.makeDirty(true);
             }
 
-            if (Math.abs(velocity.x) > 1 || Math.abs(velocity.y) > 1) {
-                scrollInertiaAnimationID = requestAnimationFrame(pointerScrollInertia);
-            } else {
-                scrollInertiaAnimationID = null;
-            }
+            // Apply deceleration for next frame
+            velocity.x *= DECELERATION;
+            velocity.y *= DECELERATION;
+
+            // Continue animation
+            scrollInertiaAnimationID = requestAnimationFrame(pointerScrollInertia);
         };
 
-        const cancelInertiaAnimation = () => {
-            cancelAnimationFrame(scrollInertiaAnimationID!);
-            scrollInertiaAnimationID = null;
+        const cancelInertiaAnimation = (force: boolean = false) => {
+            // Prevent immediate cancellation after starting inertia (allow RAF callback to execute)
+            // Give it at least 50ms grace period
+            const timeSinceStart = performance.now() - inertiaStartTime;
+            if (!force && timeSinceStart < 50 && scrollInertiaAnimationID !== null) {
+                return;
+            }
+            if (scrollInertiaAnimationID !== null) {
+                cancelAnimationFrame(scrollInertiaAnimationID);
+                scrollInertiaAnimationID = null;
+            }
+            velocity.x = 0;
+            velocity.y = 0;
         };
 
         spreadsheet.onPointerDown$.subscribeEvent((evt: IPointerEvent | IMouseEvent, state) => {
-            cancelInertiaAnimation();
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            // Add this pointer to active set
+            activePointerIds.add(pointerId);
+
+            // If there are multiple touches, cancel scrolling and don't start new one
+            if (activePointerIds.size > 1) {
+                cancelInertiaAnimation(true);
+                _pointerScrolling = false;
+                primaryPointerId = null;
+                touchHistory.length = 0;
+                return;
+            }
+
+            cancelInertiaAnimation(true); // Force cancel on new touch
 
             if (!viewportMain) return;
 
+            // Only handle single touch
+            primaryPointerId = pointerId;
+
+            // Reset touch history
+            touchHistory.length = 0;
             lastPointerPos.x = evt.offsetX;
             lastPointerPos.y = evt.offsetY;
             _pointerScrolling = true;
+
+            // Record initial touch point
+            touchHistory.push({
+                x: evt.offsetX,
+                y: evt.offsetY,
+                timestamp: performance.now(),
+            });
+
             state.stopPropagation();
         });
 
         spreadsheet.onPointerMove$.subscribeEvent((evt: IPointerEvent | IMouseEvent, state) => {
-            // cancelInertiaAnimation();
-            if (!_pointerScrolling) return;
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            // Only process move events for the primary pointer, and only if single touch
+            if (!_pointerScrolling || activePointerIds.size > 1 || primaryPointerId !== pointerId) {
+                return;
+            }
             if (!viewportMain) return;
+
             const e = evt as IPointerEvent | IMouseEvent;
-            const deltaX = -(e.offsetX - lastPointerPos.x);
-            const deltaY = -(e.offsetY - lastPointerPos.y);
-            velocity.x = -(e.offsetX - lastPointerPos.x);
-            velocity.y = -(e.offsetY - lastPointerPos.y);
-            const offsetX = deltaX;
-            const offsetY = deltaY;
-            if (deltaX !== 0 || deltaY !== 0) {
-                if (offsetY !== 0 || offsetX !== 0) {
-                    this._commandService.executeCommand(SetScrollRelativeCommand.id, { offsetY, offsetX });
-                }
+            const currentTime = performance.now();
+
+            // Record touch position and timestamp
+            touchHistory.push({
+                x: e.offsetX,
+                y: e.offsetY,
+                timestamp: currentTime,
+            });
+
+            // Keep only recent history (last MAX_HISTORY_SIZE frames)
+            if (touchHistory.length > MAX_HISTORY_SIZE) {
+                touchHistory.shift();
             }
 
-            // get scrollInfo from packages/sheets-ui/src/commands/commands/set-scroll.command.ts
-            const _currentScroll = scrollManagerService.getCurrentScrollState();
+            // Calculate immediate delta for current frame scrolling
+            const deltaX = -(e.offsetX - lastPointerPos.x);
+            const deltaY = -(e.offsetY - lastPointerPos.y);
+
+            // Apply immediate scroll during touch move
+            if (deltaX !== 0 || deltaY !== 0) {
+                this._commandService.executeCommand(SetScrollRelativeCommand.id, { offsetX: deltaX, offsetY: deltaY });
+            }
 
             lastPointerPos.x = e.offsetX;
             lastPointerPos.y = e.offsetY;
@@ -388,23 +515,91 @@ export class MobileSheetsScrollRenderController extends Disposable implements IR
             state.stopPropagation();
         });
 
-        spreadsheet.onPointerUp$.subscribeEvent((_evt: IPointerEvent | IMouseEvent) => {
+        spreadsheet.onPointerUp$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            // Remove pointer from active set
+            activePointerIds.delete(pointerId);
+
+            // Only process if this was the primary pointer and we're still in single touch mode
+            if (primaryPointerId !== pointerId || activePointerIds.size > 0) {
+                // If there are still active touches, stop scrolling
+                if (activePointerIds.size > 0) {
+                    cancelInertiaAnimation(true);
+                    _pointerScrolling = false;
+                    primaryPointerId = null;
+                    touchHistory.length = 0;
+                }
+                return;
+            }
+
             _pointerScrolling = false;
-            scrollInertiaAnimationID = requestAnimationFrame(pointerScrollInertia);
+            primaryPointerId = null;
+
+            // Calculate final velocity from touch history
+            if (touchHistory.length >= 2) {
+                const calculatedVelocity = this._calculateVelocity(touchHistory);
+                // Convert from px/ms to px/frame and reverse direction (scroll opposite to touch)
+                velocity.x = -calculatedVelocity.x * VELOCITY_MULTIPLIER;
+                velocity.y = -calculatedVelocity.y * VELOCITY_MULTIPLIER;
+
+                // Only start inertia if velocity is significant
+                if (Math.abs(velocity.x) > MIN_VELOCITY_PX || Math.abs(velocity.y) > MIN_VELOCITY_PX) {
+                    inertiaStartTime = performance.now(); // Record when inertia starts
+                    scrollInertiaAnimationID = requestAnimationFrame(() => {
+                        pointerScrollInertia();
+                    });
+                }
+            }
+
+            // Clear touch history
+            touchHistory.length = 0;
         });
 
         // trigger by scene.input-manager@_onPointerMove because currObject has changed
-        spreadsheet.onPointerLeave$.subscribeEvent(() => {
-            _pointerScrolling = false;
+        spreadsheet.onPointerLeave$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+            activePointerIds.delete(pointerId);
+
+            if (primaryPointerId === pointerId) {
+                _pointerScrolling = false;
+                primaryPointerId = null;
+            }
+            cancelInertiaAnimation();
+            touchHistory.length = 0;
         });
-        spreadsheet.onPointerOut$.subscribeEvent(() => {
-            _pointerScrolling = false;
+        spreadsheet.onPointerOut$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+            activePointerIds.delete(pointerId);
+
+            if (primaryPointerId === pointerId) {
+                _pointerScrolling = false;
+                primaryPointerId = null;
+            }
+            cancelInertiaAnimation();
+            touchHistory.length = 0;
         });
-        scene.onPointerOut$.subscribeEvent(() => {
-            _pointerScrolling = false;
+        scene.onPointerOut$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+            activePointerIds.delete(pointerId);
+
+            if (primaryPointerId === pointerId) {
+                _pointerScrolling = false;
+                primaryPointerId = null;
+            }
+            cancelInertiaAnimation();
+            touchHistory.length = 0;
         });
-        scene.onPointerCancel$.subscribeEvent(() => {
-            _pointerScrolling = false;
+        scene.onPointerCancel$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+            activePointerIds.delete(pointerId);
+
+            if (primaryPointerId === pointerId) {
+                _pointerScrolling = false;
+                primaryPointerId = null;
+            }
+            cancelInertiaAnimation(true);
+            touchHistory.length = 0;
         });
     }
 
