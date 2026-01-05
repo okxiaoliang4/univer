@@ -191,7 +191,10 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
         const { spreadsheet } = sheetObject;
         let longPressTimer: ReturnType<typeof setTimeout>;
         const longPressDuration = 500; // Longpress duration in milliseconds
-        const pointerDownPos = { x: 0, y: 0 };
+
+        // Track active pointer IDs and their initial positions to detect multi-touch (zoom/scroll gestures)
+        const activePointerIds = new Set<number>();
+        const pointerDownPositions = new Map<number, { x: number; y: number }>();
 
         const clearLongPressTimer = () => {
             // Clear the timer if pointer is moved or released
@@ -214,35 +217,67 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
             }
         };
         spreadsheet?.onPointerMove$.subscribeEvent((evt: IPointerEvent | IMouseEvent, _state) => {
-            const edge = 10;
-            if (Math.abs(evt.offsetX - pointerDownPos.x) > edge ||
-            Math.abs(evt.offsetY - pointerDownPos.y) > edge) {
-                clearLongPressTimer();
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+            const initialPos = pointerDownPositions.get(pointerId);
+
+            if (initialPos) {
+                const edge = 10;
+                if (Math.abs(evt.offsetX - initialPos.x) > edge ||
+                Math.abs(evt.offsetY - initialPos.y) > edge) {
+                    clearLongPressTimer();
+                }
             }
         });
         const spreadsheetPointerDownSub = spreadsheet?.onPointerDown$.subscribeEvent((evt: IPointerEvent | IMouseEvent, state) => {
-            pointerDownPos.x = evt.offsetX;
-            pointerDownPos.y = evt.offsetY;
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            // Track this pointer and its initial position
+            activePointerIds.add(pointerId);
+            pointerDownPositions.set(pointerId, { x: evt.offsetX, y: evt.offsetY });
 
             // Clear drawing selection when clicking on cells (same as desktop behavior)
             const { scene } = this._context;
             scene.getTransformer()?.clearSelectedObjects();
 
-            longPressTimer = setTimeout(() => {
-                createNewSelection(evt, true);
-            }, longPressDuration);
+            // Only start long press timer if single touch (not zooming/scrolling)
+            if (activePointerIds.size === 1) {
+                longPressTimer = setTimeout(() => {
+                    createNewSelection(evt, true);
+                }, longPressDuration);
+            }
 
             state.stopPropagation();
         });
         const spreadsheetPointerUpSub = spreadsheet?.onPointerUp$.subscribeEvent((evt: IPointerEvent | IMouseEvent, state) => {
             if (this._normalSelectionDisabled()) return;
 
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            // Get initial position for this pointer
+            const initialPos = pointerDownPositions.get(pointerId);
+
+            // Remove pointer from active set and its position
+            activePointerIds.delete(pointerId);
+            pointerDownPositions.delete(pointerId);
+
             clearTimeout(longPressTimer);
-            const edge = 10;
-            if (Math.abs(evt.offsetX - pointerDownPos.x) > edge ||
-            Math.abs(evt.offsetY - pointerDownPos.y) > edge) {
+
+            // Don't create selection if there are still active touches (multi-touch gesture like zoom/scroll)
+            // This prevents selection update after zoom/scroll gestures, similar to desktop behavior
+            if (activePointerIds.size > 0) {
                 return;
             }
+
+            // Check if this pointer moved significantly from its initial position
+            // Only create selection if movement is small (click, not scroll/zoom)
+            if (initialPos) {
+                const edge = 10;
+                if (Math.abs(evt.offsetX - initialPos.x) > edge ||
+                Math.abs(evt.offsetY - initialPos.y) > edge) {
+                    return;
+                }
+            }
+
             createNewSelection(evt, false);
             state.stopPropagation();
         });
