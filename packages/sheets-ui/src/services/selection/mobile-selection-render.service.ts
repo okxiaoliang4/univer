@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-/* eslint-disable complexity */
 /* eslint-disable max-lines-per-function */
 import type {
     EventState,
@@ -623,36 +622,90 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
 
         const { rangeWithCoord: cursorCellRange } = cursorCellRangeInfo;
 
-        const currCellRange = activeSelectionControl.model.currentCell;
-        const startRowOfActiveCell = currCellRange?.mergeInfo.startRow ?? -1;
-        const endRowOfActiveCell = currCellRange?.mergeInfo.endRow ?? -1;
-        const startColumnOfActiveCell = currCellRange?.mergeInfo.startColumn ?? -1;
-        const endColOfActiveCell = currCellRange?.mergeInfo.endColumn ?? -1;
+        // Use _startRangeWhenPointerDown as anchor point (like desktop version)
+        // For BOTTOM_RIGHT handle: anchor to top-left (startRow/startColumn)
+        // For TOP_LEFT handle: anchor to bottom-right (endRow/endColumn)
+        // For other handles: use appropriate corner based on expandingControlMode
+        let anchorStartRow: number;
+        let anchorStartColumn: number;
+        let anchorEndRow: number;
+        let anchorEndColumn: number;
+
+        switch (this.expandingControlMode) {
+            case ExpandingControl.TOP_LEFT:
+                // Anchor to bottom-right corner of original selection
+                anchorStartRow = this._startRangeWhenPointerDown.endRow;
+                anchorStartColumn = this._startRangeWhenPointerDown.endColumn;
+                anchorEndRow = this._startRangeWhenPointerDown.endRow;
+                anchorEndColumn = this._startRangeWhenPointerDown.endColumn;
+                break;
+            case ExpandingControl.BOTTOM_RIGHT:
+                // Anchor to top-left corner of original selection
+                anchorStartRow = this._startRangeWhenPointerDown.startRow;
+                anchorStartColumn = this._startRangeWhenPointerDown.startColumn;
+                anchorEndRow = this._startRangeWhenPointerDown.startRow;
+                anchorEndColumn = this._startRangeWhenPointerDown.startColumn;
+                break;
+            case ExpandingControl.LEFT:
+                // Anchor to right edge
+                anchorStartRow = this._startRangeWhenPointerDown.startRow;
+                anchorStartColumn = this._startRangeWhenPointerDown.endColumn;
+                anchorEndRow = this._startRangeWhenPointerDown.endRow;
+                anchorEndColumn = this._startRangeWhenPointerDown.endColumn;
+                break;
+            case ExpandingControl.RIGHT:
+                // Anchor to left edge
+                anchorStartRow = this._startRangeWhenPointerDown.startRow;
+                anchorStartColumn = this._startRangeWhenPointerDown.startColumn;
+                anchorEndRow = this._startRangeWhenPointerDown.endRow;
+                anchorEndColumn = this._startRangeWhenPointerDown.startColumn;
+                break;
+            case ExpandingControl.TOP:
+                // Anchor to bottom edge
+                anchorStartRow = this._startRangeWhenPointerDown.endRow;
+                anchorStartColumn = this._startRangeWhenPointerDown.startColumn;
+                anchorEndRow = this._startRangeWhenPointerDown.endRow;
+                anchorEndColumn = this._startRangeWhenPointerDown.endColumn;
+                break;
+            case ExpandingControl.BOTTOM:
+                // Anchor to top edge
+                anchorStartRow = this._startRangeWhenPointerDown.startRow;
+                anchorStartColumn = this._startRangeWhenPointerDown.startColumn;
+                anchorEndRow = this._startRangeWhenPointerDown.startRow;
+                anchorEndColumn = this._startRangeWhenPointerDown.endColumn;
+                break;
+            default:
+                // Fallback to top-left corner
+                anchorStartRow = this._startRangeWhenPointerDown.startRow;
+                anchorStartColumn = this._startRangeWhenPointerDown.startColumn;
+                anchorEndRow = this._startRangeWhenPointerDown.startRow;
+                anchorEndColumn = this._startRangeWhenPointerDown.startColumn;
+        }
 
         let newSelectionRange: IRange = {
-            startRow: Math.min(cursorCellRange.startRow, startRowOfActiveCell),
-            startColumn: Math.min(cursorCellRange.startColumn, startColumnOfActiveCell),
-            endRow: Math.max(cursorCellRange.endRow, endRowOfActiveCell),
-            endColumn: Math.max(cursorCellRange.endColumn, endColOfActiveCell),
+            startRow: Math.min(cursorCellRange.startRow, anchorStartRow),
+            startColumn: Math.min(cursorCellRange.startColumn, anchorStartColumn),
+            endRow: Math.max(cursorCellRange.endRow, anchorEndRow),
+            endColumn: Math.max(cursorCellRange.endColumn, anchorEndColumn),
         };
 
         if (rangeType === RANGE_TYPE.NORMAL) {
             newSelectionRange = skeleton.expandRangeByMerge(newSelectionRange);
         } else if (rangeType === RANGE_TYPE.COLUMN) {
+            // For column selection, use anchor points but maintain column boundaries
             newSelectionRange = {
-                startRow: Math.min(cursorCellRange.startRow, currCellRange?.actualRow ?? -1),
-                startColumn: Math.min(cursorCellRange.startColumn, currCellRange?.actualColumn ?? -1),
-                endRow: Math.max(cursorCellRange.endRow, currCellRange?.actualRow ?? -1),
-                endColumn: Math.max(cursorCellRange.endColumn, currCellRange?.actualColumn ?? -1),
-
+                startRow: Math.min(cursorCellRange.startRow, anchorStartRow),
+                startColumn: Math.min(cursorCellRange.startColumn, anchorStartColumn),
+                endRow: Math.max(cursorCellRange.endRow, anchorEndRow),
+                endColumn: Math.max(cursorCellRange.endColumn, anchorEndColumn),
             };
         } else if (rangeType === RANGE_TYPE.ROW) {
+            // For row selection, use anchor points but maintain row boundaries
             newSelectionRange = {
-                startRow: Math.min(cursorCellRange.startRow, currCellRange?.actualRow ?? -1),
-                startColumn: Math.min(cursorCellRange.startColumn, currCellRange?.actualColumn ?? -1),
-                endRow: Math.max(cursorCellRange.endRow, currCellRange?.actualRow ?? -1),
-                endColumn: Math.max(cursorCellRange.endColumn, currCellRange?.actualColumn ?? -1),
-
+                startRow: Math.min(cursorCellRange.startRow, anchorStartRow),
+                startColumn: Math.min(cursorCellRange.startColumn, anchorStartColumn),
+                endRow: Math.max(cursorCellRange.endRow, anchorEndRow),
+                endColumn: Math.max(cursorCellRange.endColumn, anchorEndColumn),
             };
         }
 
