@@ -23,7 +23,6 @@ import { KeyboardConfirmAndMoveOperation, KeyboardDeleteBackwardOperation, Keybo
 import { IMobileKeyboardService, KeyboardMode } from '../services/mobile-keyboard.service';
 import { KeyboardContainer } from '../views/keyboard/common/KeyboardContainer';
 import { MobileFormulaBar } from '../views/keyboard/common/MobileFormulaBar';
-import { OperationToolbar } from '../views/keyboard/common/OperationToolbar';
 
 export class MobileKeyboardController extends Disposable {
     constructor(
@@ -41,8 +40,7 @@ export class MobileKeyboardController extends Disposable {
         // this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.GLOBAL, () => connectInjector(KeyboardFab, this._injector)));
 
         // Register the Keyboard Container component to be rendered
-        // this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(Ribbon, this._injector)));
-        this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(OperationToolbar, this._injector)));
+        // this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(OperationToolbar, this._injector)));
         this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.FOOTER, () => connectInjector(MobileFormulaBar, this._injector)));
         this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.FOOTER, () => connectInjector(KeyboardContainer, this._injector)));
 

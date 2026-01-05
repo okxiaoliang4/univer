@@ -103,6 +103,7 @@ import { DEFINED_NAME_CONTAINER } from '../../views/defined-name/component-name'
 import { DefinedNameContainer } from '../../views/defined-name/DefinedNameContainer';
 import { MobileSheetBar } from '../../views/mobile/sheet-bar/MobileSheetBar';
 import { RenderSheetContent } from '../../views/sheet-container/SheetContainer';
+import { menuSchema } from '../menu.schema';
 import {
     EditorBreakLineShortcut,
     EditorCursorCtrlEnterShortcut,
@@ -156,7 +157,6 @@ import {
     ZoomInShortcutItem,
     ZoomOutShortcutItem,
 } from '../shortcuts/view.shortcut';
-import { menuSchema } from './menu.schema';
 
 export class SheetUIMobileController extends Disposable {
     constructor(
@@ -347,7 +347,7 @@ export class SheetUIMobileController extends Disposable {
         const uiController = this._uiPartsService;
         const injector = this._injector;
 
-        this.disposeWithMe(uiController.registerComponent(BuiltInUIPart.HEADER, () => connectInjector(MobileSheetBar, injector)));
+        this.disposeWithMe(uiController.registerComponent(BuiltInUIPart.FOOTER, () => connectInjector(MobileSheetBar, injector)));
         this.disposeWithMe(uiController.registerComponent(BuiltInUIPart.CONTENT, () => connectInjector(RenderSheetContent, injector)));
     }
 

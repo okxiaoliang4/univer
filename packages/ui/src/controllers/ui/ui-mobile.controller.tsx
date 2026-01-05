@@ -18,13 +18,23 @@ import type { IDisposable } from '@univerjs/core';
 import type { IUniverUIConfig } from '../config.schema';
 import type { IUIController, IWorkbenchOptions } from './ui.controller';
 import { Inject, Injector, IUniverInstanceService, LifecycleService, toDisposable } from '@univerjs/core';
-import { render as createRoot, unmount } from '@univerjs/design';
+import { ColorPicker, render as createRoot, unmount } from '@univerjs/design';
 import { IRenderManagerService } from '@univerjs/engine-render';
+import { ComponentManager } from '../../common';
+import { COLOR_PICKER_COMPONENT } from '../../components/color-picker/interface';
+import { COMMON_LABEL_COMPONENT, CommonLabel } from '../../components/common-label';
+import { FontFamilyItem } from '../../components/font-family';
+import { FontFamily } from '../../components/font-family/FontFamily';
+import { FONT_FAMILY_COMPONENT, FONT_FAMILY_ITEM_COMPONENT } from '../../components/font-family/interface';
+import { FontSize } from '../../components/font-size/FontSize';
+import { FONT_SIZE_COMPONENT } from '../../components/font-size/interface';
+import { HEADING_ITEM_COMPONENT, HeadingItem } from '../../components/heading-item';
 import { ILayoutService } from '../../services/layout/layout.service';
 import { BuiltInUIPart, IUIPartsService } from '../../services/parts/parts.service';
 import { connectInjector } from '../../utils/di';
 import { FloatDom } from '../../views/components/dom/FloatDom';
 import { CanvasPopup } from '../../views/components/popup/CanvasPopup';
+import { Ribbon } from '../../views/components/ribbon/Ribbon';
 import { MobileWorkbench } from '../../views/mobile-workbench/MobileWorkbench';
 import { SingleUnitUIController } from './ui-shared.controller';
 
@@ -33,6 +43,7 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
         private readonly _config: IUniverUIConfig,
         @Inject(Injector) injector: Injector,
         @Inject(LifecycleService) lifecycleService: LifecycleService,
+        @Inject(ComponentManager) private readonly _componentManager: ComponentManager,
         @IRenderManagerService renderManagerService: IRenderManagerService,
         @ILayoutService layoutService: ILayoutService,
         @IUniverInstanceService instanceService: IUniverInstanceService,
@@ -41,7 +52,28 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
         super(injector, instanceService, layoutService, lifecycleService, renderManagerService);
 
         this._initBuiltinComponents(uiPartsService);
+        this._registerComponents();
         this._bootstrapWorkbench();
+    }
+
+    private _registerComponents() {
+        ([
+            [COMMON_LABEL_COMPONENT, CommonLabel],
+            [HEADING_ITEM_COMPONENT, HeadingItem],
+            [FONT_FAMILY_COMPONENT, FontFamily],
+            [FONT_FAMILY_ITEM_COMPONENT, FontFamilyItem],
+            [FONT_SIZE_COMPONENT, FontSize],
+            [COLOR_PICKER_COMPONENT, ColorPicker],
+        ] as const).forEach(([key, comp]) => {
+            this.disposeWithMe(
+                this._componentManager.register(key, comp)
+            );
+        });
+    }
+
+    override dispose(): void {
+        super.dispose();
+        this._componentManager.dispose();
     }
 
     override bootstrap(callback: (contentElement: HTMLElement, containerElement: HTMLElement) => void): IDisposable {
@@ -49,8 +81,9 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
     }
 
     private _initBuiltinComponents(uiPartsService: IUIPartsService) {
-        this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.CONTENT, () => connectInjector(CanvasPopup, this._injector)));
+        this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.FLOATING, () => connectInjector(CanvasPopup, this._injector)));
         this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.CONTENT, () => connectInjector(FloatDom, this._injector)));
+        this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(Ribbon, this._injector)));
     }
 }
 

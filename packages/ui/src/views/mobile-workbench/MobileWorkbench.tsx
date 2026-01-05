@@ -128,8 +128,19 @@ export function MobileWorkbench(props: IUniverAppProps) {
                 onBlur={(e) => e.stopPropagation()}
             >
                 {/* header */}
-                {header && (
-                    <header className="univer-relative univer-z-10 univer-w-full" />
+                {header && toolbar && (
+                    <header className="univer-relative univer-z-10 univer-w-full">
+                        {/* toolbar */}
+                        <ComponentContainer
+                            key="toolbar"
+                            components={toolbarComponents}
+                            sharedProps={{
+                                ribbonType,
+                                headerMenuComponents,
+                                headerMenu,
+                            }}
+                        />
+                    </header>
                 )}
 
                 {/* content */}
@@ -173,18 +184,6 @@ export function MobileWorkbench(props: IUniverAppProps) {
                     {/* footer */}
                     {footer && (
                         <footer>
-                            {/* toolbar */}
-                            {toolbar && (
-                                <ComponentContainer
-                                    key="toolbar"
-                                    components={toolbarComponents}
-                                    sharedProps={{
-                                        ribbonType,
-                                        headerMenuComponents,
-                                        headerMenu,
-                                    }}
-                                />
-                            )}
                             <ComponentContainer key="footer" components={footerComponents} />
                         </footer>
                     )}
