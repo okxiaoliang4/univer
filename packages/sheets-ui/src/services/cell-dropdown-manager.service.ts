@@ -76,6 +76,7 @@ export class SheetCellDropdownManagerService extends Disposable implements IShee
                 },
                 offset: [0, 3],
                 excludeOutside: [currentRender?.engine.getCanvasElement()].filter(Boolean) as HTMLElement[],
+                showOnSelectionMoving: true,
                 extraProps: {
                     ...param,
                     ...param.props,
