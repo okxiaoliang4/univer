@@ -51,8 +51,8 @@ export interface IThreadCommentTreeProps {
     getSubUnitName: (subUnitId: string) => string;
     prefix?: string;
     autoFocus?: boolean;
-    onMouseEnter?: () => void;
-    onMouseLeave?: () => void;
+    onPointerEnter?: () => void;
+    onPointerLeave?: () => void;
     onAddComment?: (comment: IThreadComment) => boolean;
     onDeleteComment?: (comment: IThreadComment) => boolean;
     onResolve?: (resolved: boolean) => void;
@@ -109,7 +109,7 @@ const ThreadCommentItem = (props: IThreadCommentItemProps) => {
     };
 
     return (
-        <div className="univer-relative univer-mb-3 univer-pl-[30px]" onMouseLeave={() => setShowReply(false)} onMouseEnter={() => setShowReply(true)}>
+        <div className="univer-relative univer-mb-3 univer-pl-[30px]" onPointerLeave={() => setShowReply(false)} onPointerEnter={() => setShowReply(true)}>
             <div
                 className={`
                   univer-absolute univer-left-0 univer-top-0 univer-h-6 univer-w-6 univer-rounded-full univer-bg-cover
@@ -274,14 +274,14 @@ export const ThreadCommentTree = (props: IThreadCommentTreeProps) => {
         getSubUnitName,
         prefix,
         autoFocus,
-        onMouseEnter,
-        onMouseLeave,
+        onPointerEnter,
+        onPointerLeave,
         onAddComment,
         onDeleteComment,
         onResolve,
         type,
         style,
-        full,
+        full = true,
     } = props;
     const threadCommentModel = useDependency(ThreadCommentModel);
     const [isHover, setIsHover] = useState(false);
@@ -354,7 +354,7 @@ export const ThreadCommentTree = (props: IThreadCommentTreeProps) => {
     };
 
     useEffect(() => {
-        return onMouseLeave?.();
+        return onPointerLeave?.();
     }, []);
 
     const subUnitName = getSubUnitName(comments?.root.subUnitId ?? subUnitId);
@@ -374,12 +374,12 @@ export const ThreadCommentTree = (props: IThreadCommentTreeProps) => {
             })}
             style={style}
             onClick={onClick}
-            onMouseEnter={() => {
-                onMouseEnter?.();
+            onPointerEnter={() => {
+                onPointerEnter?.();
                 setIsHover(true);
             }}
-            onMouseLeave={() => {
-                onMouseLeave?.();
+            onPointerLeave={() => {
+                onPointerLeave?.();
                 setIsHover(false);
             }}
         >
