@@ -18,6 +18,7 @@ import type { IWorkbenchOptions } from '../../controllers/ui/ui.controller';
 import { LocaleService, ThemeService } from '@univerjs/core';
 import { borderBottomClassName, clsx, ConfigProvider } from '@univerjs/design';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BuiltInUIPart } from '../../services/parts/parts.service';
 import { ThemeSwitcherService } from '../../services/theme-switcher/theme-switcher.service';
 import { useDependency } from '../../utils/di';
@@ -59,6 +60,7 @@ export function MobileWorkbench(props: IUniverAppProps) {
     const leftSidebarComponents = useComponentsOfPart(BuiltInUIPart.LEFT_SIDEBAR);
     const globalComponents = useComponentsOfPart(BuiltInUIPart.GLOBAL);
     const toolbarComponents = useComponentsOfPart(BuiltInUIPart.TOOLBAR);
+    const floatingComponents = useComponentsOfPart(BuiltInUIPart.FLOATING);
 
     const [darkMode, setDarkMode] = useState<boolean>(false);
     useEffect(() => {
@@ -196,6 +198,7 @@ export function MobileWorkbench(props: IUniverAppProps) {
             </div>
             <ComponentContainer key="global" components={globalComponents} />
             {contextMenu && <MobileContextMenu />}
+            {createPortal(<ComponentContainer key="floating" components={floatingComponents} />, portalContainer)}
         </ConfigProvider>
     );
 }
