@@ -70,6 +70,7 @@ export abstract class BaseObject extends Disposable {
     onPointerOver$ = new EventSubject<IPointerEvent | IMouseEvent>();
     onPointerLeave$ = new EventSubject<IPointerEvent | IMouseEvent>();
     onPointerEnter$ = new EventSubject<IPointerEvent | IMouseEvent>();
+    onPointerCancel$ = new EventSubject<IPointerEvent | IMouseEvent>();
 
     onSingleClick$ = new EventSubject<IPointerEvent | IMouseEvent>();
     onClick$ = new EventSubject<IPointerEvent | IMouseEvent>();
@@ -725,8 +726,8 @@ export abstract class BaseObject extends Disposable {
         return true;
     }
 
-    triggerPointerCancel(evt: IPointerEvent) {
-        if (!this.onPointerEnter$.emitEvent(evt)?.stopPropagation) {
+    triggerPointerCancel(evt: IPointerEvent | IMouseEvent) {
+        if (!this.onPointerCancel$.emitEvent(evt)?.stopPropagation) {
             this._parent?.triggerPointerCancel(evt);
             return false;
         }
@@ -776,6 +777,7 @@ export abstract class BaseObject extends Disposable {
         this.onPointerLeave$.complete();
         this.onPointerOver$.complete();
         this.onPointerEnter$.complete();
+        this.onPointerCancel$.complete();
         this.onDragLeave$.complete();
         this.onDragOver$.complete();
         this.onDragEnter$.complete();
