@@ -45,7 +45,12 @@ export interface ISheetBarMenuItem {
     sheetId?: string;
 }
 
-export function SheetBarMenu() {
+export interface ISheetBarMenuProps {
+    size?: 'small' | 'middle' | 'large';
+}
+
+export function SheetBarMenu(props: ISheetBarMenuProps) {
+    const { size = 'small' } = props;
     const [menu, setMenu] = useState<ISheetBarMenuItem[]>([]);
     const [visible, setVisible] = useState(false);
 
@@ -160,7 +165,7 @@ export function SheetBarMenu() {
             onOpenChange={onVisibleChange}
         >
             <div>
-                <SheetBarButton>
+                <SheetBarButton size={size}>
                     <ConvertIcon />
                 </SheetBarButton>
             </div>

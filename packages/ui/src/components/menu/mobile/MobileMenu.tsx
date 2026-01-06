@@ -19,7 +19,6 @@ import type { IMenuSchema } from '../../../services/menu/menu-manager.service';
 import type { IBaseMenuProps } from '../desktop/Menu';
 import { clsx } from '@univerjs/design';
 import { useMemo } from 'react';
-import { MenuItemType } from '../../../services/menu/menu';
 import { IMenuManagerService } from '../../../services/menu/menu-manager.service';
 import { useDependency, useObservable } from '../../../utils/di';
 import { CustomLabel } from '../../custom-label';
@@ -82,9 +81,9 @@ function MobileMenuItem(props: IMobileMenuItemProps) {
     const { menuItem, onClick } = props;
     const { id, type, title, label, icon } = menuItem;
 
-    if (type !== MenuItemType.BUTTON) {
-        throw new Error(`[MobileMenuItem]: on mobile devices only "BUTTON" type menu items are supported. Please check "${id}".`);
-    }
+    // if (type !== MenuItemType.BUTTON) {
+    //     throw new Error(`[MobileMenuItem]: on mobile devices only "BUTTON" type menu items are supported. Please check "${id}".`);
+    // }
 
     const disabled = useObservable<boolean>(menuItem.disabled$, false);
     // const activated = useObservable<boolean>(menuItem.activated$, false);

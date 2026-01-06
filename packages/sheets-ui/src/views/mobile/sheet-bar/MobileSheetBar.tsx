@@ -18,8 +18,8 @@ import type { ICommandInfo, Workbook } from '@univerjs/core';
 import type { ISetWorksheetActiveOperationParams } from '@univerjs/sheets';
 import type { IBaseSheetBarProps } from '../../sheet-bar/sheet-bar-tabs/SheetBarItem';
 import { ICommandService } from '@univerjs/core';
-import { borderRightClassName, Button, clsx } from '@univerjs/design';
-import { IncreaseIcon } from '@univerjs/icons';
+import { borderRightClassName, Button, clsx, Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@univerjs/design';
+import { IncreaseIcon, MoreDownIcon } from '@univerjs/icons';
 import {
     InsertSheetCommand,
     InsertSheetMutation,
@@ -29,9 +29,10 @@ import {
     SetWorksheetNameMutation,
     SetWorksheetOrderMutation,
 } from '@univerjs/sheets';
-import { useDependency } from '@univerjs/ui';
+import { ContextMenuPosition, MobileMenu, useDependency } from '@univerjs/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActiveWorkbook } from '../../../components/hook';
+import { SheetBarMenu } from '../../sheet-bar/sheet-bar-menu/SheetBarMenu';
 
 export function MobileSheetBar() {
     const workbook = useActiveWorkbook();
@@ -46,6 +47,7 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
     const { workbook } = props;
     const [sheetList, setSheetList] = useState<IBaseSheetBarProps[]>([]);
     const [activeKey, setActiveKey] = useState('');
+    const [drawerOpen, setDrawerOpen] = useState(false);
     const tabMapRef = useRef<Map<string, HTMLElement | null>>(new Map());
 
     const commandService = useDependency(ICommandService);
@@ -82,11 +84,23 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
     useEffect(() => updateSheetItems(), [updateSheetItems]);
 
     const onTabClick = useCallback((sheetId: string) => {
-        commandService.executeCommand(SetWorksheetActiveOperation.id, {
-            unitId: workbook.getUnitId(),
-            subUnitId: sheetId,
-        } as ISetWorksheetActiveOperationParams);
-    }, [commandService, workbook]);
+        if (sheetId === activeKey) {
+            // If clicking the active sheet, open the drawer
+            setDrawerOpen(true);
+        } else {
+            // If clicking an inactive sheet, switch to it
+            commandService.executeCommand(SetWorksheetActiveOperation.id, {
+                unitId: workbook.getUnitId(),
+                subUnitId: sheetId,
+            } as ISetWorksheetActiveOperationParams);
+        }
+    }, [activeKey, commandService, workbook]);
+
+    const onDrawerOpenChange = useCallback((open: boolean) => {
+        setDrawerOpen(open);
+    }, []);
+
+    const activeSheetName = workbook.getActiveSheet()?.getName() || '';
 
     useEffect(() => {
         const disposable = commandService.onCommandExecuted((commandInfo: ICommandInfo) => {
@@ -98,6 +112,10 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
                 case SetWorksheetOrderMutation.id:
                 case SetWorksheetActiveOperation.id:
                     updateSheetItems();
+                    // Close drawer when sheet changes
+                    if (commandInfo.id === SetWorksheetActiveOperation.id) {
+                        setDrawerOpen(false);
+                    }
                     break;
                 default:
                     break;
@@ -114,17 +132,8 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
               dark:!univer-bg-gray-900
             `}
         >
-            <Button
-                variant="text"
-                onClick={() => commandService.executeCommand(InsertSheetCommand.id)}
-                className={`
-                  univer-sticky univer-left-0 univer-z-10 univer-rounded-none univer-border-0 univer-border-r
-                  univer-border-solid !univer-border-gray-200 univer-bg-white
-                  dark:!univer-bg-gray-900
-                `}
-            >
-                <IncreaseIcon />
-            </Button>
+            <SheetBarMenu size="middle" />
+
             <div className="univer-flex univer-h-8 univer-flex-nowrap univer-items-center">
                 {sheetList.map((sheet) => (
                     <div
@@ -145,10 +154,51 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
                         key={sheet.sheetId}
                         onClick={() => onTabClick(sheet.sheetId!)}
                     >
-                        {sheet.label}
+                        <span
+                            className={`
+                              univer-flex univer-w-full univer-items-center univer-justify-center univer-gap-1
+                            `}
+                        >
+                            <span className="univer-truncate">{sheet.label}</span>
+                            {sheet.sheetId === activeKey && (
+                                <MoreDownIcon
+                                    className={`
+                                      univer-size-3 univer-shrink-0 univer-text-primary-600
+                                      dark:!univer-text-white
+                                    `}
+                                />
+                            )}
+                        </span>
                     </div>
                 ))}
             </div>
+            <Button
+                variant="text"
+                onClick={() => commandService.executeCommand(InsertSheetCommand.id)}
+                className={`
+                  univer-sticky univer-right-0 univer-z-10 univer-rounded-none univer-border-0 univer-border-r
+                  univer-border-solid !univer-border-gray-200 univer-bg-white
+                  dark:!univer-bg-gray-900
+                `}
+            >
+                <IncreaseIcon />
+            </Button>
+
+            <Drawer open={drawerOpen} onOpenChange={onDrawerOpenChange} direction="bottom">
+                <DrawerContent>
+                    <DrawerHeader>
+                        <DrawerTitle>{activeSheetName}</DrawerTitle>
+                    </DrawerHeader>
+                    <MobileMenu
+                        menuType={ContextMenuPosition.FOOTER_TABS}
+                        onOptionSelect={(params) => {
+                            const { label: id, value, commandId } = params;
+                            commandService.executeCommand(commandId ?? id as string, { value, subUnitId: activeKey });
+                            setDrawerOpen(false);
+                        }}
+                    />
+                </DrawerContent>
+            </Drawer>
         </div>
     );
 }

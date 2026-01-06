@@ -34,7 +34,7 @@ import { BuiltInUIPart, IUIPartsService } from '../../services/parts/parts.servi
 import { connectInjector } from '../../utils/di';
 import { FloatDom } from '../../views/components/dom/FloatDom';
 import { CanvasPopup } from '../../views/components/popup/CanvasPopup';
-import { Ribbon } from '../../views/components/ribbon/Ribbon';
+import { MobileRibbon } from '../../views/components/ribbon/MobileRibbon';
 import { MobileWorkbench } from '../../views/mobile-workbench/MobileWorkbench';
 import { SingleUnitUIController } from './ui-shared.controller';
 
@@ -83,7 +83,7 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
     private _initBuiltinComponents(uiPartsService: IUIPartsService) {
         this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.FLOATING, () => connectInjector(CanvasPopup, this._injector)));
         this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.CONTENT, () => connectInjector(FloatDom, this._injector)));
-        this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(Ribbon, this._injector)));
+        this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(MobileRibbon, this._injector)));
     }
 }
 

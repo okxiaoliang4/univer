@@ -18,6 +18,12 @@ import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { Button } from '@univerjs/design';
 
 export interface IBaseSheetBarButtonProps {
+    /**
+     * Size of button
+     * @default 'small'
+     */
+    size?: 'small' | 'middle' | 'large';
+
     children?: ReactNode;
 
     /** Semantic DOM class */
@@ -40,7 +46,7 @@ export interface IBaseSheetBarButtonProps {
  * Button Component
  */
 export function SheetBarButton(props: IBaseSheetBarButtonProps) {
-    const { children, className, style, disabled = false, onClick, ...restProps } = props;
+    const { size = 'small', children, className, style, disabled = false, onClick, ...restProps } = props;
 
     const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
         if (disabled) {
@@ -55,7 +61,7 @@ export function SheetBarButton(props: IBaseSheetBarButtonProps) {
         <Button
             data-u-comp="sheet-bar-append-button"
             className={className}
-            size="small"
+            size={size}
             disabled={disabled}
             style={style}
             variant="text"
