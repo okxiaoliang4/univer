@@ -206,6 +206,32 @@ The Facade API provides a simplified user-facing API layer. When contributing:
 
 ## Development Workflow
 
+### Git Commit Guidelines
+
+**Critical Requirements:**
+1. Each commit must be an independent, working version - the code must compile, pass linting, and be functional without errors
+2. No commit should contain errors, broken code, or incomplete implementations
+3. When splitting into multiple commits, each commit must still be independently usable:
+   - Each commit should be a complete, working unit
+   - Dependencies between commits should be minimal and clearly documented
+   - Test that each commit can be checked out and run successfully
+4. Commit messages must be concise, clear, and follow conventional commit format
+5. Before committing, verify:
+   - Code compiles without errors (`pnpm typecheck`)
+   - ESLint passes without errors (`pnpm lint`)
+   - No TypeScript errors
+   - Related tests pass (if applicable)
+
+**Commit Message Format:**
+- Use conventional commit format: `type(scope): description`
+- Types: `feat`, `fix`, `refactor`, `docs`, `style`, `test`, `chore`, etc.
+- Be specific about what changed and why
+- Examples:
+  - `feat(sheets): add mobile find-replace UI`
+  - `fix(ui): resolve sidebar rendering issue on mobile`
+  - `refactor(core): simplify plugin initialization`
+
+**General Workflow:**
 1. All commits must pass ESLint and tests
 2. Pre-commit hooks run lint-staged
 3. Use conventional commit format

@@ -1,0 +1,10 @@
+{
+    "version": 1,
+    "hooks": {
+        "afterFileEdit": [
+            {
+                "command": "eslint --fix {file_path}"
+            }
+        ]
+    }
+}
