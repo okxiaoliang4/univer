@@ -34,6 +34,7 @@ import { DataValidationPermissionController } from './controllers/dv-permission.
 import { SheetsDataValidationRenderController } from './controllers/dv-render.controller';
 import { SheetsDataValidationReRenderController } from './controllers/dv-rerender.controller';
 import { SheetsDataValidationUIController } from './controllers/dv-ui.controller';
+import { MobileDropdownTriggerController } from './controllers/mobile/mobile-dropdown-trigger.controller';
 import { DataValidationPanelService } from './services/data-validation-panel.service';
 import { DataValidationDropdownManagerService } from './services/dropdown-manager.service';
 
@@ -73,6 +74,7 @@ export class UniverSheetsDataValidationMobileUIPlugin extends Plugin {
             [DataValidationPermissionController],
             [DataValidationCopyPasteController],
             [SheetsDataValidationUIController],
+            [MobileDropdownTriggerController],
         ] as Dependency[]).forEach((dep) => {
             this._injector.add(dep);
         });
@@ -103,6 +105,7 @@ export class UniverSheetsDataValidationMobileUIPlugin extends Plugin {
     override onRendered(): void {
         this._injector.get(SheetsDataValidationUIController);
         this._injector.get(SheetsDataValidationRenderController);
+        this._injector.get(MobileDropdownTriggerController);
     }
 
     override onSteady(): void {
