@@ -136,7 +136,10 @@ export function MobileSidebar() {
                             : null}
                     </DrawerHeader>
 
-                    <section className="univer-box-border univer-flex-1 univer-overflow-y-auto univer-px-4" style={options.bodyStyle}>
+                    <section
+                        className="univer-box-border univer-min-h-80 univer-flex-1 univer-overflow-y-auto univer-px-4"
+                        style={options.bodyStyle}
+                    >
                         {options.children}
                     </section>
 

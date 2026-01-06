@@ -328,7 +328,7 @@ export const RuleList = (props: IRuleListProps) => {
                         />
                     ).map((ele, index) => <span key={index}>{ele}</span>)}
                 </div>
-                <div className="univer-flex univer-justify-end">
+                <div className="univer-flex univer-justify-end univer-gap-2">
                     <Tooltip title={localeService.t('sheet.cf.panel.createRule')} placement="bottom">
                         <a
                             className="univer-size-5 univer-cursor-pointer"

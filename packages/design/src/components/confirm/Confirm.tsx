@@ -87,6 +87,10 @@ export function Confirm(props: IConfirmProps) {
 
     return (
         <Dialog
+            className={`
+              univer-max-w-[90vw]
+              md:univer-max-w-[auto]
+            `}
             open={visible}
             title={title}
             maskClosable={false}

@@ -267,9 +267,13 @@ export const RuleEdit = (props: IRuleEditProps) => {
                 rule={props.rule?.rule as any}
                 onChange={onStyleChange}
             />
-            <div className="univer-mt-4 univer-flex univer-justify-end">
+            <div
+                className={`
+                  univer-sticky univer-bottom-0 univer-flex univer-justify-end univer-gap-2 univer-bg-white univer-py-4
+                `}
+            >
                 <Button onClick={handleCancel}>{localeService.t('sheet.cf.panel.cancel')}</Button>
-                <Button className="univer-ml-3" variant="primary" onClick={handleSubmit}>
+                <Button variant="primary" onClick={handleSubmit}>
                     {localeService.t('sheet.cf.panel.submit')}
                 </Button>
             </div>

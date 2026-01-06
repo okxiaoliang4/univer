@@ -52,6 +52,7 @@ export function MobileWorkbench(props: IUniverAppProps) {
     const contentRef = useRef<HTMLDivElement>(null);
 
     const footerComponents = useComponentsOfPart(BuiltInUIPart.FOOTER);
+    const customFooterComponents = useComponentsOfPart(BuiltInUIPart.CUSTOM_FOOTER);
     const headerComponents = useComponentsOfPart(BuiltInUIPart.HEADER);
     const headerMenuComponents = useComponentsOfPart(BuiltInUIPart.HEADER_MENU);
     const contentComponents = useComponentsOfPart(BuiltInUIPart.CONTENT);
@@ -128,20 +129,7 @@ export function MobileWorkbench(props: IUniverAppProps) {
                 onBlur={(e) => e.stopPropagation()}
             >
                 {/* header */}
-                {header && toolbar && (
-                    <header className="univer-relative univer-z-10 univer-w-full">
-                        {/* toolbar */}
-                        <ComponentContainer
-                            key="toolbar"
-                            components={toolbarComponents}
-                            sharedProps={{
-                                ribbonType,
-                                headerMenuComponents,
-                                headerMenu,
-                            }}
-                        />
-                    </header>
-                )}
+                {header && <ComponentContainer key="header" components={headerComponents} />}
 
                 {/* content */}
                 <section className="univer-relative univer-flex univer-min-h-0 univer-flex-1 univer-flex-col">
@@ -185,6 +173,21 @@ export function MobileWorkbench(props: IUniverAppProps) {
                     {footer && (
                         <footer>
                             <ComponentContainer key="footer" components={footerComponents} />
+                            {toolbar && (
+                                <header className="univer-relative univer-z-10 univer-w-full">
+                                    {/* toolbar */}
+                                    <ComponentContainer
+                                        key="toolbar"
+                                        components={toolbarComponents}
+                                        sharedProps={{
+                                            ribbonType,
+                                            headerMenuComponents,
+                                            headerMenu,
+                                        }}
+                                    />
+                                </header>
+                            )}
+                            <ComponentContainer key="custom-footer" components={customFooterComponents} />
                         </footer>
                     )}
                     <GlobalZone />

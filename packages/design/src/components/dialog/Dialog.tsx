@@ -322,7 +322,7 @@ export function Dialog(props: IDialogProps) {
                 style={{
                     ...style,
                     width: width ? (typeof width === 'number' ? `${width}px` : width) : undefined,
-                    maxWidth: width ? 'initial' : '90dvw',
+                    maxWidth: '90dvw',
                     ...(draggable
                         ? {
                             position: 'absolute',

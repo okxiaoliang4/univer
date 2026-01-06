@@ -31,6 +31,7 @@ export * from './components/hooks';
 export { t } from './components/hooks/locale';
 export { Menu as UIMenu } from './components/menu/desktop/Menu';
 export { Menu as DesktopMenu } from './components/menu/desktop/Menu';
+export { MobileMenu } from './components/menu/mobile/MobileMenu';
 export { type INotificationOptions } from './components/notification/Notification';
 export { ProgressBar } from './components/progress-bar/ProgressBar';
 export { UNI_DISABLE_CHANGING_FOCUS_KEY } from './const';

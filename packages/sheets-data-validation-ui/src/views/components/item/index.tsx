@@ -78,8 +78,9 @@ export const DataValidationItem = (props: IDataValidationDetailProps) => {
             className={clsx(
                 `
                   univer-bg-secondary univer-relative univer--ml-2 univer--mr-2 univer-box-border univer-flex
-                  univer-w-[287px] univer-cursor-pointer univer-flex-col univer-justify-between univer-overflow-hidden
+                  univer-w-full univer-cursor-pointer univer-flex-col univer-justify-between univer-overflow-hidden
                   univer-rounded-md univer-p-2 univer-pr-9
+                  md:univer-w-[287px]
                 `,
                 {
                     'hover:univer-bg-gray-50 dark:hover:!univer-bg-gray-700': !disable,

@@ -346,15 +346,13 @@ export function DataValidationDetail() {
             <DataValidationOptions value={options} onChange={handleUpdateRuleOptions} extraComponent={validator.optionsInput} />
             <div
                 className={`
-                  univer-sticky univer-bottom-0 univer-mt-5 univer-flex univer-flex-row univer-justify-end
-                  univer-bg-white univer-py-2
-                  dark:univer-bg-gray-200
+                  univer-sticky univer-bottom-0 univer-flex univer-justify-end univer-gap-2 univer-bg-white univer-py-4
                 `}
             >
-                <Button className="univer-ml-3" onClick={handleDelete}>
+                <Button onClick={handleDelete}>
                     {localeService.t('dataValidation.panel.removeRule')}
                 </Button>
-                <Button className="univer-ml-3" variant="primary" onClick={handleOk}>
+                <Button variant="primary" onClick={handleOk}>
                     {localeService.t('dataValidation.panel.done')}
                 </Button>
             </div>

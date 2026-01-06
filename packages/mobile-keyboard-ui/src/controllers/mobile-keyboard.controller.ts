@@ -42,7 +42,7 @@ export class MobileKeyboardController extends Disposable {
         // Register the Keyboard Container component to be rendered
         // this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(OperationToolbar, this._injector)));
         this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.FOOTER, () => connectInjector(MobileFormulaBar, this._injector)));
-        this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.FOOTER, () => connectInjector(KeyboardContainer, this._injector)));
+        this.disposeWithMe(this._uiPartsService.registerComponent(BuiltInUIPart.CUSTOM_FOOTER, () => connectInjector(KeyboardContainer, this._injector)));
 
         // Replace the focus handler to ensure it is registered after the FAB component is registered
         this._initCommands();
