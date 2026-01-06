@@ -19,7 +19,7 @@ import { UniverActionRecorderPlugin } from '@univerjs/action-recorder';
 // import { UniverDebuggerPlugin } from '@univerjs/debugger';
 import { UniverSheetsCrosshairHighlightPlugin } from '@univerjs/sheets-crosshair-highlight';
 import { UniverSheetsFindReplacePlugin } from '@univerjs/sheets-find-replace';
-import { UniverSheetsHyperLinkUIPlugin } from '@univerjs/sheets-hyper-link-ui';
+import { UniverSheetsHyperLinkMobileUIPlugin } from '@univerjs/sheets-hyper-link-ui';
 import { UniverSheetsSortUIPlugin } from '@univerjs/sheets-sort-ui';
 import { UniverUniscriptPlugin } from '@univerjs/uniscript';
 import { UniverWatermarkPlugin } from '@univerjs/watermark';
@@ -30,7 +30,7 @@ const IS_E2E: boolean = !!process.env.IS_E2E;
 export default function getVeryLazyPlugins() {
     const plugins: Array<[PluginCtor<Plugin>] | [PluginCtor<Plugin>, unknown]> = [
         [UniverActionRecorderPlugin],
-        [UniverSheetsHyperLinkUIPlugin],
+        [UniverSheetsHyperLinkMobileUIPlugin],
         [UniverSheetsSortUIPlugin],
         [UniverSheetsCrosshairHighlightPlugin],
         [UniverSheetsFindReplacePlugin],

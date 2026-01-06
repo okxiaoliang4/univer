@@ -25,6 +25,7 @@ export {
 export type { IUniverSheetsHyperLinkUIConfig } from './controllers/config.schema';
 export { SheetsHyperLinkCopyPasteController } from './controllers/copy-paste.controller';
 export { InsertLinkShortcut } from './controllers/menu';
+export { UniverSheetsHyperLinkMobileUIPlugin } from './mobile-plugin';
 export { UniverSheetsHyperLinkUIPlugin } from './plugin';
 export { SheetsHyperLinkPopupService } from './services/popup.service';
 export { SheetsHyperLinkResolverService } from './services/resolver.service';
