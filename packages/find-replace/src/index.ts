@@ -20,6 +20,7 @@ export { ReplaceAllMatchesCommand, ReplaceCurrentMatchCommand } from './commands
 export { GoToNextMatchOperation, GoToPreviousMatchOperation, OpenFindDialogOperation, OpenReplaceDialogOperation } from './commands/operations/find-replace.operation';
 export type { IUniverFindReplaceConfig } from './controllers/config.schema';
 export { FindReplaceController } from './controllers/find-replace.controller';
+export { UniverFindReplaceMobilePlugin } from './mobile-plugin';
 export { UniverFindReplacePlugin } from './plugin';
 export type {
     IFindComplete,

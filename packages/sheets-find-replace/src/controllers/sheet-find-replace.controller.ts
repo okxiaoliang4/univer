@@ -965,7 +965,7 @@ function escapeRegExp(text: string) {
  * This module is responsible for searching and replacing in the sheets.
  * It also adds the search results to the search view by highlighting them.
  */
-class SheetsFindReplaceProvider extends Disposable implements IFindReplaceProvider {
+export class SheetsFindReplaceProvider extends Disposable implements IFindReplaceProvider {
     /**
      * Hold all find results in this kind of univer business instances (Workbooks).
      */

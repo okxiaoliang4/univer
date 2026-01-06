@@ -26,7 +26,7 @@ import { UniverSheetsFormulaUIPlugin } from '@univerjs/sheets-formula-ui';
 import { UniverSheetsNoteUIPlugin } from '@univerjs/sheets-note-ui';
 import { UniverSheetsNumfmtMobileUIPlugin } from '@univerjs/sheets-numfmt-ui';
 import { UniverSheetsTableUIPlugin } from '@univerjs/sheets-table-ui';
-import { UniverSheetsThreadCommentUIPlugin } from '@univerjs/sheets-thread-comment-ui';
+import { UniverSheetsThreadCommentMobileUIPlugin } from '@univerjs/sheets-thread-comment-ui';
 import { UniverThreadCommentUIPlugin } from '@univerjs/thread-comment-ui';
 
 export default function getLazyPlugins(): Array<[PluginCtor<Plugin>] | [PluginCtor<Plugin>, unknown]> {
@@ -35,7 +35,7 @@ export default function getLazyPlugins(): Array<[PluginCtor<Plugin>] | [PluginCt
         [UniverDocsMentionUIPlugin],
         [UniverSheetsNumfmtMobileUIPlugin],
         [UniverThreadCommentUIPlugin],
-        [UniverSheetsThreadCommentUIPlugin],
+        [UniverSheetsThreadCommentMobileUIPlugin],
         [UniverSheetsNoteUIPlugin],
         [UniverSheetsTableUIPlugin],
         [UniverSheetsFormulaUIPlugin],
