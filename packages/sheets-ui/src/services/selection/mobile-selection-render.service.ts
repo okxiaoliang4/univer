@@ -249,16 +249,17 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
             state.stopPropagation();
         });
         const spreadsheetPointerUpSub = spreadsheet?.onPointerUp$.subscribeEvent((evt: IPointerEvent | IMouseEvent, state) => {
-            if (this._normalSelectionDisabled()) return;
-
             const pointerId = (evt as IPointerEvent).pointerId ?? 0;
 
             // Get initial position for this pointer
             const initialPos = pointerDownPositions.get(pointerId);
 
             // Remove pointer from active set and its position
+            // Must clean up before early return to prevent pointerId leak
             activePointerIds.delete(pointerId);
             pointerDownPositions.delete(pointerId);
+
+            if (this._normalSelectionDisabled()) return;
 
             clearTimeout(longPressTimer);
 
@@ -282,8 +283,44 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
             state.stopPropagation();
         });
 
+        // Handle pointer cancel events (e.g., system gestures, page transitions)
+        // This is critical to prevent pointerId leaks when onPointerUp is not triggered
+        const spreadsheetPointerCancelSub = spreadsheet?.onPointerCancel$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            activePointerIds.delete(pointerId);
+            pointerDownPositions.delete(pointerId);
+            clearTimeout(longPressTimer);
+        });
+
+        // Handle pointer leave events (pointer leaves the spreadsheet element)
+        const spreadsheetPointerLeaveSub = spreadsheet?.onPointerLeave$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            activePointerIds.delete(pointerId);
+            pointerDownPositions.delete(pointerId);
+            clearTimeout(longPressTimer);
+        });
+
+        // Handle pointer out events (pointer leaves the scene)
+        const { scene } = this._context;
+        const scenePointerOutSub = scene.onPointerOut$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            const pointerId = (evt as IPointerEvent).pointerId ?? 0;
+
+            activePointerIds.delete(pointerId);
+            pointerDownPositions.delete(pointerId);
+            clearTimeout(longPressTimer);
+        });
+
         this.disposeWithMe(toDisposable(spreadsheetPointerDownSub));
         this.disposeWithMe(toDisposable(spreadsheetPointerUpSub));
+        if (spreadsheetPointerCancelSub) {
+            this.disposeWithMe(toDisposable(spreadsheetPointerCancelSub));
+        }
+        if (spreadsheetPointerLeaveSub) {
+            this.disposeWithMe(toDisposable(spreadsheetPointerLeaveSub));
+        }
+        this.disposeWithMe(toDisposable(scenePointerOutSub));
     }
 
     private _initUserActionSyncListener() {
@@ -415,7 +452,8 @@ export class MobileSheetsSelectionRenderService extends BaseSelectionRenderServi
      * Not same as PC version,
      * new selection control for mobile do one more thing: bind event for two control points.
      * @param scene
-     * @param rangeType
+     * @param skeleton
+     * @param selection
      */
     override newSelectionControl(scene: Scene, skeleton: SpreadsheetSkeleton, selection: ISelectionWithStyle): MobileSelectionControl {
         const selectionControls = this.getSelectionControls();
