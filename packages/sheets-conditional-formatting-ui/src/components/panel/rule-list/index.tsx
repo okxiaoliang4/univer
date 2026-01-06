@@ -215,36 +215,62 @@ export const RuleList = (props: IRuleListProps) => {
             defaultWidth = width;
             return width;
         };
-        const observer = new Observable((subscribe) => {
-            const targetElement = sidebarService.getContainer();
-            if (targetElement) {
-                let time = setTimeout(() => {
-                    subscribe.next(undefined);
-                }, 150);
-                const clearTime = () => {
-                    time && clearTimeout(time);
-                    time = null as any;
-                };
-                const handle: any = (e: TransitionEvent) => {
-                    if (e.propertyName === 'width') {
-                        clearTime();
-                        subscribe.next(undefined);
-                    }
-                };
-                targetElement.addEventListener('transitionend', handle);
-                return () => {
-                    clearTime();
-                    targetElement.removeEventListener('transitionend', handle);
-                };
-            }
-        });
-        const subscription = observer.pipe(debounceTime(16)).subscribe(() => {
+
+        // Use ResizeObserver to directly watch layoutContainerRef, which works regardless of sidebar container availability
+        const container = layoutContainerRef.current;
+        if (!container) {
+            // If container is not ready, try again after a short delay
+            const timeoutId = setTimeout(() => {
+                const width = getWidth();
+                if (width > 0) {
+                    setLayoutWidth(width);
+                }
+            }, 150);
+            return () => clearTimeout(timeoutId);
+        }
+
+        // Initial width calculation
+        const initialWidth = getWidth();
+        if (initialWidth > 0) {
+            setLayoutWidth(initialWidth);
+        }
+
+        // Use ResizeObserver to detect width changes
+        const resizeObserver = new ResizeObserver(() => {
             setLayoutWidth(getWidth());
         });
+
+        resizeObserver.observe(container);
+
+        // Also listen to sidebar container transitions as a fallback for desktop
+        const targetElement = sidebarService.getContainer();
+        let transitionCleanup: (() => void) | null = null;
+        if (targetElement) {
+            let time = setTimeout(() => {
+                setLayoutWidth(getWidth());
+            }, 150);
+            const clearTime = () => {
+                time && clearTimeout(time);
+                time = null as any;
+            };
+            const handle: any = (e: TransitionEvent) => {
+                if (e.propertyName === 'width') {
+                    clearTime();
+                    setLayoutWidth(getWidth());
+                }
+            };
+            targetElement.addEventListener('transitionend', handle);
+            transitionCleanup = () => {
+                clearTime();
+                targetElement.removeEventListener('transitionend', handle);
+            };
+        }
+
         return () => {
-            subscription.unsubscribe();
+            resizeObserver.disconnect();
+            transitionCleanup?.();
         };
-    }, []);
+    }, [sidebarService]);
 
     const handleDelete = (rule: IConditionFormattingRule) => {
         const unitId = univerInstanceService.getCurrentUnitOfType<Workbook>(UniverInstanceType.UNIVER_SHEET)!.getUnitId();
