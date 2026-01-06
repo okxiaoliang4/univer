@@ -24,12 +24,12 @@ import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { map } from 'rxjs';
 import { ShowAddSheetCommentModalOperation } from '../../commands/operations/comment.operation';
-import { SheetsThreadCommentPopupService } from '../../services/sheets-thread-comment-popup.service';
+import { ISheetsThreadCommentPopupService } from '../../services/sheets-thread-comment-popup.service';
 
 export const SheetsThreadCommentPanel = () => {
     const markSelectionService = useDependency(IMarkSelectionService);
     const univerInstanceService = useDependency(IUniverInstanceService);
-    const sheetsThreadCommentPopupService = useDependency(SheetsThreadCommentPopupService);
+    const sheetsThreadCommentPopupService = useDependency(ISheetsThreadCommentPopupService);
     const workbook = univerInstanceService.getCurrentUnitForType<Workbook>(UniverInstanceType.UNIVER_SHEET)!;
     const unitId = workbook.getUnitId();
     const commandService = useDependency(ICommandService);

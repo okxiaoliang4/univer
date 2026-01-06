@@ -18,28 +18,24 @@ import { Disposable, Inject } from '@univerjs/core';
 import { RangeProtectionPermissionViewPoint, SheetPermissionCheckController, WorkbookCommentPermission, WorksheetViewPermission } from '@univerjs/sheets';
 import { SheetsThreadCommentModel } from '@univerjs/sheets-thread-comment';
 import { HoverManagerService } from '@univerjs/sheets-ui';
-import { filter } from 'rxjs';
-import { SheetsThreadCommentPopupService } from '../../services/sheets-thread-comment-popup.service';
+import { debounceTime } from 'rxjs';
+import { ISheetsThreadCommentPopupService } from '../../services/sheets-thread-comment-popup.service';
 
 export class SheetsThreadCommentMobileHoverController extends Disposable {
     constructor(
         @Inject(HoverManagerService) private readonly _hoverManagerService: HoverManagerService,
-        @Inject(SheetsThreadCommentPopupService) private readonly _sheetsThreadCommentPopupService: SheetsThreadCommentPopupService,
+        @ISheetsThreadCommentPopupService private readonly _sheetsThreadCommentPopupService: ISheetsThreadCommentPopupService,
         @Inject(SheetsThreadCommentModel) private readonly _sheetsThreadCommentModel: SheetsThreadCommentModel,
         @Inject(SheetPermissionCheckController) private readonly _sheetPermissionCheckController: SheetPermissionCheckController
     ) {
         super();
-        this._initClickEvent();
+        this._initHoverEvent();
     }
 
-    private _initClickEvent() {
-        // On mobile, use click event instead of hover
+    private _initHoverEvent() {
         this.disposeWithMe(
-            this._hoverManagerService.currentClickedCell$.pipe(
-                filter((cell) => !!cell)
-            ).subscribe((cell) => {
+            this._hoverManagerService.currentClickedCell$.pipe(debounceTime(100)).subscribe((cell) => {
                 const currentPopup = this._sheetsThreadCommentPopupService.activePopup;
-                // Only show popup if there's no active popup or current popup is temporary
                 if (cell && ((currentPopup && currentPopup.temp) || !currentPopup)) {
                     const { location } = cell;
                     const { unitId, subUnitId, row, col } = location;
@@ -63,9 +59,12 @@ export class SheetsThreadCommentMobileHoverController extends Disposable {
                                 row,
                                 col,
                                 commentId,
-                                temp: false, // On mobile, clicking should make it persistent
-                                trigger: 'click',
+                                temp: true,
                             });
+                        }
+                    } else {
+                        if (currentPopup) {
+                            this._sheetsThreadCommentPopupService.hidePopup();
                         }
                     }
                 }

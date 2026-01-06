@@ -26,7 +26,7 @@ import { SheetsThreadCommentCopyPasteController } from './controllers/sheets-thr
 import { SheetsThreadCommentHoverController } from './controllers/sheets-thread-comment-hover.controller';
 import { SheetsThreadCommentPopupController } from './controllers/sheets-thread-comment-popup.controller';
 import { SheetsThreadCommentController } from './controllers/sheets-thread-comment.controller';
-import { SheetsThreadCommentPopupService } from './services/sheets-thread-comment-popup.service';
+import { ISheetsThreadCommentPopupService, SheetsThreadCommentDesktopPopupService } from './services/sheets-thread-comment-popup.service';
 import { SHEETS_THREAD_COMMENT } from './types/const';
 
 @DependentOn(UniverThreadCommentUIPlugin, UniverSheetsThreadCommentPlugin)
@@ -61,7 +61,7 @@ export class UniverSheetsThreadCommentUIPlugin extends Plugin {
             [SheetsThreadCommentCopyPasteController],
             [SheetsThreadCommentHoverController],
             [SheetsThreadCommentPopupController],
-            [SheetsThreadCommentPopupService],
+            [ISheetsThreadCommentPopupService, { useClass: SheetsThreadCommentDesktopPopupService }],
         ] as Dependency[]).forEach((dep) => {
             this._injector.add(dep);
         });

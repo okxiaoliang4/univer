@@ -15,34 +15,72 @@
  */
 
 import type { Dependency } from '@univerjs/core';
-import { DependentOn, Inject, Injector, Plugin, UniverInstanceType } from '@univerjs/core';
-import { UniverMobileUIPlugin } from '@univerjs/ui';
-import { SheetsThreadCommentMobileHoverController } from './controllers/mobile/mobile-hover.controller';
-import { SheetsThreadCommentMobilePopupController } from './controllers/mobile/mobile-popup.controller';
-import { UniverSheetsThreadCommentUIPlugin } from './plugin';
+import type { IUniverSheetsThreadCommentUIConfig } from './controllers/config.schema';
+import { DependentOn, ICommandService, IConfigService, Inject, Injector, merge, Plugin, UniverInstanceType } from '@univerjs/core';
+import { UniverSheetsThreadCommentPlugin } from '@univerjs/sheets-thread-comment';
+import { UniverThreadCommentUIPlugin } from '@univerjs/thread-comment-ui';
+import { ShowAddSheetCommentModalOperation } from './commands/operations/comment.operation';
+import { defaultPluginConfig, SHEETS_THREAD_COMMENT_UI_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
+import { SheetsThreadCommentMobileHoverController } from './controllers/mobile/sheets-thread-comment-hover.controller';
+import { SheetsThreadCommentRenderController } from './controllers/render-controllers/render.controller';
+import { SheetsThreadCommentCopyPasteController } from './controllers/sheets-thread-comment-copy-paste.controller';
+import { SheetsThreadCommentPopupController } from './controllers/sheets-thread-comment-popup.controller';
+import { SheetsThreadCommentController } from './controllers/sheets-thread-comment.controller';
+import { SheetsThreadCommentMobilePopupService } from './services/sheets-thread-comment-mobile-popup.service';
+import { ISheetsThreadCommentPopupService } from './services/sheets-thread-comment-popup.service';
+import { SHEETS_THREAD_COMMENT } from './types/const';
 
-@DependentOn(UniverSheetsThreadCommentUIPlugin, UniverMobileUIPlugin)
+@DependentOn(UniverThreadCommentUIPlugin, UniverSheetsThreadCommentPlugin)
 export class UniverSheetsThreadCommentMobileUIPlugin extends Plugin {
-    static override pluginName = 'SHEET_THREAD_COMMENT_MOBILE_UI_PLUGIN';
+    static override pluginName = SHEETS_THREAD_COMMENT;
     static override type = UniverInstanceType.UNIVER_SHEET;
 
     constructor(
-        @Inject(Injector) protected override _injector: Injector
+        private readonly _config: Partial<IUniverSheetsThreadCommentUIConfig> = defaultPluginConfig,
+        @Inject(Injector) protected override _injector: Injector,
+        @Inject(ICommandService) protected _commandService: ICommandService,
+        @IConfigService private readonly _configService: IConfigService
     ) {
         super();
+
+        // Manage the plugin configuration.
+        const { menu, ...rest } = merge(
+            {},
+            defaultPluginConfig,
+            this._config
+        );
+        if (menu) {
+            this._configService.setConfig('menu', menu, { merge: true });
+        }
+        this._configService.setConfig(SHEETS_THREAD_COMMENT_UI_PLUGIN_CONFIG_KEY, rest);
     }
 
     override onStarting(): void {
-        const dependencies: Dependency[] = [
-            [SheetsThreadCommentMobilePopupController],
+        ([
+            [SheetsThreadCommentController],
+            [SheetsThreadCommentRenderController],
+            [SheetsThreadCommentCopyPasteController],
             [SheetsThreadCommentMobileHoverController],
-        ];
-        dependencies.forEach((dep) => this._injector.add(dep));
+            [SheetsThreadCommentPopupController],
+            [ISheetsThreadCommentPopupService, { useClass: SheetsThreadCommentMobilePopupService }],
+        ] as Dependency[]).forEach((dep) => {
+            this._injector.add(dep);
+        });
+
+        [ShowAddSheetCommentModalOperation].forEach((command) => {
+            this._commandService.registerCommand(command);
+        });
+
+        this._injector.get(SheetsThreadCommentController);
+    }
+
+    override onReady(): void {
+        this._injector.get(SheetsThreadCommentRenderController);
     }
 
     override onRendered(): void {
-        // Initialize the controllers after rendering to ensure services are available
-        this._injector.get(SheetsThreadCommentMobilePopupController);
+        this._injector.get(SheetsThreadCommentCopyPasteController);
         this._injector.get(SheetsThreadCommentMobileHoverController);
+        this._injector.get(SheetsThreadCommentPopupController);
     }
 }

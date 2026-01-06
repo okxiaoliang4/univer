@@ -16,7 +16,8 @@
 
 import type { IDisposable, Nullable } from '@univerjs/core';
 import type { ISheetLocationBase } from '@univerjs/sheets';
-import { Disposable, DisposableCollection, Inject } from '@univerjs/core';
+import type { Observable } from 'rxjs';
+import { createIdentifier, Disposable, DisposableCollection, Inject } from '@univerjs/core';
 import { CellPopupManagerService, SheetCanvasPopManagerService } from '@univerjs/sheets-ui';
 import { IZenZoneService } from '@univerjs/ui';
 import { BehaviorSubject } from 'rxjs';
@@ -29,7 +30,57 @@ export interface IThreadCommentPopup extends ISheetLocationBase {
     trigger?: string;
 }
 
-export class SheetsThreadCommentPopupService extends Disposable {
+/**
+ * Interface for thread comment popup/sidebar service.
+ * Platform-specific implementations handle popup display:
+ * - Desktop: Uses canvas popup via `CellPopupManagerService`
+ * - Mobile: Uses sidebar via `ISidebarService`
+ *
+ * Controllers and components inject this interface, allowing them to work
+ * with both desktop and mobile implementations without platform-specific code.
+ */
+export interface ISheetsThreadCommentPopupService {
+    /** Observable stream of active popup state. Emits `null` when no popup is active. */
+    activePopup$: Observable<Nullable<IThreadCommentPopup>>;
+
+    /** Get current active popup state. Returns `null` if no popup is active. */
+    get activePopup(): Nullable<IThreadCommentPopup>;
+
+    /**
+     * Show popup/sidebar with comment interface.
+     * @param location - Popup location and metadata (unitId, subUnitId, row, col, commentId, etc.)
+     * @param onHide - Optional callback invoked when popup is hidden
+     */
+    showPopup(location: IThreadCommentPopup, onHide?: () => void): void;
+
+    /**
+     * Hide popup/sidebar and clear active state.
+     */
+    hidePopup(): void;
+
+    /**
+     * Make temporary popup persistent.
+     * Converts a temporary popup (temp: true) to persistent (temp: false).
+     * No-op if popup is already persistent or no popup is active.
+     */
+    persistPopup(): void;
+}
+
+/**
+ * Redi dependency injection token for thread comment popup service.
+ */
+export const ISheetsThreadCommentPopupService = createIdentifier<ISheetsThreadCommentPopupService>(
+    'sheets-thread-comment-ui.sheets-thread-comment-popup.service'
+);
+
+/**
+ * Desktop implementation of thread comment popup service.
+ * Uses canvas popups via `CellPopupManagerService` to display comment interface
+ * as an overlay on the spreadsheet canvas.
+ *
+ * Registered in `UniverSheetsThreadCommentUIPlugin` via dependency injection.
+ */
+export class SheetsThreadCommentDesktopPopupService extends Disposable implements ISheetsThreadCommentPopupService {
     private _lastPopup: Nullable<IDisposable> = null;
     private _activePopup: Nullable<IThreadCommentPopup>;
     private _activePopup$ = new BehaviorSubject<Nullable<IThreadCommentPopup>>(null);
@@ -111,7 +162,7 @@ export class SheetsThreadCommentPopupService extends Disposable {
         );
 
         if (!popupDisposable) {
-            throw new Error('[SheetsThreadCommentPopupService]: cannot show popup!');
+            throw new Error('[SheetsThreadCommentDesktopPopupService]: cannot show popup!');
         }
 
         const disposableCollection = new DisposableCollection();

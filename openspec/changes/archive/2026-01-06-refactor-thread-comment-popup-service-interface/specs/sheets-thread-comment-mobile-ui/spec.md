@@ -1,8 +1,5 @@
-# sheets-thread-comment-mobile-ui Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-mobile-thread-comment-ui. Update Purpose after archive.
-## Requirements
 ### Requirement: Mobile Thread Comment Sidebar
 
 The system SHALL display thread comment interface in a sidebar on mobile platforms instead of using canvas popups.
@@ -22,6 +19,8 @@ The system SHALL display thread comment interface in a sidebar on mobile platfor
 - **AND** `SheetsThreadCommentMobileHoverController` is registered (uses `currentClickedCell$` for touch interactions)
 - **AND** `SheetsThreadCommentPopupController` is registered (shared with desktop, injects interface)
 - **AND** the mobile hover controller subscribes to click events and triggers sidebar display
+
+## ADDED Requirements
 
 ### Requirement: Mobile-specific hover controller
 

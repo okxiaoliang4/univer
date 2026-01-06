@@ -20,7 +20,7 @@ import { CommandType, IUniverInstanceService } from '@univerjs/core';
 import { getSheetCommandTarget, SheetsSelectionsService } from '@univerjs/sheets';
 import { SheetsThreadCommentModel } from '@univerjs/sheets-thread-comment';
 import { ThreadCommentPanelService } from '@univerjs/thread-comment-ui';
-import { SheetsThreadCommentPopupService } from '../../services/sheets-thread-comment-popup.service';
+import { ISheetsThreadCommentPopupService } from '../../services/sheets-thread-comment-popup.service';
 
 export const ShowAddSheetCommentModalOperation: ICommand = {
     type: CommandType.OPERATION,
@@ -29,7 +29,7 @@ export const ShowAddSheetCommentModalOperation: ICommand = {
         const selectionManagerService = accessor.get(SheetsSelectionsService);
         const univerInstanceService = accessor.get(IUniverInstanceService);
 
-        const sheetsThreadCommentPopupService = accessor.get(SheetsThreadCommentPopupService);
+        const sheetsThreadCommentPopupService = accessor.get(ISheetsThreadCommentPopupService);
         const threadCommentPanelService = accessor.get(ThreadCommentPanelService);
         const activeCell = selectionManagerService.getCurrentLastSelection()?.primary;
         const model = accessor.get(SheetsThreadCommentModel);

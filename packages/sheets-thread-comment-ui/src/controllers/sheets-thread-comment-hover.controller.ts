@@ -19,12 +19,12 @@ import { RangeProtectionPermissionViewPoint, SheetPermissionCheckController, Wor
 import { SheetsThreadCommentModel } from '@univerjs/sheets-thread-comment';
 import { HoverManagerService } from '@univerjs/sheets-ui';
 import { debounceTime } from 'rxjs';
-import { SheetsThreadCommentPopupService } from '../services/sheets-thread-comment-popup.service';
+import { ISheetsThreadCommentPopupService } from '../services/sheets-thread-comment-popup.service';
 
 export class SheetsThreadCommentHoverController extends Disposable {
     constructor(
         @Inject(HoverManagerService) private readonly _hoverManagerService: HoverManagerService,
-        @Inject(SheetsThreadCommentPopupService) private readonly _sheetsThreadCommentPopupService: SheetsThreadCommentPopupService,
+        @ISheetsThreadCommentPopupService private readonly _sheetsThreadCommentPopupService: ISheetsThreadCommentPopupService,
         @Inject(SheetsThreadCommentModel) private readonly _sheetsThreadCommentModel: SheetsThreadCommentModel,
         @Inject(SheetPermissionCheckController) private readonly _sheetPermissionCheckController: SheetPermissionCheckController
     ) {

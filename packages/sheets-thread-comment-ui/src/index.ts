@@ -20,7 +20,9 @@ export { ShowAddSheetCommentModalOperation } from './commands/operations/comment
 export type { IUniverSheetsThreadCommentUIConfig } from './controllers/config.schema';
 export { UniverSheetsThreadCommentMobileUIPlugin } from './mobile-plugin';
 export { UniverSheetsThreadCommentUIPlugin } from './plugin';
-export { SheetsThreadCommentPopupService } from './services/sheets-thread-comment-popup.service';
+export { SheetsThreadCommentMobilePopupService } from './services/sheets-thread-comment-mobile-popup.service';
+export { ISheetsThreadCommentPopupService, SheetsThreadCommentDesktopPopupService } from './services/sheets-thread-comment-popup.service';
+export type { IThreadCommentPopup } from './services/sheets-thread-comment-popup.service';
 export { SHEETS_THREAD_COMMENT } from './types/const';
 export { IThreadCommentDataSourceService } from '@univerjs/thread-comment';
 export {

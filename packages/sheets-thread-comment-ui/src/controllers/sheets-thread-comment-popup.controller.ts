@@ -26,7 +26,7 @@ import { IEditorBridgeService, IMarkSelectionService, ScrollToRangeOperation, Sh
 import { DeleteCommentMutation } from '@univerjs/thread-comment';
 import { SetActiveCommentOperation, ThreadCommentPanelService } from '@univerjs/thread-comment-ui';
 import { debounceTime } from 'rxjs';
-import { SheetsThreadCommentPopupService } from '../services/sheets-thread-comment-popup.service';
+import { ISheetsThreadCommentPopupService } from '../services/sheets-thread-comment-popup.service';
 
 interface ISelectionShapeInfo {
     shapeId: string;
@@ -41,7 +41,7 @@ export class SheetsThreadCommentPopupController extends Disposable {
 
     constructor(
         @ICommandService private readonly _commandService: ICommandService,
-        @Inject(SheetsThreadCommentPopupService) private readonly _sheetsThreadCommentPopupService: SheetsThreadCommentPopupService,
+        @ISheetsThreadCommentPopupService private readonly _sheetsThreadCommentPopupService: ISheetsThreadCommentPopupService,
         @Inject(SheetsThreadCommentModel) private readonly _sheetsThreadCommentModel: SheetsThreadCommentModel,
         @Inject(ThreadCommentPanelService) private readonly _threadCommentPanelService: ThreadCommentPanelService,
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
