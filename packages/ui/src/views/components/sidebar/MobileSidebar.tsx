@@ -115,6 +115,7 @@ export function MobileSidebar() {
         <Drawer
             open={options.visible}
             onOpenChange={handleOpenChange}
+            // modal={false}
         >
             <DrawerContent
                 className={scrollbarClassName}
@@ -137,7 +138,7 @@ export function MobileSidebar() {
                     </DrawerHeader>
 
                     <section
-                        className="univer-box-border univer-min-h-80 univer-flex-1 univer-overflow-y-auto univer-px-4"
+                        className="univer-box-border univer-flex-1 univer-overflow-y-auto univer-px-4"
                         style={options.bodyStyle}
                     >
                         {options.children}
