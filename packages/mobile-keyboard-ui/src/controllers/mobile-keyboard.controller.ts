@@ -17,6 +17,7 @@
 import { Disposable, DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY, DOCS_NORMAL_EDITOR_UNIT_ID_KEY, FOCUSING_FX_BAR_EDITOR, ICommandService, IContextService, Inject, Injector, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { DocSelectionRenderService, IEditorService } from '@univerjs/docs-ui';
 import { getCurrentTypeOfRenderer, IRenderManagerService } from '@univerjs/engine-render';
+import { MobileViewportController } from '@univerjs/sheets-ui';
 import { BuiltInUIPart, connectInjector, ILayoutService, IMenuManagerService, IUIPartsService } from '@univerjs/ui';
 import { distinctUntilChanged, filter } from 'rxjs';
 import { KeyboardConfirmAndMoveOperation, KeyboardDeleteBackwardOperation, KeyboardInsertFunctionOperation, KeyboardInsertQuotesOperation, KeyboardInsertTextOperation, KeyboardSetModeOperation, KeyboardToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
@@ -34,7 +35,8 @@ export class MobileKeyboardController extends Disposable {
         @ILayoutService private readonly _layoutService: ILayoutService,
         @IEditorService private readonly _editorService: IEditorService,
         @IContextService private readonly _contextService: IContextService,
-        @IMenuManagerService private readonly _menuManagerService: IMenuManagerService
+        @IMenuManagerService private readonly _menuManagerService: IMenuManagerService,
+        @Inject(MobileViewportController) private readonly _mobileViewportController: MobileViewportController
     ) {
         super();
 
@@ -51,6 +53,7 @@ export class MobileKeyboardController extends Disposable {
         this._initMenus();
         this._initFocusHandler();
         this._initEditorListener();
+        this._initViewportListener();
         this._initKeyboardListener();
     }
 
@@ -69,6 +72,17 @@ export class MobileKeyboardController extends Disposable {
     private _initMenus(): void {
         // Register menu schema
         this._menuManagerService.mergeMenu(menuSchema);
+    }
+
+    private _initViewportListener(): void {
+        this.disposeWithMe(this._mobileViewportController.offset$.subscribe((offset) => {
+            if (offset === 0) {
+                const mode = this._mobileKeyboardService.getKeyboardMode();
+                if (mode === KeyboardMode.TEXT) {
+                    this._mobileKeyboardService.toggleKeyboard(false);
+                }
+            }
+        }));
     }
 
     private _initEditorListener(): void {
