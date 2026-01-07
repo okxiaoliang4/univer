@@ -81,7 +81,10 @@
     "pnpm": {
         "onlyBuiltDependencies": [
             "esbuild"
-        ]
+        ],
+        "patchedDependencies": {
+            "vaul": "patches/vaul.patch"
+        }
     },
     "resolutions": {
         "@types/react": "19.2.7",
