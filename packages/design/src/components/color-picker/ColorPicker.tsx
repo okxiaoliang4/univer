@@ -82,7 +82,7 @@ export function ColorPicker({ format = 'hex', value = '#000000', onChange }: ICo
         <div
             data-u-comp="color-picker"
             className={`
-              univer-cursor-default univer-space-y-2 univer-rounded-lg univer-bg-white
+              univer-w-full univer-cursor-default univer-space-y-2 univer-rounded-lg univer-bg-white
               dark:!univer-bg-gray-700
             `}
             onClick={(e) => e.stopPropagation()}

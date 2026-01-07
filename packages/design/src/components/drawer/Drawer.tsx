@@ -168,7 +168,7 @@ function DrawerTitle({
         <DrawerPrimitive.Title
             data-slot="drawer-title"
             className={clsx(`
-              univer-text-base univer-font-medium univer-text-gray-800
+              univer-my-0 univer-text-base univer-font-medium univer-text-gray-800
               dark:!univer-text-white
             `, className)}
             {...props}

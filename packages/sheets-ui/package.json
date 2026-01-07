@@ -89,7 +89,8 @@
         "@univerjs/protocol": "0.1.47",
         "@univerjs/sheets": "workspace:*",
         "@univerjs/telemetry": "workspace:*",
-        "@univerjs/ui": "workspace:*"
+        "@univerjs/ui": "workspace:*",
+        "lucide-react": "^0.562.0"
     },
     "devDependencies": {
         "@univerjs-infra/shared": "workspace:*",

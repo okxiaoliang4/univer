@@ -37,7 +37,7 @@ import {
     WorksheetEditPermission,
     WorksheetSetCellStylePermission,
 } from '@univerjs/sheets';
-import { FONT_SIZE_COMPONENT, FONT_SIZE_LIST, getMenuHiddenObservable, MenuItemType } from '@univerjs/ui';
+import { FONT_SIZE_COMPONENT, FONT_SIZE_LIST, getMenuHiddenObservable, MenuItemType, MOBILE_FONT_SIZE_COMPONENT } from '@univerjs/ui';
 import { Observable } from 'rxjs';
 import {
     SetRangeFontDecreaseCommand,
@@ -117,6 +117,35 @@ export function FontSizeSelectorMenuItemFactory(accessor: IAccessor): IMenuSelec
             },
         },
         selections: FONT_SIZE_LIST,
+        disabled$,
+        value$: updateFontSizeValue(accessor, defaultValue),
+        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
+    };
+}
+
+export function FontSizeMobileSelectorMenuItemFactory(accessor: IAccessor): IMenuSelectorItem<number> {
+    const defaultValue = DEFAULT_STYLES.fs;
+    const disabled$ = getCurrentRangeDisable$(accessor, {
+        workbookTypes: [WorkbookEditablePermission],
+        worksheetTypes: [WorksheetEditPermission, WorksheetSetCellStylePermission],
+        rangeTypes: [RangeProtectionPermissionEditPoint],
+    }, true);
+
+    return {
+        id: SetRangeFontSizeCommand.id,
+        type: MenuItemType.SELECTOR,
+        tooltip: 'toolbar.fontSize',
+        icon: 'ALargeSmallIcon',
+        selections: FONT_SIZE_LIST,
+        slot: true,
+        label: {
+            name: MOBILE_FONT_SIZE_COMPONENT,
+            props: {
+                min: 6,
+                max: 400,
+                disabled$,
+            },
+        },
         disabled$,
         value$: updateFontSizeValue(accessor, defaultValue),
         hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),

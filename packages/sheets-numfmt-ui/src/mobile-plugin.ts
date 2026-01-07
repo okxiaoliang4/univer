@@ -21,10 +21,10 @@ import { IRenderManagerService } from '@univerjs/engine-render';
 import { UniverSheetsNumfmtPlugin } from '@univerjs/sheets-numfmt';
 import { UniverSheetsMobileUIPlugin } from '@univerjs/sheets-ui';
 import { defaultPluginConfig } from './controllers/config.schema';
+import { NumfmtMobileMenuController } from './controllers/mobile/numfmt.menu.controller';
 import { NumfmtAlertRenderController } from './controllers/numfmt-alert-render.controller';
 import { SheetNumfmtUIController } from './controllers/numfmt.controller';
 import { NumfmtEditorController } from './controllers/numfmt.editor.controller';
-import { NumfmtMenuController } from './controllers/numfmt.menu.controller';
 import { UserHabitController } from './controllers/user-habit.controller';
 
 export const SHEET_NUMFMT_MOBILE_UI_PLUGIN = 'SHEET_NUMFMT_MOBILE_UI_PLUGIN';
@@ -60,7 +60,7 @@ export class UniverSheetsNumfmtMobileUIPlugin extends Plugin {
             [SheetNumfmtUIController],
             [NumfmtEditorController],
             [UserHabitController],
-            [NumfmtMenuController],
+            [NumfmtMobileMenuController],
         ]);
     }
 
@@ -69,7 +69,7 @@ export class UniverSheetsNumfmtMobileUIPlugin extends Plugin {
         touchDependencies(this._injector, [
             [SheetNumfmtUIController],
             [NumfmtEditorController],
-            [NumfmtMenuController],
+            [NumfmtMobileMenuController],
         ]);
     }
 

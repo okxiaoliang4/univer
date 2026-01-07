@@ -26,7 +26,7 @@ export { FontFamily } from './components/font-family/FontFamily';
 export { FontFamilyItem } from './components/font-family/FontFamilyItem';
 export { FONT_FAMILY_COMPONENT, FONT_FAMILY_ITEM_COMPONENT, type IFontFamilyProps } from './components/font-family/interface';
 export { FontSize } from './components/font-size/FontSize';
-export { FONT_SIZE_COMPONENT, FONT_SIZE_LIST, HEADING_LIST } from './components/font-size/interface';
+export { FONT_SIZE_COMPONENT, FONT_SIZE_LIST, HEADING_LIST, MOBILE_FONT_SIZE_COMPONENT } from './components/font-size/interface';
 export * from './components/hooks';
 export { t } from './components/hooks/locale';
 export { Menu as UIMenu } from './components/menu/desktop/Menu';

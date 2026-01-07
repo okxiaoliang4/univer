@@ -98,7 +98,7 @@ import { RenameSheetOperation } from '../../commands/operations/rename-sheet.ope
 import { CellBorderSelectorMenuItemFactory } from '../menu/border.menu';
 import { CLEAR_SELECTION_MENU_ID, ClearSelectionAllMenuItemFactory, ClearSelectionContentMenuItemFactory, ClearSelectionFormatMenuItemFactory, ClearSelectionMenuItemFactory } from '../menu/clear.menu';
 import { DELETE_RANGE_MENU_ID, DeleteRangeMenuItemFactory, DeleteRangeMoveLeftMenuItemFactory, DeleteRangeMoveUpMenuItemFactory, RemoveColMenuItemFactory, RemoveRowMenuItemFactory } from '../menu/delete.menu';
-import { FontSizeDecreaseMenuItemFactory, FontSizeIncreaseMenuItemFactory, FontSizeSelectorMenuItemFactory } from '../menu/font.menu';
+import { FontSizeDecreaseMenuItemFactory, FontSizeIncreaseMenuItemFactory, FontSizeMobileSelectorMenuItemFactory } from '../menu/font.menu';
 import { ToggleGridlinesMenuFactory } from '../menu/gridlines.menu';
 import {
     CELL_INSERT_MENU_ID,
@@ -122,7 +122,7 @@ import {
     CopySpacialMenuItemFactory,
     CutMenuItemFactory,
     FitContentMenuItemFactory,
-    FontFamilySelectorMenuItemFactory,
+    FontFamilyMobileSelectorMenuItemFactory,
     FormatPainterMenuItemFactory,
     FrozenColMenuItemFactory,
     FrozenMenuItemFactory,
@@ -193,11 +193,11 @@ export const menuSchema: MenuSchemaType = {
         [RibbonStartGroup.FORMAT]: {
             [SetRangeFontFamilyCommand.id]: {
                 order: 5,
-                menuItemFactory: FontFamilySelectorMenuItemFactory,
+                menuItemFactory: FontFamilyMobileSelectorMenuItemFactory,
             },
             [SetRangeFontSizeCommand.id]: {
                 order: 6,
-                menuItemFactory: FontSizeSelectorMenuItemFactory,
+                menuItemFactory: FontSizeMobileSelectorMenuItemFactory,
             },
             [SetRangeFontIncreaseCommand.id]: {
                 order: 7,

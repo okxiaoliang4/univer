@@ -222,3 +222,73 @@ export const FactoryOtherMenuItem = (accessor: IAccessor): IMenuSelectorItem => 
         disabled$: getCurrentRangeDisable$(accessor, { workbookTypes: [WorkbookEditablePermission], worksheetTypes: [WorksheetSetCellStylePermission, WorksheetEditPermission], rangeTypes: [RangeProtectionPermissionEditPoint] }),
     };
 };
+
+export const FactoryOtherMobileMenuItem = (accessor: IAccessor): IMenuSelectorItem => {
+    const univerInstanceService = accessor.get(IUniverInstanceService);
+    const commandService = accessor.get(ICommandService);
+    const localeService = accessor.get(LocaleService);
+
+    const selectionManagerService = accessor.get(SheetsSelectionsService);
+    const commandList = [RemoveNumfmtMutation.id, SetNumfmtMutation.id];
+    const value$ = deriveStateFromActiveSheet$(
+        univerInstanceService,
+        '',
+        ({ workbook, worksheet }) => new Observable((subscribe) =>
+            merge(
+                selectionManagerService.selectionMoveEnd$,
+                fromCallback(commandService.onCommandExecuted.bind(commandService)).pipe(
+                    filter(([commandInfo]) => commandList.includes(commandInfo.id))
+                )
+            ).subscribe(() => {
+                const selections = selectionManagerService.getCurrentSelections();
+                if (selections && selections[0]) {
+                    const range = selections[0].range;
+                    const row = range.startRow;
+                    const col = range.startColumn;
+                    const numfmtValue = workbook.getStyles().get(worksheet.getCell(row, col)?.s)?.n;
+                    const pattern = numfmtValue?.pattern;
+                    const currencySymbol = getCurrencySymbolByLocale(localeService.getCurrentLocale());
+
+                    // Adapts the 'General' obtained during import, or the 'General' set manually
+                    let value: string = localeService.t('sheet.numfmt.general');
+
+                    if (isDefaultFormat(pattern)) {
+                        subscribe.next(value);
+                        return;
+                    }
+
+                    if (pattern) {
+                        const item = MENU_OPTIONS(currencySymbol).filter((item) => typeof item === 'object' && item.pattern).find(
+                            (item) => isPatternEqualWithoutDecimal(pattern, (item as { pattern: string }).pattern)
+                        );
+                        if (item && typeof item === 'object' && item.pattern) {
+                            value = localeService.t(item.label);
+                        } else {
+                            value = localeService.t('sheet.numfmt.moreFmt');
+                        }
+                    }
+
+                    subscribe.next(value);
+                }
+            })
+        )
+    );
+
+    return {
+        id: OpenNumfmtPanelOperator.id,
+        tooltip: 'sheet.numfmt.title',
+        type: MenuItemType.SELECTOR,
+        slot: true,
+        icon: 'MenuIcon',
+        selections: [{
+            label: {
+                name: OPTIONS_KEY,
+                hoverable: false,
+                selectable: false,
+            },
+        }],
+        value$,
+        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
+        disabled$: getCurrentRangeDisable$(accessor, { workbookTypes: [WorkbookEditablePermission], worksheetTypes: [WorksheetSetCellStylePermission, WorksheetEditPermission], rangeTypes: [RangeProtectionPermissionEditPoint] }),
+    };
+};

@@ -454,6 +454,68 @@ export function FontFamilySelectorMenuItemFactory(accessor: IAccessor): IMenuSel
     };
 }
 
+export function FontFamilyMobileSelectorMenuItemFactory(accessor: IAccessor): IMenuSelectorItem<string> {
+    const commandService = accessor.get(ICommandService);
+    const univerInstanceService = accessor.get(IUniverInstanceService);
+    const selectionManagerService = accessor.get(SheetsSelectionsService);
+
+    const defaultValue = DEFAULT_STYLES.ff;
+    const disabled$ = getCurrentRangeDisable$(accessor, {
+        workbookTypes: [WorkbookEditablePermission],
+        worksheetTypes: [WorksheetEditPermission, WorksheetSetCellStylePermission],
+        rangeTypes: [RangeProtectionPermissionEditPoint],
+    }, true);
+
+    return {
+        id: SetRangeFontFamilyCommand.id,
+        tooltip: 'toolbar.font',
+        type: MenuItemType.SELECTOR,
+        icon: 'AIcon',
+        title: 'toolbar.font',
+        selections: [{
+            label: {
+                name: FONT_FAMILY_ITEM_COMPONENT,
+                hoverable: false,
+                selectable: false,
+                props: {
+                    id: SetRangeFontFamilyCommand.id,
+                },
+            },
+        }],
+        disabled$,
+        value$: deriveStateFromActiveSheet$(univerInstanceService, defaultValue, ({ worksheet }) => new Observable((subscriber) => {
+            const updateSheet = () => {
+                let ff = defaultValue;
+
+                const primary = selectionManagerService.getCurrentLastSelection()?.primary;
+                if (primary != null) {
+                    const cell = worksheet.getCellStyle(primary.startRow, primary.startColumn);
+                    const defaultStyle = worksheet.getDefaultCellStyleInternal();
+                    const rowStyle = worksheet.getRowStyle(primary.startRow);
+                    const colStyle = worksheet.getColumnStyle(primary.startColumn);
+                    const style = composeStyles(defaultStyle, rowStyle, colStyle, cell);
+                    if (style.ff) {
+                        ff = style.ff;
+                    }
+                }
+
+                subscriber.next(ff);
+            };
+
+            const disposable = commandService.onCommandExecuted((c) => {
+                const id = c.id;
+                if (id === SetRangeValuesMutation.id || id === SetSelectionsOperation.id || id === SetWorksheetActiveOperation.id) {
+                    updateSheet();
+                }
+            });
+
+            updateSheet();
+            return disposable.dispose;
+        })),
+        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
+    };
+}
+
 export function ResetTextColorMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
     return {
         id: ResetRangeTextColorCommand.id,

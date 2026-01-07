@@ -17,7 +17,7 @@
 import { Disposable, ICommandService, IConfigService, Inject, Injector, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { DocSelectionRenderService } from '@univerjs/docs-ui';
 import { getCurrentTypeOfRenderer, IRenderManagerService } from '@univerjs/engine-render';
-import { HideGridlinesDoubleIcon } from '@univerjs/icons';
+import { AIcon, HideGridlinesDoubleIcon } from '@univerjs/icons';
 import {
     SetBoldCommand,
     SetFontFamilyCommand,
@@ -35,6 +35,7 @@ import {
     IShortcutService,
     IUIPartsService,
 } from '@univerjs/ui';
+import { ALargeSmallIcon } from 'lucide-react';
 import { fromEvent } from 'rxjs';
 import { AutoClearContentCommand, AutoFillCommand } from '../../commands/commands/auto-fill.command';
 import { DeleteRangeMoveLeftConfirmCommand } from '../../commands/commands/delete-range-move-left-confirm.command';
@@ -44,7 +45,9 @@ import { HideColConfirmCommand, HideRowConfirmCommand } from '../../commands/com
 import {
     ResetRangeTextColorCommand,
     SetRangeBoldCommand,
+    SetRangeFontDecreaseCommand,
     SetRangeFontFamilyCommand,
+    SetRangeFontIncreaseCommand,
     SetRangeFontSizeCommand,
     SetRangeItalicCommand,
     SetRangeStrickThroughCommand,
@@ -195,6 +198,8 @@ export class SheetUIMobileController extends Disposable {
 
         // init icons
         this.disposeWithMe(componentManager.register('HideGridlinesDoubleIcon', HideGridlinesDoubleIcon));
+        this.disposeWithMe(componentManager.register('AIcon', AIcon));
+        this.disposeWithMe(componentManager.register('ALargeSmallIcon', ALargeSmallIcon));
     }
 
     private _initCommands(): void {
@@ -224,6 +229,8 @@ export class SheetUIMobileController extends Disposable {
             SetRangeSubscriptCommand,
             SetRangeSuperscriptCommand,
             SetRangeFontSizeCommand,
+            SetRangeFontDecreaseCommand,
+            SetRangeFontIncreaseCommand,
             SetRangeFontFamilyCommand,
             SetRangeTextColorCommand,
             ResetRangeTextColorCommand,

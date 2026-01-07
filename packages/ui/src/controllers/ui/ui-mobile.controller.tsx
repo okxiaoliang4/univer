@@ -26,8 +26,8 @@ import { COMMON_LABEL_COMPONENT, CommonLabel } from '../../components/common-lab
 import { FontFamilyItem } from '../../components/font-family';
 import { FontFamily } from '../../components/font-family/FontFamily';
 import { FONT_FAMILY_COMPONENT, FONT_FAMILY_ITEM_COMPONENT } from '../../components/font-family/interface';
-import { FontSize } from '../../components/font-size/FontSize';
-import { FONT_SIZE_COMPONENT } from '../../components/font-size/interface';
+import { MOBILE_FONT_SIZE_COMPONENT } from '../../components/font-size/interface';
+import { MobileFontSize } from '../../components/font-size/MobileFontSize';
 import { HEADING_ITEM_COMPONENT, HeadingItem } from '../../components/heading-item';
 import { ILayoutService } from '../../services/layout/layout.service';
 import { BuiltInUIPart, IUIPartsService } from '../../services/parts/parts.service';
@@ -62,7 +62,7 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
             [HEADING_ITEM_COMPONENT, HeadingItem],
             [FONT_FAMILY_COMPONENT, FontFamily],
             [FONT_FAMILY_ITEM_COMPONENT, FontFamilyItem],
-            [FONT_SIZE_COMPONENT, FontSize],
+            [MOBILE_FONT_SIZE_COMPONENT, MobileFontSize],
             [COLOR_PICKER_COMPONENT, ColorPicker],
         ] as const).forEach(([key, comp]) => {
             this.disposeWithMe(

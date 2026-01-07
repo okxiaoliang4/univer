@@ -46,7 +46,10 @@ export const FontFamilyItem = ({ id, value }: { id: string; value: string }) => 
 
     return (
         <ul
-            className="univer-m-0 univer-list-none univer-p-0 univer-text-sm"
+            className={`
+              univer-m-0 univer-w-full univer-list-none univer-p-0 univer-text-base
+              md:univer-text-sm
+            `}
             style={{ fontFamily: value }}
         >
             {fonts.map((font) => (

@@ -89,7 +89,9 @@ export function Options() {
     const defaultValue = 1220;
 
     return (
-        <div className="univer-grid univer-gap-1 univer-p-1.5">
+        <div
+            className="univer-grid univer-w-full univer-gap-1 univer-p-1.5"
+        >
             {menuOptions.map((item, index) => {
                 if (item === '|') {
                     return <Separator key={index} />;
