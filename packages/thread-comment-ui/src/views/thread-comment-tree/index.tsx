@@ -86,7 +86,6 @@ const ThreadCommentItem = (props: IThreadCommentItemProps) => {
     const currentUser = useObservable(userManagerService.currentUser$);
     const isCommentBySelf = currentUser?.userID === item.personId;
     const isMock = item.id === MOCK_ID;
-    const [showReply, setShowReply] = useState(false);
     const uiConfig = useConfigValue<IUniverUIConfig>(UI_PLUGIN_CONFIG_KEY);
     const avatarFallback = uiConfig?.avatarFallback;
 
@@ -109,7 +108,9 @@ const ThreadCommentItem = (props: IThreadCommentItemProps) => {
     };
 
     return (
-        <div className="univer-relative univer-mb-3 univer-pl-[30px]" onPointerLeave={() => setShowReply(false)} onPointerEnter={() => setShowReply(true)}>
+        <div
+            className="univer-group univer-relative univer-mb-3 univer-pl-[30px]"
+        >
             <div
                 className={`
                   univer-absolute univer-left-0 univer-top-0 univer-h-6 univer-w-6 univer-rounded-full univer-bg-cover
@@ -129,14 +130,15 @@ const ThreadCommentItem = (props: IThreadCommentItemProps) => {
                             {(isMock || resolved)
                                 ? null
                                 : (
-                                    showReply && user
+                                    user
                                         ? (
                                             <div
                                                 className={`
                                                   univer-ml-1 univer-inline-flex univer-h-6 univer-w-6
                                                   univer-cursor-pointer univer-items-center univer-justify-center
-                                                  univer-rounded-sm univer-text-base
+                                                  univer-rounded-sm univer-text-base univer-transition-opacity
                                                   hover:univer-bg-gray-50
+                                                  md:univer-opacity-0 md:group-hover:univer-opacity-100
                                                 `}
                                                 onClick={() => onReply(user)}
                                             >
