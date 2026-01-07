@@ -30,12 +30,14 @@ import { MOBILE_FONT_SIZE_COMPONENT } from '../../components/font-size/interface
 import { MobileFontSize } from '../../components/font-size/MobileFontSize';
 import { HEADING_ITEM_COMPONENT, HeadingItem } from '../../components/heading-item';
 import { ILayoutService } from '../../services/layout/layout.service';
+import { IMenuManagerService } from '../../services/menu/menu-manager.service';
 import { BuiltInUIPart, IUIPartsService } from '../../services/parts/parts.service';
 import { connectInjector } from '../../utils/di';
 import { FloatDom } from '../../views/components/dom/FloatDom';
 import { CanvasPopup } from '../../views/components/popup/CanvasPopup';
 import { MobileRibbon } from '../../views/components/ribbon/MobileRibbon';
 import { MobileWorkbench } from '../../views/mobile-workbench/MobileWorkbench';
+import { menuSchema } from '../menus/mobile/menu.schema';
 import { SingleUnitUIController } from './ui-shared.controller';
 
 export class MobileUIController extends SingleUnitUIController implements IUIController {
@@ -47,9 +49,12 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
         @IRenderManagerService renderManagerService: IRenderManagerService,
         @ILayoutService layoutService: ILayoutService,
         @IUniverInstanceService instanceService: IUniverInstanceService,
-        @IUIPartsService uiPartsService: IUIPartsService
+        @IUIPartsService uiPartsService: IUIPartsService,
+        @IMenuManagerService menuManagerService: IMenuManagerService
     ) {
         super(injector, instanceService, layoutService, lifecycleService, renderManagerService);
+
+        menuManagerService.mergeMenu(menuSchema);
 
         this._initBuiltinComponents(uiPartsService);
         this._registerComponents();
