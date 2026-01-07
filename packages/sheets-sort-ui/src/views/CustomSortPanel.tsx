@@ -111,7 +111,7 @@ function CustomSortPanelImpl({ state }: { state: ICustomSortState }) {
 
     return (
         <div>
-            <div onMouseDown={(e) => { e.stopPropagation(); }}>
+            <div onPointerDown={(e) => { e.stopPropagation(); }}>
                 <div className="univer-flex univer-items-center univer-justify-between">
                     <Checkbox checked={hasTitle} onChange={(value) => setTitle(!!value)}>
                         {localeService.t('sheets-sort.dialog.first-row-check')}

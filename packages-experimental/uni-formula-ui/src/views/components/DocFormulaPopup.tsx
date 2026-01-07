@@ -137,8 +137,8 @@ function DocFormula(props: { popupInfo: IUniFormulaPopupInfo }) {
               univer-shadow-lg
               dark:!univer-bg-gray-900
             `, borderClassName)}
-            onMouseEnter={() => onHovered(true)}
-            onMouseLeave={() => onHovered(false)}
+            onPointerEnter={() => onHovered(true)}
+            onPointerLeave={() => onHovered(false)}
         >
             <div className="univer-flex">
                 <span

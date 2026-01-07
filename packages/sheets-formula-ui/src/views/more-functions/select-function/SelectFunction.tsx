@@ -181,8 +181,8 @@ export function SelectFunction(props: ISelectFunctionProps) {
                             `, {
                                 'univer-bg-gray-200 dark:!univer-bg-gray-600': active === index,
                             })}
-                            onMouseEnter={() => handleLiMouseEnter(index)}
-                            onMouseLeave={handleLiMouseLeave}
+                            onPointerEnter={() => handleLiMouseEnter(index)}
+                            onPointerLeave={handleLiMouseLeave}
                             onClick={() => setCurrentFunctionInfo(index)}
                         >
                             {nameSelected === index && (

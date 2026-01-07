@@ -271,7 +271,7 @@ export function SheetPermissionPanelList() {
                                       univer-mt-3 univer-rounded-lg univer-p-3
                                       hover:univer-bg-gray-50
                                     `, borderClassName)}
-                                    onMouseMove={() => {
+                                    onPointerMove={() => {
                                         const { subUnitId, unitType } = rule;
                                         const activeSheet = workbook.getActiveSheet();
                                         if (!activeSheet) {
@@ -289,7 +289,7 @@ export function SheetPermissionPanelList() {
                                             ranges !== currentRuleRanges && setCurrentRuleRanges(ranges);
                                         }
                                     }}
-                                    onMouseLeave={() => setCurrentRuleRanges([])}
+                                    onPointerLeave={() => setCurrentRuleRanges([])}
                                 >
                                     <div className="univer-flex univer-h-5 univer-justify-between univer-leading-5">
                                         <Tooltip title={ruleName}>

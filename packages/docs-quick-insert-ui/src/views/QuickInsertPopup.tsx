@@ -251,8 +251,8 @@ export const QuickInsertPopup = () => {
                             menuNodeMapRef.current.set(menu.id, node);
                         }
                     }}
-                    onMouseEnter={() => setFocusedMenuIndex(currentMenuIndex)}
-                    onMouseLeave={() => setFocusedMenuIndex(Number.NaN)}
+                    onPointerEnter={() => setFocusedMenuIndex(currentMenuIndex)}
+                    onPointerLeave={() => setFocusedMenuIndex(Number.NaN)}
                     key={menu.id}
                     className={clsx('univer-w-[calc(220px-var(--padding-base)*2)] univer-text-sm', {
                         'hover:univer-bg-transparent': !isFocused,

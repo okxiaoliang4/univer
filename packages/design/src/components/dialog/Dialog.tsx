@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from 'react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { clsx } from '../../helper/clsx';
 import { Button } from '../button/Button';
@@ -178,7 +178,7 @@ function useDraggable(
         return { x: newX, y: newY };
     }, []);
 
-    const startDrag = useCallback((e: ReactMouseEvent<HTMLElement> | MouseEvent) => {
+    const startDrag = useCallback((e: ReactPointerEvent<HTMLElement> | PointerEvent) => {
         if (!enabled) return;
 
         e.preventDefault();
@@ -191,7 +191,7 @@ function useDraggable(
         document.body.style.userSelect = 'none';
     }, [enabled, position]);
 
-    const onDrag = useCallback((e: MouseEvent) => {
+    const onDrag = useCallback((e: PointerEvent) => {
         if (!isDragging) return;
 
         e.preventDefault();
@@ -208,12 +208,12 @@ function useDraggable(
 
     useEffect(() => {
         if (enabled) {
-            document.addEventListener('mousemove', onDrag);
-            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('pointermove', onDrag);
+            document.addEventListener('pointerup', endDrag);
 
             return () => {
-                document.removeEventListener('mousemove', onDrag);
-                document.removeEventListener('mouseup', endDrag);
+                document.removeEventListener('pointermove', onDrag);
+                document.removeEventListener('pointerup', endDrag);
             };
         }
     }, [enabled, onDrag, endDrag]);
@@ -237,7 +237,7 @@ function useDraggable(
                 initializedRef.current = true;
             }
         },
-        handleMouseDown: startDrag,
+        handlePointerDown: startDrag,
     };
 }
 
@@ -266,7 +266,7 @@ export function Dialog(props: IDialogProps) {
 
     const { locale } = useContext(ConfigContext);
 
-    const { position, isDragging, setElementRef, handleMouseDown } = useDraggable({ defaultPosition, enabled: draggable });
+    const { position, isDragging, setElementRef, handlePointerDown } = useDraggable({ defaultPosition, enabled: draggable });
 
     const footer = propFooter ?? (showOk || showCancel
         ? (
@@ -360,7 +360,7 @@ export function Dialog(props: IDialogProps) {
                         userSelect: draggable ? 'none' : undefined,
                         touchAction: draggable ? 'none' : undefined,
                     }}
-                    onMouseDown={draggable ? handleMouseDown : undefined}
+                    onPointerDown={draggable ? handlePointerDown : undefined}
                 >
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription className="univer-hidden" />

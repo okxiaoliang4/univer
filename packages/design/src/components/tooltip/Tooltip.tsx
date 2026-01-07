@@ -210,13 +210,13 @@ export function Tooltip(props: ITooltipProps) {
     // Note: we always wrap rather than attempting to forward refs into arbitrary child components.
     const commonProps = {
         ref: (node: HTMLElement | null) => (triggerRef.current = node),
-        onMouseEnter: () => {
+        onPointerEnter: () => {
             if (showIfEllipsis && triggerRef.current) {
                 if (!isContentOverflowing(triggerRef.current)) return;
             }
             showTooltip();
         },
-        onMouseLeave: () => hideTooltip(),
+        onPointerLeave: () => hideTooltip(),
         onFocus: () => showTooltip(),
         onBlur: () => hideTooltip(),
     } as React.HTMLAttributes<HTMLElement> & { ref?: (node: HTMLElement | null) => void };
@@ -251,8 +251,8 @@ export function Tooltip(props: ITooltipProps) {
                     top: coords?.top ?? -9999,
                     left: coords?.left ?? -9999,
                 }}
-                onMouseEnter={() => showTooltip()}
-                onMouseLeave={() => hideTooltip()}
+                onPointerEnter={() => showTooltip()}
+                onPointerLeave={() => hideTooltip()}
             >
                 <div className="univer-break-words">{title}</div>
                 <div

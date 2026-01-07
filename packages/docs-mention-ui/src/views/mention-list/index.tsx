@@ -59,7 +59,7 @@ export const MentionList = (props: IMentionListProps) => {
                                 'univer-bg-gray-50': activeId === mention.objectId,
                             })}
                             onClick={() => handleSelect(mention)}
-                            onMouseEnter={() => setActiveId(mention.objectId)}
+                            onPointerEnter={() => setActiveId(mention.objectId)}
                         >
                             <img
                                 className={`

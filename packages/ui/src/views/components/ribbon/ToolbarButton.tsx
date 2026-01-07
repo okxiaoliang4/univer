@@ -47,8 +47,8 @@ export interface IBaseToolbarButtonProps {
      */
     noIcon?: boolean;
 
-    onMouseEnter?: React.MouseEventHandler;
-    onMouseLeave?: React.MouseEventHandler;
+    onPointerEnter?: React.PointerEventHandler;
+    onPointerLeave?: React.PointerEventHandler;
 }
 
 export const toolbarButtonClassName = `

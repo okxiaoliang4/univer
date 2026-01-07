@@ -132,7 +132,7 @@ export const RichTextEditor = (props: IRichTextEditorProps) => {
     }, [isFocusing, onFocusChange]);
 
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
+        const handleClickOutside = (event: PointerEvent) => {
             if (editorService.getFocusId() !== editorId) return;
 
             const id = (event.target as HTMLDivElement)?.dataset?.editorid;
@@ -172,7 +172,7 @@ export const RichTextEditor = (props: IRichTextEditorProps) => {
                 <div
                     ref={formulaEditorContainerRef}
                     className="univer-relative univer-size-full"
-                    onMouseUp={() => editor?.focus()}
+                    onPointerUp={() => editor?.focus()}
                 />
                 {icon}
                 {!showPlaceholder

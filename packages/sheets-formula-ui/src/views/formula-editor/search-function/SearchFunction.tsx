@@ -214,9 +214,9 @@ function SearchFunctionFactory(props: ISearchFunctionProps, ref: any) {
                         `, {
                             'univer-bg-gray-200 dark:!univer-bg-gray-600': active === index,
                         })}
-                        onMouseEnter={() => handleLiMouseEnter(index)}
-                        onMouseLeave={handleLiMouseLeave}
-                        onMouseMove={debounceResetMouseState}
+                        onPointerEnter={() => handleLiMouseEnter(index)}
+                        onPointerLeave={handleLiMouseLeave}
+                        onPointerMove={debounceResetMouseState}
                         onClick={() => {
                             handleFunctionSelect(item.name, item.functionType);
                             if (editor) {

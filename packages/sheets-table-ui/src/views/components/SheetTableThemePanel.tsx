@@ -191,8 +191,8 @@ export const SheetTableThemePanel = (props: ISheetTableThemePanelProps) => {
                                     'univer-border-blue-500': item === themeConfig.theme,
                                 })}
                                 onClick={() => handleThemeChange(item)}
-                                onMouseEnter={() => setHoverCustomId(item)}
-                                onMouseLeave={() => setHoverCustomId(null)}
+                                onPointerEnter={() => setHoverCustomId(item)}
+                                onPointerLeave={() => setHoverCustomId(null)}
                             >
                                 <div className="univer-box-border univer-h-2.5" style={{ background: headerRowBg ?? TABLE_BORDER_NONE, border: `${headerRowBg ? TABLE_BORDER_NONE : TABLE_BORDER_DEFAULT}` }} />
                                 <div className="univer-box-border univer-h-2.5" style={{ background: firstRowBg ?? TABLE_BORDER_NONE, border: `${firstRowBg ? TABLE_BORDER_NONE : TABLE_BORDER_DEFAULT}` }} />

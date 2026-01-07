@@ -72,7 +72,7 @@ export const ParagraphMenu = ({ popup }: { popup: IPopup }) => {
                     'univer-bg-gray-100 dark:!univer-bg-gray-700': visible,
                     'univer-bg-white dark:!univer-bg-gray-700': !visible,
                 })}
-                onMouseEnter={(e) => {
+                onPointerEnter={(e) => {
                     popup.onPointerEnter?.(e);
                     isMouseOver.current = true;
                     const boundingRect = anchorRef.current?.getBoundingClientRect();
@@ -83,7 +83,7 @@ export const ParagraphMenu = ({ popup }: { popup: IPopup }) => {
                         bottom: boundingRect?.bottom ?? 0,
                     });
                 }}
-                onMouseLeave={() => {
+                onPointerLeave={() => {
                     isMouseOver.current = false;
                 }}
                 onClick={() => {
@@ -115,11 +115,11 @@ export const ParagraphMenu = ({ popup }: { popup: IPopup }) => {
                 >
                     <section
                         ref={contentRef}
-                        onMouseEnter={(e) => {
+                        onPointerEnter={(e) => {
                             popup.onPointerEnter?.(e);
                             isMouseOver.current = true;
                         }}
-                        onMouseLeave={() => {
+                        onPointerLeave={() => {
                             isMouseOver.current = false;
                         }}
                     >

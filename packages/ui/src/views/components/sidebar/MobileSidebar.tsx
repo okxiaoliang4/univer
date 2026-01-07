@@ -115,7 +115,7 @@ export function MobileSidebar() {
         <Drawer
             open={options.visible}
             onOpenChange={handleOpenChange}
-            // modal={false}
+            autoFocus={false}
         >
             <DrawerContent
                 className={scrollbarClassName}

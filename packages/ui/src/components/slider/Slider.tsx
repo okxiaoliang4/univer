@@ -105,7 +105,7 @@ export function Slider(props: ISliderProps) {
         const rail = sliderInnerRailRef.current!;
         let isDragging = true;
 
-        function onMouseMove(e: MouseEvent) {
+        function onPointerMove(e: PointerEvent) {
             if (isDragging) {
                 const pureOffsetX = e.clientX - rail.getBoundingClientRect().x;
 
@@ -130,19 +130,19 @@ export function Slider(props: ISliderProps) {
             }
         }
 
-        function onMouseUp() {
+        function onPointerUp() {
             isDragging = false;
-            document.removeEventListener('pointermove', onMouseMove);
-            window.removeEventListener('pointerup', onMouseUp);
+            document.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
         }
 
-        function onMouseOut(e: MouseEvent) {
-            e.relatedTarget === null && onMouseUp();
+        function onPointerOut(e: PointerEvent) {
+            e.relatedTarget === null && onPointerUp();
         }
 
-        window.addEventListener('pointermove', onMouseMove);
-        window.addEventListener('pointerup', onMouseUp);
-        window.addEventListener('pointerout', onMouseOut);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointerout', onPointerOut);
     }
 
     function handleSelectZoomLevel(value: number) {

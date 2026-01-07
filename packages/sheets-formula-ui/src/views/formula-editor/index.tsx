@@ -333,7 +333,7 @@ export const FormulaEditor = forwardRef((props: IFormulaEditorProps, ref: Ref<IF
                 <div
                     ref={formulaEditorContainerRef}
                     className="univer-relative univer-h-full univer-w-full"
-                    onMouseUp={handleMouseUp}
+                    onPointerUp={handleMouseUp}
                 />
             </div>
             {(errorText !== undefined) && (

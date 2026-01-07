@@ -75,8 +75,8 @@ export function ImagePopupMenu(props: IImagePopupMenuProps) {
 
     return (
         <div
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
+            onPointerEnter={handleMouseEnter}
+            onPointerLeave={handleMouseLeave}
         >
             <DropdownMenu
                 align="start"

@@ -111,7 +111,7 @@ export const ThreadCommentEditor = forwardRef<IThreadCommentEditorInstance, IThr
     };
 
     return (
-        <div onClick={(e) => e.preventDefault()}>
+        <div onPointerDown={(e) => e.preventDefault()}>
             <RichTextEditor
                 className="univer-w-full"
                 editorRef={editor}

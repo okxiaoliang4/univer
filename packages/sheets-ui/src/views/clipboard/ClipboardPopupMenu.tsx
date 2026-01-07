@@ -142,8 +142,8 @@ export const ClipboardPopupMenu = () => {
                     left: relativePosition.positionX + DEFAULT_PADDING,
                     top: relativePosition.positionY + DEFAULT_PADDING,
                 }}
-                onMouseEnter={() => setMenuHovered(true)}
-                onMouseLeave={() => setMenuHovered(false)}
+                onPointerEnter={() => setMenuHovered(true)}
+                onPointerLeave={() => setMenuHovered(false)}
             >
                 <DropdownMenu
                     align="start"

@@ -186,8 +186,8 @@ export const ThreadCommentPanel = (props: IThreadCommentPanelProps) => {
                     commandService.executeCommand(SetActiveCommentOperation.id);
                 }
             }}
-            onMouseEnter={() => onItemEnter?.(comment)}
-            onMouseLeave={() => onItemLeave?.(comment)}
+            onPointerEnter={() => onItemEnter?.(comment)}
+            onPointerLeave={() => onItemLeave?.(comment)}
             onAddComment={onAddComment}
             onDeleteComment={onDeleteComment}
             onResolve={(resolved: boolean) => onResolve?.(comment.id, resolved)}

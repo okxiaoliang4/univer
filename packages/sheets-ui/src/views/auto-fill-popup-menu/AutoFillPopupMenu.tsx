@@ -184,8 +184,8 @@ export function AutoFillPopupMenu() {
             <div
                 className="univer-absolute"
                 style={{ left: `${relativeX + 2}px`, top: `${relativeY + 2}px` }}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
+                onPointerEnter={handleMouseEnter}
+                onPointerLeave={handleMouseLeave}
             >
                 <DropdownMenu
                     align="start"

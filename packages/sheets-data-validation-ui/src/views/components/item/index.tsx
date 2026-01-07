@@ -88,7 +88,7 @@ export const DataValidationItem = (props: IDataValidationDetailProps) => {
                 }
             )}
             onClick={onClick}
-            onMouseEnter={() => {
+            onPointerEnter={() => {
                 if (disable) return;
                 setIsHover(true);
                 ids.current = rule.ranges.map((range) => markSelectionService.addShape({
@@ -97,7 +97,7 @@ export const DataValidationItem = (props: IDataValidationDetailProps) => {
                     primary: null,
                 }));
             }}
-            onMouseLeave={() => {
+            onPointerLeave={() => {
                 setIsHover(false);
                 ids.current?.forEach((id) => {
                     id && markSelectionService.removeShape(id);

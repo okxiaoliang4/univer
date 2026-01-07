@@ -412,10 +412,10 @@ export const RuleList = (props: IRuleListProps) => {
                                         `, {
                                             'univer-bg-gray-100 dark:!univer-bg-gray-700': draggingId === index,
                                         })}
-                                        onMouseMove={() => {
+                                        onPointerMove={() => {
                                             rule.ranges !== currentRuleRanges && setCurrentRuleRanges(rule.ranges);
                                         }}
-                                        onMouseLeave={() => setCurrentRuleRanges([])}
+                                        onPointerLeave={() => setCurrentRuleRanges([])}
                                         onClick={() => {
                                             onClick(rule);
                                         }}
