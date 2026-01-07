@@ -26,6 +26,7 @@ export enum RibbonPosition {
     DATA = 'ribbon.data', // RibbonDataGroup
     VIEW = 'ribbon.view', // RibbonViewGroup
     OTHERS = 'ribbon.others', // RibbonOthersGroup
+    SUBMENU = 'ribbon.subMenu', // SubMenu area in MobileRibbon
 }
 
 export enum RibbonStartGroup {

@@ -28,6 +28,7 @@ import { useDependency, useObservable } from '../../../utils/di';
 import { ComponentContainer } from '../ComponentContainer';
 import { MobileToolbarItem } from './MobileToolbarItem';
 import { DefaultMenu } from './ribbon-menu/DefaultMenu';
+import { ToolbarItem } from './ToolbarItem';
 
 interface IRibbonProps {
     ribbonType: RibbonType;
@@ -150,6 +151,45 @@ export function MobileRibbon(props: IRibbonProps) {
         return ribbon.find((group) => group.key === activatedTab)?.children ?? [];
     }, [ribbon, activatedTab]);
 
+    // Fetch and process subMenu items
+    const [filteredSubMenuItems, setFilteredSubMenuItems] = useState<IMenuSchema[]>([]);
+
+    useEffect(() => {
+        const subMenu = menuManagerService.getMenuByPositionKey(RibbonPosition.SUBMENU);
+
+        // Collect hidden$ observables for subMenu items
+        const hiddenObservableMap: Observable<boolean>[] = [];
+        const hiddenKeyMap: string[] = [];
+        for (const item of subMenu) {
+            if (item.item?.hidden$) {
+                hiddenObservableMap.push(item.item.hidden$);
+                hiddenKeyMap.push(item.key);
+            }
+        }
+
+        if (hiddenObservableMap.length === 0) {
+            setFilteredSubMenuItems(subMenu);
+            return;
+        }
+
+        const subscription = combineLatest(hiddenObservableMap)
+            .subscribe((hiddenMap) => {
+                const hiddenKeySet = new Set(
+                    hiddenMap.map((hidden, index) => hidden ? hiddenKeyMap[index] : null).filter((key) => key !== null)
+                );
+
+                const filtered = subMenu.filter((item) => !hiddenKeySet.has(item.key));
+                setFilteredSubMenuItems(filtered);
+            });
+
+        // Set initial value
+        setFilteredSubMenuItems(subMenu);
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [menuChangedTimes, menuManagerService]);
+
     return (
         <>
             <div
@@ -184,6 +224,13 @@ export function MobileRibbon(props: IRibbonProps) {
                             onSelectTab={handleSelectTab}
                         />
                     )}
+                    <div className="univer-flex univer-items-center univer-gap-2">
+                        {filteredSubMenuItems.map((item) => (
+                            item.item && (
+                                <ToolbarItem key={item.key} {...item.item} />
+                            )
+                        ))}
+                    </div>
                 </div>
 
                 <div

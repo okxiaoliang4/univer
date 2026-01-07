@@ -300,7 +300,7 @@ export function MobileToolbarItem(props: IDisplayMenuItem<IMenuItem>) {
 
         const commandValue = value ?? typeof params === 'function' ? params() : params;
 
-        const displayTitle = tooltip ? localeService.t(tooltip) : '';
+        const displayTitle = tooltip ? localeService.t(tooltip) : (title ? localeService.t(title) : undefined);
 
         return (
             <div

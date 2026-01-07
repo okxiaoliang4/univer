@@ -127,6 +127,9 @@ export class MenuManagerService extends Disposable implements IMenuManagerServic
                     order: 0,
                 },
             },
+            [RibbonPosition.SUBMENU]: {
+                order: -1,
+            },
         },
         [MenuManagerPosition.CONTEXT_MENU]: {
             [ContextMenuPosition.MAIN_AREA]: {
