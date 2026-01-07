@@ -109,7 +109,7 @@ export interface IKeyboardToggleKeyboardOperationParams {
 export const KeyboardToggleKeyboardOperation: IOperation<IKeyboardToggleKeyboardOperationParams> = {
     id: 'mobile-keyboard-ui.operation.toggle-keyboard',
     type: CommandType.OPERATION,
-    handler: (accessor, params) => {
+    handler: (accessor, params = {}) => {
         const { visible } = params as IKeyboardToggleKeyboardOperationParams;
         accessor.get(IMobileKeyboardService).toggleKeyboard(visible);
         return true;

@@ -17,12 +17,13 @@
 import { Disposable, DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY, DOCS_NORMAL_EDITOR_UNIT_ID_KEY, FOCUSING_FX_BAR_EDITOR, ICommandService, IContextService, Inject, Injector, IUniverInstanceService, UniverInstanceType } from '@univerjs/core';
 import { DocSelectionRenderService, IEditorService } from '@univerjs/docs-ui';
 import { getCurrentTypeOfRenderer, IRenderManagerService } from '@univerjs/engine-render';
-import { BuiltInUIPart, connectInjector, ILayoutService, IUIPartsService } from '@univerjs/ui';
+import { BuiltInUIPart, connectInjector, ILayoutService, IMenuManagerService, IUIPartsService } from '@univerjs/ui';
 import { distinctUntilChanged, filter } from 'rxjs';
 import { KeyboardConfirmAndMoveOperation, KeyboardDeleteBackwardOperation, KeyboardInsertFunctionOperation, KeyboardInsertQuotesOperation, KeyboardInsertTextOperation, KeyboardSetModeOperation, KeyboardToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
 import { IMobileKeyboardService, KeyboardMode } from '../services/mobile-keyboard.service';
 import { KeyboardContainer } from '../views/keyboard/common/KeyboardContainer';
 import { MobileFormulaBar } from '../views/keyboard/common/MobileFormulaBar';
+import { menuSchema } from './menu.schema';
 
 export class MobileKeyboardController extends Disposable {
     constructor(
@@ -32,7 +33,8 @@ export class MobileKeyboardController extends Disposable {
         @IUIPartsService private readonly _uiPartsService: IUIPartsService,
         @ILayoutService private readonly _layoutService: ILayoutService,
         @IEditorService private readonly _editorService: IEditorService,
-        @IContextService private readonly _contextService: IContextService
+        @IContextService private readonly _contextService: IContextService,
+        @IMenuManagerService private readonly _menuManagerService: IMenuManagerService
     ) {
         super();
 
@@ -46,6 +48,7 @@ export class MobileKeyboardController extends Disposable {
 
         // Replace the focus handler to ensure it is registered after the FAB component is registered
         this._initCommands();
+        this._initMenus();
         this._initFocusHandler();
         this._initEditorListener();
         this._initKeyboardListener();
@@ -61,6 +64,11 @@ export class MobileKeyboardController extends Disposable {
             KeyboardInsertQuotesOperation,
             KeyboardToggleKeyboardOperation,
         ].forEach((command) => this.disposeWithMe(this._commandService.registerCommand(command)));
+    }
+
+    private _initMenus(): void {
+        // Register menu schema
+        this._menuManagerService.mergeMenu(menuSchema);
     }
 
     private _initEditorListener(): void {
@@ -121,10 +129,11 @@ export class MobileKeyboardController extends Disposable {
             }
         }));
 
-        this.disposeWithMe(this._mobileKeyboardService.keyboardMode$.pipe(distinctUntilChanged()).subscribe((mode) => {
+        this.disposeWithMe(this._mobileKeyboardService.keyboardMode$.subscribe((mode) => {
             const editor = this._editorService.getEditor(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
             if (!editor) return;
             if (mode === KeyboardMode.TEXT) {
+                this._editorService.focus(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
                 editor.docSelectionRenderService.setInputMode('');
             } else {
                 editor.docSelectionRenderService.setInputMode('none');
