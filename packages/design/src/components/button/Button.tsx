@@ -34,38 +34,38 @@ export const buttonVariants = cva(
             variant: {
                 default: `
                   univer-border-gray-200 univer-bg-white univer-text-gray-700
-                  hover:univer-bg-gray-100
                   active:univer-bg-gray-200
+                  md:hover:univer-bg-gray-100
                   dark:!univer-border-gray-600 dark:!univer-bg-gray-700 dark:!univer-text-white
-                  dark:hover:!univer-bg-gray-600 dark:active:!univer-bg-gray-700
+                  dark:active:!univer-bg-gray-700 dark:md:hover:!univer-bg-gray-600
                 `,
                 primary: `
                   univer-border-primary-600 univer-bg-primary-600 univer-text-white
-                  hover:univer-bg-primary-500
                   active:univer-bg-primary-700
+                  md:hover:univer-bg-primary-500
                 `,
                 danger: `
                   univer-border-red-500 univer-bg-red-500 univer-text-white
-                  hover:univer-border-red-400 hover:univer-bg-red-400
                   active:univer-border-red-600 active:univer-bg-red-600
+                  md:hover:univer-border-red-400 md:hover:univer-bg-red-400
                 `,
                 text: `
                   univer-border-transparent univer-bg-transparent univer-text-gray-900
-                  hover:univer-bg-gray-100
                   active:univer-bg-gray-200
-                  dark:!univer-text-white dark:hover:!univer-bg-gray-700 dark:active:!univer-bg-gray-600
+                  md:hover:univer-bg-gray-100
+                  dark:!univer-text-white dark:active:!univer-bg-gray-600 dark:md:hover:!univer-bg-gray-700
                 `,
                 link: `
                   univer-underline-current univer-border-transparent univer-bg-transparent univer-text-primary-600
                   univer-underline-offset-4
-                  hover:univer-text-primary-500 hover:univer-underline
                   active:univer-text-primary-700
+                  md:hover:univer-text-primary-500 md:hover:univer-underline
                 `,
                 ghost: `
                   univer-border-transparent univer-bg-transparent univer-text-gray-900
-                  hover:univer-bg-gray-100
                   active:univer-bg-gray-200
-                  dark:!univer-text-white dark:hover:!univer-bg-gray-700 dark:active:!univer-bg-gray-600
+                  md:hover:univer-bg-gray-100
+                  dark:!univer-text-white dark:active:!univer-bg-gray-600 dark:md:hover:!univer-bg-gray-700
                 `,
             },
             size: {
