@@ -247,8 +247,8 @@ async function main() {
 
         await ctx.serve({
             servedir: './local',
-            keyfile: finalKeyPath,
-            certfile: finalCertPath,
+            // keyfile: finalKeyPath,
+            // certfile: finalCertPath,
             port,
         });
 
