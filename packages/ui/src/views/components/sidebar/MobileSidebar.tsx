@@ -116,8 +116,8 @@ export function MobileSidebar() {
             open={options.visible}
             onOpenChange={handleOpenChange}
             autoFocus={false}
-            modal={false}
-            shouldScaleBackground
+            // modal={false}
+            // shouldScaleBackground
             repositionInputs={false}
         >
             <DrawerContent

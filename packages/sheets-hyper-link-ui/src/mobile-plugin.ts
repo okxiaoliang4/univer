@@ -14,37 +14,83 @@
  * limitations under the License.
  */
 
-import type { Dependency } from '@univerjs/core';
-import { DependentOn, Inject, Injector, Plugin, UniverInstanceType } from '@univerjs/core';
-import { ComponentManager, UniverMobileUIPlugin } from '@univerjs/ui';
-import { SheetsHyperLinkMobilePopupController } from './controllers/mobile/mobile-popup.controller';
-import { UniverSheetsHyperLinkUIPlugin } from './plugin';
-import { MobileCellLinkEdit } from './views/mobile/MobileCellLinkEdit';
+import type { Dependency, Workbook } from '@univerjs/core';
+import type { IUniverSheetsHyperLinkUIConfig } from './controllers/config.schema';
+import { DependentOn, IConfigService, Inject, Injector, merge, Plugin, UniverInstanceType } from '@univerjs/core';
+import { UniverDocsUIPlugin } from '@univerjs/docs-ui';
+import { IRenderManagerService } from '@univerjs/engine-render';
+import { UniverSheetsHyperLinkPlugin } from '@univerjs/sheets-hyper-link';
+import { SheetsHyperLinkAutoFillController } from './controllers/auto-fill.controller';
+import { defaultPluginConfig, SHEETS_HYPER_LINK_UI_PLUGIN_CONFIG_KEY } from './controllers/config.schema';
+import { SheetsHyperLinkCopyPasteController } from './controllers/copy-paste.controller';
+import { SheetsHyperLinkPermissionController } from './controllers/hyper-link-permission.controller';
+import { SheetsHyperLinkMobilePopupController } from './controllers/mobile/popup.controller';
+import { SheetsHyperLinkMobileUIController } from './controllers/mobile/ui.controller';
+import { SheetsHyperLinkRenderController, SheetsHyperLinkRenderManagerController } from './controllers/render-controllers/render.controller';
+import { SheetHyperLinkUrlController } from './controllers/url.controller';
+import { SheetsHyperLinkMobilePopupService } from './services/mobile/popup.service';
+import { ISheetsHyperLinkPopupService } from './services/popup.service';
+import { SheetsHyperLinkResolverService } from './services/resolver.service';
+import { SheetsHyperLinkSidePanelService } from './services/side-panel.service';
+import { SHEET_HYPER_LINK_UI_PLUGIN } from './types/const';
 
-@DependentOn(UniverSheetsHyperLinkUIPlugin, UniverMobileUIPlugin)
+@DependentOn(UniverSheetsHyperLinkPlugin, UniverDocsUIPlugin)
 export class UniverSheetsHyperLinkMobileUIPlugin extends Plugin {
-    static override pluginName = 'SHEET_HYPER_LINK_MOBILE_UI_PLUGIN';
+    static override pluginName: string = SHEET_HYPER_LINK_UI_PLUGIN;
     static override type = UniverInstanceType.UNIVER_SHEET;
 
     constructor(
+        private readonly _config: Partial<IUniverSheetsHyperLinkUIConfig> = defaultPluginConfig,
         @Inject(Injector) protected override _injector: Injector,
-        @Inject(ComponentManager) private readonly _componentManager: ComponentManager
+        @IConfigService private readonly _configService: IConfigService
     ) {
         super();
+
+        // Manage the plugin configuration.
+        const { menu, ...rest } = merge(
+            {},
+            defaultPluginConfig,
+            this._config
+        );
+        if (menu) {
+            this._configService.setConfig('menu', menu, { merge: true });
+        }
+        this._configService.setConfig(SHEETS_HYPER_LINK_UI_PLUGIN_CONFIG_KEY, rest);
     }
 
     override onStarting(): void {
-        // Register mobile-specific component
-        this._componentManager.register(MobileCellLinkEdit.componentKey, MobileCellLinkEdit);
-
         const dependencies: Dependency[] = [
+            [SheetsHyperLinkResolverService],
+            [ISheetsHyperLinkPopupService, { useClass: SheetsHyperLinkMobilePopupService }],
+            [SheetsHyperLinkSidePanelService],
+
+            [SheetsHyperLinkRenderManagerController],
+
             [SheetsHyperLinkMobilePopupController],
+            [SheetsHyperLinkMobileUIController],
+            [SheetsHyperLinkAutoFillController],
+            [SheetsHyperLinkCopyPasteController],
+            [SheetsHyperLinkPermissionController],
+            [SheetHyperLinkUrlController],
+
         ];
         dependencies.forEach((dep) => this._injector.add(dep));
+
+        this._injector.get(SheetsHyperLinkRenderManagerController);
+    }
+
+    override onReady(): void {
+        const renderManager = this._injector.get(IRenderManagerService);
+        renderManager.registerRenderModule<Workbook>(UniverInstanceType.UNIVER_SHEET, [SheetsHyperLinkRenderController] as Dependency);
+
+        this._injector.get(SheetsHyperLinkAutoFillController);
+        this._injector.get(SheetsHyperLinkCopyPasteController);
+        this._injector.get(SheetsHyperLinkMobileUIController);
     }
 
     override onRendered(): void {
-        // Initialize the controller after rendering to ensure sidebar service is available
+        this._injector.get(SheetsHyperLinkPermissionController);
+        this._injector.get(SheetHyperLinkUrlController);
         this._injector.get(SheetsHyperLinkMobilePopupController);
     }
 }

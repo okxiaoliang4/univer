@@ -17,7 +17,7 @@
 import type { IDisposable } from '@univerjs/core';
 import { Disposable, Inject, LocaleService } from '@univerjs/core';
 import { ISidebarService } from '@univerjs/ui';
-import { SheetsHyperLinkPopupService } from '../../services/popup.service';
+import { ISheetsHyperLinkPopupService } from '../../services/popup.service';
 import { MobileCellLinkEdit } from '../../views/mobile/MobileCellLinkEdit';
 
 const SIDEBAR_ID = 'sheets-hyper-link-edit';
@@ -26,7 +26,7 @@ export class SheetsHyperLinkMobilePopupController extends Disposable {
     private _sidebarDisposable: IDisposable | null = null;
 
     constructor(
-        @Inject(SheetsHyperLinkPopupService) private readonly _popupService: SheetsHyperLinkPopupService,
+        @Inject(ISheetsHyperLinkPopupService) private readonly _popupService: ISheetsHyperLinkPopupService,
         @Inject(ISidebarService) private readonly _sidebarService: ISidebarService,
         @Inject(LocaleService) private readonly _localeService: LocaleService
     ) {

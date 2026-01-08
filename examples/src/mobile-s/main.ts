@@ -40,7 +40,6 @@ import { UniverSheetsConditionalFormattingPlugin } from '@univerjs/sheets-condit
 import { UniverSheetsDataValidationPlugin } from '@univerjs/sheets-data-validation';
 import { UniverSheetsFilterPlugin } from '@univerjs/sheets-filter';
 import { UniverSheetsFormulaPlugin } from '@univerjs/sheets-formula';
-import { UniverSheetsHyperLinkPlugin } from '@univerjs/sheets-hyper-link';
 import { UniverSheetsNotePlugin } from '@univerjs/sheets-note';
 import { UniverSheetsNumfmtPlugin } from '@univerjs/sheets-numfmt';
 import { UniverSheetsSortPlugin } from '@univerjs/sheets-sort';
@@ -142,7 +141,6 @@ function createNewInstance() {
         [UniverSheetsConditionalFormattingPlugin],
         [UniverSheetsFilterPlugin],
         [UniverSheetsSortPlugin],
-        [UniverSheetsHyperLinkPlugin],
         [UniverSheetsThreadCommentPlugin],
         [UniverSheetsTablePlugin],
         [UniverNetworkPlugin],
