@@ -49,7 +49,7 @@ import {
     transformCellsToRange,
 } from '@univerjs/sheets';
 import { getPatternType } from '@univerjs/sheets-numfmt';
-import { IEditorBridgeService } from '@univerjs/sheets-ui';
+import { IEditorBridgeService, isRichText } from '@univerjs/sheets-ui';
 
 const createCollectEffectMutation = () => {
     interface IConfig {
@@ -163,8 +163,8 @@ export class NumfmtEditorController extends Disposable {
 
                         const originCell = context.worksheet.getCellRaw(context.row, context.col);
 
-                        // if the cell is text format or force string, do not convert the value
-                        if (isTextFormat(currentNumfmtValue?.pattern) || value.t === CellValueType.FORCE_STRING) {
+                        // if the cell is rich text or text format or force string, do not convert the value
+                        if ((value.p?.body && isRichText(value.p.body)) || isTextFormat(currentNumfmtValue?.pattern) || value.t === CellValueType.FORCE_STRING) {
                             return next(value);
                         }
 
