@@ -26,8 +26,8 @@ import { COMMON_LABEL_COMPONENT, CommonLabel } from '../../components/common-lab
 import { FontFamilyItem } from '../../components/font-family';
 import { FontFamily } from '../../components/font-family/FontFamily';
 import { FONT_FAMILY_COMPONENT, FONT_FAMILY_ITEM_COMPONENT } from '../../components/font-family/interface';
-import { MOBILE_FONT_SIZE_COMPONENT } from '../../components/font-size/interface';
-import { MobileFontSize } from '../../components/font-size/MobileFontSize';
+import { FontSize } from '../../components/font-size/FontSize';
+import { FONT_SIZE_COMPONENT } from '../../components/font-size/interface';
 import { HEADING_ITEM_COMPONENT, HeadingItem } from '../../components/heading-item';
 import { ILayoutService } from '../../services/layout/layout.service';
 import { IMenuManagerService } from '../../services/menu/menu-manager.service';
@@ -35,7 +35,8 @@ import { BuiltInUIPart, IUIPartsService } from '../../services/parts/parts.servi
 import { connectInjector } from '../../utils/di';
 import { FloatDom } from '../../views/components/dom/FloatDom';
 import { CanvasPopup } from '../../views/components/popup/CanvasPopup';
-import { MobileRibbon } from '../../views/components/ribbon/MobileRibbon';
+// import { MobileRibbon } from '../../views/components/ribbon/MobileRibbon';
+import { Ribbon } from '../../views/components/ribbon/Ribbon';
 import { MobileWorkbench } from '../../views/mobile-workbench/MobileWorkbench';
 import { menuSchema } from '../menus/mobile/menu.schema';
 import { SingleUnitUIController } from './ui-shared.controller';
@@ -67,7 +68,7 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
             [HEADING_ITEM_COMPONENT, HeadingItem],
             [FONT_FAMILY_COMPONENT, FontFamily],
             [FONT_FAMILY_ITEM_COMPONENT, FontFamilyItem],
-            [MOBILE_FONT_SIZE_COMPONENT, MobileFontSize],
+            [FONT_SIZE_COMPONENT, FontSize],
             [COLOR_PICKER_COMPONENT, ColorPicker],
         ] as const).forEach(([key, comp]) => {
             this.disposeWithMe(
@@ -88,7 +89,7 @@ export class MobileUIController extends SingleUnitUIController implements IUICon
     private _initBuiltinComponents(uiPartsService: IUIPartsService) {
         this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.FLOATING, () => connectInjector(CanvasPopup, this._injector)));
         this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.CONTENT, () => connectInjector(FloatDom, this._injector)));
-        this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(MobileRibbon, this._injector)));
+        this.disposeWithMe(uiPartsService.registerComponent(BuiltInUIPart.TOOLBAR, () => connectInjector(Ribbon, this._injector)));
     }
 }
 

@@ -235,7 +235,7 @@ export function MobileRibbon(props: IRibbonProps) {
 
                 <div
                     data-u-comp="ribbon-toolbar"
-                    className="univer-flex univer-max-h-[30vh] univer-flex-col univer-overflow-y-auto univer-py-2"
+                    className="univer-flex univer-h-[30vh] univer-flex-col univer-overflow-y-auto univer-py-2"
                     role="toolbar"
                     aria-label={localeService.t(activatedTab)}
                 >

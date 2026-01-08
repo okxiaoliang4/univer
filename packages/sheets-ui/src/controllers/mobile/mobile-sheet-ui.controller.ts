@@ -106,6 +106,7 @@ import { DEFINED_NAME_CONTAINER } from '../../views/defined-name/component-name'
 import { DefinedNameContainer } from '../../views/defined-name/DefinedNameContainer';
 import { MobileSheetBar } from '../../views/mobile/sheet-bar/MobileSheetBar';
 import { RenderSheetContent } from '../../views/sheet-container/SheetContainer';
+import { menuSchema } from '../menu.schema';
 import {
     EditorBreakLineShortcut,
     EditorCursorCtrlEnterShortcut,
@@ -159,7 +160,6 @@ import {
     ZoomInShortcutItem,
     ZoomOutShortcutItem,
 } from '../shortcuts/view.shortcut';
-import { menuSchema } from './menu.schema';
 
 export class SheetUIMobileController extends Disposable {
     constructor(

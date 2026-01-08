@@ -17,7 +17,7 @@
 import { Disposable, Inject } from '@univerjs/core';
 import { ComponentManager, IMenuManagerService } from '@univerjs/ui';
 import { MORE_NUMFMT_TYPE_KEY, MoreNumfmtType, Options, OPTIONS_KEY } from '../../views/components/MoreNumfmtType';
-import { menuSchema } from './menu.schema';
+import { menuSchema } from '../menu.schema';
 
 export class NumfmtMobileMenuController extends Disposable {
     constructor(

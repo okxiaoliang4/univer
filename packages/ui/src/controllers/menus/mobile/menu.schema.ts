@@ -17,12 +17,12 @@
 import type { MenuSchemaType } from '../../../services/menu/menu-manager.service';
 import { RedoCommand, UndoCommand } from '@univerjs/core';
 import { ToggleShortcutPanelOperation } from '../../../commands/operations/toggle-shortcut-panel.operation';
-import { RibbonOthersGroup, RibbonPosition } from '../../../services/menu/types';
+import { RibbonOthersGroup, RibbonStartGroup } from '../../../services/menu/types';
 import { ShortcutPanelMenuItemFactory } from '../../shortcut-display/menu';
 import { RedoMenuItemFactory, UndoMenuItemFactory } from '../menus';
 
 export const menuSchema: MenuSchemaType = {
-    [RibbonPosition.SUBMENU]: {
+    [RibbonStartGroup.HISTORY]: {
         [UndoCommand.id]: {
             order: 0,
             menuItemFactory: UndoMenuItemFactory,
