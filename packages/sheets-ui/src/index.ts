@@ -100,7 +100,7 @@ export { AutoWidthController } from './controllers/auto-width.controller';
 export { CellCustomRenderController } from './controllers/cell-custom-render.controller';
 export { type IUniverSheetsUIConfig } from './controllers/config.schema';
 export { DragRenderController } from './controllers/drag-render.controller';
-export { EditingRenderController } from './controllers/editor/editing.render-controller';
+export { EditingRenderController, isRichText } from './controllers/editor/editing.render-controller';
 export { FormulaEditorController } from './controllers/editor/formula-editor.controller';
 export { EMBEDDING_FORMULA_EDITOR, isEmbeddingFormulaEditor } from './controllers/editor/utils/is-embedding-formula-editor';
 export { isRangeSelector, RANGE_SELECTOR_SYMBOLS } from './controllers/editor/utils/is-range-selector';
