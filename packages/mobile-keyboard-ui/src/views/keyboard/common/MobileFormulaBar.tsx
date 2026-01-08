@@ -23,12 +23,13 @@ import {
     IContextService,
     IPermissionService,
     IUniverInstanceService,
+    LocaleService,
     UniverInstanceType,
 } from '@univerjs/core';
-import { clsx } from '@univerjs/design';
+import { Button, clsx } from '@univerjs/design';
 import { IEditorService } from '@univerjs/docs-ui';
 import { DeviceInputEventType } from '@univerjs/engine-render';
-import { CheckMarkIcon } from '@univerjs/icons';
+import { CheckMarkIcon, KeyboardIcon } from '@univerjs/icons';
 import {
     RangeProtectionCache,
     RangeProtectionRuleModel,
@@ -54,6 +55,7 @@ export function MobileFormulaBar(props: IProps) {
     const editorBridgeService = useDependency(IEditorBridgeService);
     const worksheetProtectionRuleModel = useDependency(WorksheetProtectionRuleModel);
     const rangeProtectionRuleModel = useDependency(RangeProtectionRuleModel);
+    const localeService = useDependency(LocaleService);
     const univerInstanceService = useDependency(IUniverInstanceService);
     const selectionManager = useDependency(SheetsSelectionsService);
     const permissionService = useDependency(IPermissionService);
@@ -76,6 +78,13 @@ export function MobileFormulaBar(props: IProps) {
     const isFocusFxBar = contextService.getContextValue(FOCUSING_FX_BAR_EDITOR);
     const ref = useRef<HTMLDivElement>(null);
     const editorService = useDependency(IEditorService);
+
+    const isKeyboardVisible = useObservable(mobileKeyboardService.isKeyboardVisible$, true);
+    const isKeyboardEnabled = useObservable(mobileKeyboardService.keyboardEnabled$, true);
+
+    const handleKeyboard = () => {
+        mobileKeyboardService.toggleKeyboard();
+    };
 
     useLayoutEffect(() => {
         const subscription = workbook.activeSheet$.pipe(
@@ -236,10 +245,14 @@ export function MobileFormulaBar(props: IProps) {
                 'univer-pointer-events-none': editDisable,
             })}
         >
-            <div className="univer-flex univer-h-full univer-w-full univer-overflow-hidden univer-pl-3">
+            <div
+                className={`
+                  univer-flex univer-h-full univer-w-full univer-items-center univer-overflow-hidden univer-pl-3
+                `}
+            >
                 <div
                     ref={ref}
-                    className="univer-relative univer-flex-1"
+                    className="univer-relative univer-h-full univer-flex-1"
                     onPointerDown={handlePointerDown}
                     onPointerUp={handlePointerUp}
                     style={{ pointerEvents: hideEditor ? 'none' : 'auto' }}
@@ -299,6 +312,15 @@ export function MobileFormulaBar(props: IProps) {
                 >
                     <CheckMarkIcon />
                 </div>
+                <Button
+                    size="small"
+                    onClick={handleKeyboard}
+                    disabled={!isKeyboardEnabled}
+                    variant={isKeyboardVisible ? 'primary' : 'text'}
+                >
+                    <KeyboardIcon />
+                    {localeService.t('keyboard')}
+                </Button>
             </div>
         </div>
     );

@@ -179,6 +179,29 @@ export class DocSelectionRenderController extends Disposable implements IRenderM
             }
         }));
 
+        this.disposeWithMe(document.onClick$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
+            if (this._editorService.getEditor(unitId)) {
+                /**
+                 * To accommodate focus switching between different editors.
+                 * Since the editor for Univer is canvas-based,
+                 * it primarily relies on focus and cannot use the focus event.
+                 * Our editor's focus monitoring is based on PointerDown.
+                 * The order of occurrence is such that PointerDown comes first.
+                 * Translate the above text into English.
+                 */
+                this._setEditorFocus(unitId);
+                const { offsetX, offsetY } = evt;
+
+                setTimeout(() => {
+                    if (unitId === this._editorService.getFocusId() || this._docSelectionRenderService.isOnPointerEvent) {
+                        return;
+                    }
+                    this._setEditorFocus(unitId);
+                    this._docSelectionRenderService.setCursorManually(offsetX, offsetY);
+                }, 0);
+            }
+        }));
+
         this.disposeWithMe(document.onDblclick$.subscribeEvent((evt: IPointerEvent | IMouseEvent) => {
             if (this._isEditorReadOnly(unitId)) {
                 return;

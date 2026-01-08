@@ -172,7 +172,7 @@ export const RichTextEditor = (props: IRichTextEditorProps) => {
                 <div
                     ref={formulaEditorContainerRef}
                     className="univer-relative univer-size-full"
-                    onPointerUp={() => editor?.focus()}
+                    onClick={() => editor?.focus()}
                 />
                 {icon}
                 {!showPlaceholder

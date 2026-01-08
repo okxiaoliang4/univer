@@ -743,6 +743,7 @@ export class DocSelectionRenderService extends RxDisposable implements IRenderMo
 
         // TODO: to be removed
         this._input.dataset.uComp = 'editor';
+        this._input.dataset.editorid = this._context.unitId;
         this._input.id = `__editor_${this._context.unitId}`;
         this._input.style.cssText = `
             position: absolute;
