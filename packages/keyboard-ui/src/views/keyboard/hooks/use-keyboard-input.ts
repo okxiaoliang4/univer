@@ -15,7 +15,7 @@
  */
 
 import type { IKeyboardConfirmAndMoveOperationParams, IKeyboardInsertFunctionOperationParams, IKeyboardInsertQuotesOperationParams, IKeyboardInsertTextOperationParams, IKeyboardSetModeOperationParams } from '../../../commands/operations/keyboard.operation';
-import type { KeyboardMode } from '../../../services/mobile-keyboard.service';
+import type { KeyboardMode } from '../../../services/keyboard.service';
 import { Direction, ICommandService } from '@univerjs/core';
 import { useDependency } from '@univerjs/ui';
 import { useCallback } from 'react';
@@ -27,7 +27,7 @@ import {
     KeyboardInsertTextOperation,
     KeyboardSetModeOperation,
 } from '../../../commands/operations/keyboard.operation';
-import { IMobileKeyboardService } from '../../../services/mobile-keyboard.service';
+import { IKeyboardService } from '../../../services/keyboard.service';
 
 /**
  * Hook to handle keyboard input for mobile keyboards
@@ -37,7 +37,7 @@ import { IMobileKeyboardService } from '../../../services/mobile-keyboard.servic
 // eslint-disable-next-line max-lines-per-function
 export function useKeyboardInput() {
     const commandService = useDependency(ICommandService);
-    const mobileKeyboardService = useDependency(IMobileKeyboardService);
+    const keyboardService = useDependency(IKeyboardService);
     /**
      * Insert text into the FormulaBar editor at current cursor position
      */
@@ -76,7 +76,7 @@ export function useKeyboardInput() {
                 funcName,
             } satisfies IKeyboardInsertFunctionOperationParams);
         },
-        [mobileKeyboardService]
+        [keyboardService]
     );
 
     /**
@@ -107,8 +107,8 @@ export function useKeyboardInput() {
      * Toggle negative sign
      */
     const negativeNumber = useCallback(() => {
-        mobileKeyboardService.negativeNumber();
-    }, [mobileKeyboardService]);
+        keyboardService.negativeNumber();
+    }, [keyboardService]);
 
     return {
         insertText,

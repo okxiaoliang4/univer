@@ -43,7 +43,7 @@ import { EMBEDDING_FORMULA_EDITOR_COMPONENT_KEY, IEditorBridgeService, IFormulaE
 import { ComponentManager, useDependency, useObservable } from '@univerjs/ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EMPTY, merge, of, switchMap } from 'rxjs';
-import { IMobileKeyboardService } from '../../../services/mobile-keyboard.service';
+import { IKeyboardService } from '../../../services/keyboard.service';
 
 interface IProps {
     className?: string;
@@ -59,7 +59,7 @@ export function MobileFormulaBar(props: IProps) {
     const univerInstanceService = useDependency(IUniverInstanceService);
     const selectionManager = useDependency(SheetsSelectionsService);
     const permissionService = useDependency(IPermissionService);
-    const mobileKeyboardService = useDependency(IMobileKeyboardService);
+    const keyboardService = useDependency(IKeyboardService);
     const rangeProtectionCache = useDependency(RangeProtectionCache);
     const commandService = useDependency(ICommandService);
     const [disableInfo, setDisableInfo] = useState<{ editDisable: boolean; viewDisable: boolean }>({
@@ -79,11 +79,11 @@ export function MobileFormulaBar(props: IProps) {
     const ref = useRef<HTMLDivElement>(null);
     const editorService = useDependency(IEditorService);
 
-    const isKeyboardVisible = useObservable(mobileKeyboardService.isKeyboardVisible$, true);
-    const isKeyboardEnabled = useObservable(mobileKeyboardService.keyboardEnabled$, true);
+    const isKeyboardVisible = useObservable(keyboardService.isKeyboardVisible$, true);
+    const isKeyboardEnabled = useObservable(keyboardService.keyboardEnabled$, true);
 
     const handleKeyboard = () => {
-        mobileKeyboardService.toggleKeyboard();
+        keyboardService.toggleKeyboard();
     };
 
     useLayoutEffect(() => {
@@ -216,7 +216,7 @@ export function MobileFormulaBar(props: IProps) {
 
             // Open the normal editor first, and then we mark formula editor as activated.
             contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
-            mobileKeyboardService.toggleKeyboard(true);
+            keyboardService.toggleKeyboard(true);
         } catch (e) {
             shouldSkipFocus.current = true;
             throw e;

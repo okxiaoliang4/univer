@@ -425,7 +425,7 @@ The system SHALL provide a centralized service for managing mobile keyboard UI s
 - **GIVEN** the mobile keyboard service is initialized
 - **THEN** the service subscribes to `EditorBridgeService.visible$` to know when editing is active
 - **AND** the service subscribes to `EditorBridgeService.currentEditCellState$` to get the current cell being edited
-- **AND** no `isEditing$` observable is provided in `MobileKeyboardService` (use `EditorBridgeService.visible$` instead)
+- **AND** no `isEditing$` observable is provided in `KeyboardService` (use `EditorBridgeService.visible$` instead)
 
 #### Scenario: Show and hide keyboard UI
 - **GIVEN** the mobile keyboard is being controlled
@@ -439,9 +439,9 @@ The system SHALL provide a centralized service for managing mobile keyboard UI s
 - **GIVEN** a cell is focused and the FAB is tapped
 - **WHEN** edit should begin
 - **THEN** the component calls `commandService.executeCommand(SetCellEditVisibleOperation.id, { visible: true, ... })` directly
-- **AND** no `beginEdit()` method exists on `MobileKeyboardService`
+- **AND** no `beginEdit()` method exists on `KeyboardService`
 - **AND** when editing should end, the component calls `SetCellEditVisibleOperation` with `visible: false` directly
-- **AND** no `endEdit()` method exists on `MobileKeyboardService`
+- **AND** no `endEdit()` method exists on `KeyboardService`
 
 ### Requirement: Mobile Keyboard Component Organization
 
@@ -481,8 +481,8 @@ The system SHALL organize mobile keyboard components following the established m
 
 #### Scenario: Controller and service
 - **GIVEN** the mobile keyboard feature is implemented
-- **THEN** `packages/sheets-ui/src/controllers/mobile/mobile-keyboard.controller.ts` exists for coordinating keyboard logic
-- **AND** `packages/sheets-ui/src/services/mobile/mobile-keyboard.service.ts` exists for state management
+- **THEN** `packages/sheets-ui/src/controllers/mobile/keyboard.controller.ts` exists for coordinating keyboard logic
+- **AND** `packages/sheets-ui/src/services/mobile/keyboard.service.ts` exists for state management
 
 ### Requirement: Integration with Existing Mobile Plugin
 
@@ -490,12 +490,12 @@ The system SHALL integrate the mobile keyboard feature into the existing `Univer
 
 #### Scenario: Register mobile keyboard service
 - **GIVEN** the `UniverSheetsMobileUIPlugin` is initialized
-- **THEN** the `IMobileKeyboardService` is registered as a dependency
+- **THEN** the `IKeyboardService` is registered as a dependency
 - **AND** the service is available for injection by other components
 
 #### Scenario: Register mobile keyboard controller
 - **GIVEN** the `UniverSheetsMobileUIPlugin` is initialized
-- **THEN** the `MobileKeyboardController` is registered as a controller
+- **THEN** the `KeyboardController` is registered as a controller
 - **AND** the controller is initialized during the plugin lifecycle
 
 #### Scenario: Register keyboard components

@@ -18,12 +18,12 @@ import type { Dependency } from '@univerjs/core';
 import { DependentOn, Inject, Injector, mergeOverrideWithDependencies, Plugin, registerDependencies, touchDependencies, UniverInstanceType } from '@univerjs/core';
 import { UniverSheetsFormulaUIPlugin } from '@univerjs/sheets-formula-ui';
 import { UniverSheetsMobileUIPlugin } from '@univerjs/sheets-ui';
-import { MobileKeyboardController } from './controllers/mobile-keyboard.controller';
-import { IMobileKeyboardService, MobileKeyboardService } from './services/mobile-keyboard.service';
+import { KeyboardController } from './controllers/keyboard.controller';
+import { IKeyboardService, KeyboardService } from './services/keyboard.service';
 
 @DependentOn(UniverSheetsMobileUIPlugin, UniverSheetsFormulaUIPlugin)
-export class UniverMobileKeyboardUIPlugin extends Plugin {
-    static override pluginName = 'MOBILE_KEYBOARD_UI_PLUGIN';
+export class UniverKeyboardUIPlugin extends Plugin {
+    static override pluginName = 'KEYBOARD_UI_PLUGIN';
     static override type = UniverInstanceType.UNIVER_SHEET;
 
     constructor(
@@ -34,14 +34,14 @@ export class UniverMobileKeyboardUIPlugin extends Plugin {
 
     override onStarting(): void {
         registerDependencies(this._injector, mergeOverrideWithDependencies([
-            [IMobileKeyboardService, { useClass: MobileKeyboardService }],
-            [MobileKeyboardController],
+            [IKeyboardService, { useClass: KeyboardService }],
+            [KeyboardController],
         ] as Dependency[], undefined));
     }
 
     override onReady(): void {
         touchDependencies(this._injector, [
-            [MobileKeyboardController],
+            [KeyboardController],
         ]);
     }
 

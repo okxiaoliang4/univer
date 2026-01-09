@@ -23,12 +23,12 @@ import {
     KeyboardConfirmAndMoveOperation,
     KeyboardSetModeOperation,
 } from '../../../commands/operations/keyboard.operation';
-import { IMobileKeyboardService, KeyboardMode } from '../../../services/mobile-keyboard.service';
+import { IKeyboardService, KeyboardMode } from '../../../services/keyboard.service';
 
 export function ModeSwitcher() {
     const commandService = useDependency(ICommandService);
-    const mobileKeyboardService = useDependency(IMobileKeyboardService);
-    const currentMode = useObservable(mobileKeyboardService.keyboardMode$, KeyboardMode.NUMBER);
+    const keyboardService = useDependency(IKeyboardService);
+    const currentMode = useObservable(keyboardService.keyboardMode$, KeyboardMode.NUMBER);
 
     const handleTab = useCallback(async () => {
         commandService.executeCommand(KeyboardConfirmAndMoveOperation.id, {

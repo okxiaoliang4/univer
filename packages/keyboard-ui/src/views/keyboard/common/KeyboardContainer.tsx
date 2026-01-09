@@ -15,7 +15,7 @@
  */
 
 import { useDependency, useObservable } from '@univerjs/ui';
-import { IMobileKeyboardService, KeyboardMode } from '../../../services/mobile-keyboard.service';
+import { IKeyboardService, KeyboardMode } from '../../../services/keyboard.service';
 import { FormulaKeyboard } from '../formula-keyboard/FormulaKeyboard';
 import { NumberKeyboard } from '../number-keyboard/NumberKeyboard';
 import { TextKeyboard } from '../text-keyboard/TextKeyboard';
@@ -25,9 +25,9 @@ import { ModeSwitcher } from './ModeSwitcher';
 export { KeyboardItem };
 
 export function KeyboardContainer() {
-    const mobileKeyboardService = useDependency(IMobileKeyboardService);
-    const isVisible = useObservable(mobileKeyboardService.isKeyboardVisible$, false);
-    const currentMode = useObservable(mobileKeyboardService.keyboardMode$, KeyboardMode.NUMBER);
+    const keyboardService = useDependency(IKeyboardService);
+    const isVisible = useObservable(keyboardService.isKeyboardVisible$, false);
+    const currentMode = useObservable(keyboardService.keyboardMode$, KeyboardMode.NUMBER);
 
     if (!isVisible) {
         return null;

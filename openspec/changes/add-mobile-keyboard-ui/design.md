@@ -131,7 +131,7 @@ return (
 
 ### 5. Mobile Keyboard State Management
 
-**Decision**: Reuse existing `EditorBridgeService` and `SetCellEditVisibleOperation` for edit state; create lightweight `IMobileKeyboardService` only for mobile-specific state
+**Decision**: Reuse existing `EditorBridgeService` and `SetCellEditVisibleOperation` for edit state; create lightweight `IKeyboardService` only for mobile-specific state
 
 **Rationale**:
 - `EditorBridgeService` already manages cell editing state (`currentEditCellState$`, `visible$`)
@@ -154,7 +154,7 @@ commandService.executeCommand(SetCellEditVisibleOperation.id, {
 })
 
 // Lightweight service for mobile-specific UI state only
-interface IMobileKeyboardService {
+interface IKeyboardService {
     // Mobile keyboard UI visibility (NOT the same as editor visibility)
     isKeyboardVisible$: Observable<boolean>
     showKeyboard(): void
@@ -196,9 +196,9 @@ packages/sheets-ui/src/
 ├── views/mobile/fab/
 │   └── KeyboardFab.tsx           # Floating action button
 ├── controllers/mobile/
-│   └── mobile-keyboard.controller.ts  # Coordinates keyboard logic
+│   └── keyboard.controller.ts  # Coordinates keyboard logic
 └── services/
-    └── mobile-keyboard.service.ts      # State management
+    └── keyboard.service.ts      # State management
 ```
 
 ### 7. Platform Detection

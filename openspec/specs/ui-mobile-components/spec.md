@@ -63,16 +63,16 @@ The mobile sidebar component SHALL use the `Drawer` component for rendering inst
 The mobile keyboard UI SHALL provide a menu item in the MobileRibbon subMenu area that allows users to toggle the mobile keyboard visibility.
 
 #### Scenario: Keyboard toggle menu item registration
-- **GIVEN** MobileKeyboardUIPlugin is initialized
+- **GIVEN** KeyboardUIPlugin is initialized
 - **WHEN** the plugin registers its menu schema
 - **THEN** a menu item is registered at RibbonPosition.SUBMENU position
-- **AND** the menu item uses `KeyboardToggleKeyboardOperation.id` as its command
+- **AND** the menu item uses `ToggleKeyboardOperation.id` as its command
 - **AND** the menu item is configured with KeyboardIcon icon only (no title, tooltip, or custom label)
 
 #### Scenario: Keyboard toggle menu item behavior
 - **GIVEN** the keyboard toggle menu item is rendered in MobileRibbon subMenu
 - **WHEN** user clicks the menu item
-- **THEN** `KeyboardToggleKeyboardOperation` is executed
+- **THEN** `ToggleKeyboardOperation` is executed
 - **AND** the mobile keyboard visibility is toggled
 - **AND** the menu item's activated state reflects keyboard visibility (`isKeyboardVisible$`)
 

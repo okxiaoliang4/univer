@@ -8,14 +8,14 @@
 
 ## 2. Create Mobile Keyboard Menu Schema
 
-- [x] 2.1 Create `packages/mobile-keyboard-ui/src/controllers/menu.schema.ts` with keyboard toggle menu item
-- [x] 2.2 Define menu schema using `KeyboardToggleKeyboardOperation.id` as the command
+- [x] 2.1 Create `packages/keyboard-ui/src/controllers/menu.schema.ts` with keyboard toggle menu item
+- [x] 2.2 Define menu schema using `ToggleKeyboardOperation.id` as the command
 - [x] 2.3 Configure menu item with icon (KeyboardIcon) only - no title, tooltip, or custom label
 - [x] 2.4 Set appropriate order value for menu item positioning
 
 ## 3. Register Menu Schema
 
-- [x] 3.1 Update `MobileKeyboardController` to inject `IMenuManagerService`
+- [x] 3.1 Update `KeyboardController` to inject `IMenuManagerService`
 - [x] 3.2 Call `menuManagerService.mergeMenu(menuSchema)` in controller initialization
 - [x] 3.3 Ensure proper disposal of menu registration
 

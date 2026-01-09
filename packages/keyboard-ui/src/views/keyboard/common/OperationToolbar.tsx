@@ -25,17 +25,17 @@ import { IEditorBridgeService, SetCellEditVisibleOperation, SheetCopyCommand, Sh
 import { useDependency, useObservable } from '@univerjs/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { KeyboardItem } from '../../..';
-import { IMobileKeyboardService } from '../../../services/mobile-keyboard.service';
+import { IKeyboardService } from '../../../services/keyboard.service';
 
 export function OperationToolbar() {
     const commandService = useDependency(ICommandService);
     const undoRedoService = useDependency(IUndoRedoService);
     const localeService = useDependency(LocaleService);
-    const mobileKeyboardService = useDependency(IMobileKeyboardService);
+    const keyboardService = useDependency(IKeyboardService);
     const editorBridgeService = useDependency(IEditorBridgeService);
     const contextService = useDependency(IContextService);
-    const isKeyboardVisible = useObservable(mobileKeyboardService.isKeyboardVisible$, false);
-    const isKeyboardEnabled = useObservable(mobileKeyboardService.keyboardEnabled$, true);
+    const isKeyboardVisible = useObservable(keyboardService.isKeyboardVisible$, false);
+    const isKeyboardEnabled = useObservable(keyboardService.keyboardEnabled$, true);
     const editState = useObservable(editorBridgeService.currentEditCellState$);
 
     const handleUndo = useCallback(() => {
@@ -63,7 +63,7 @@ export function OperationToolbar() {
     }, [commandService]);
 
     const handleKeyboard = useCallback(() => {
-        mobileKeyboardService.toggleKeyboard();
+        keyboardService.toggleKeyboard();
         if (!isKeyboardVisible) {
             // When clicking on the formula bar, the cell editor also needs to enter the edit state
             const visibleState = editorBridgeService.isVisible();
@@ -81,7 +81,7 @@ export function OperationToolbar() {
             // Open the normal editor first, and then we mark formula editor as activated.
             contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
         }
-    }, [isKeyboardVisible, mobileKeyboardService, commandService, editorBridgeService, contextService, editState]);
+    }, [isKeyboardVisible, keyboardService, commandService, editorBridgeService, contextService, editState]);
 
     // Use observables to track undo/redo availability
     const [canUndo, setCanUndo] = useState(false);

@@ -32,7 +32,7 @@ export enum KeyboardMode {
     TEXT = 'text',
 }
 
-export interface IMobileKeyboardService {
+export interface IKeyboardService {
     /** Whether the mobile keyboard is enabled */
     keyboardEnabled$: Observable<boolean>;
 
@@ -65,9 +65,9 @@ export interface IMobileKeyboardService {
     confirmAndMove(direction: Direction.DOWN | Direction.RIGHT): void;
 }
 
-export const IMobileKeyboardService = createIdentifier<IMobileKeyboardService>('mobile-keyboard-ui.mobile-keyboard.service');
+export const IKeyboardService = createIdentifier<IKeyboardService>('keyboard-ui.keyboard.service');
 
-export class MobileKeyboardService extends Disposable implements IMobileKeyboardService {
+export class KeyboardService extends Disposable implements IKeyboardService {
     readonly keyboardEnabled$: Observable<boolean>;
 
     private readonly _isKeyboardVisible$ = new BehaviorSubject<boolean>(false);

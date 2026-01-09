@@ -1,24 +1,24 @@
 ## 1. Foundation - Service and State Management
 
-- [x] 1.1 Create `IMobileKeyboardService` interface in `packages/sheets-ui/src/services/mobile/mobile-keyboard.service.ts`
+- [x] 1.1 Create `IKeyboardService` interface in `packages/sheets-ui/src/services/mobile/keyboard.service.ts`
   - Define mobile-specific observables: `isKeyboardVisible$` (for keyboard UI, not editor), `keyboardMode$`
   - Note: Edit state is managed by existing `EditorBridgeService` (`currentEditCellState$`, `visible$`)
   - Define methods: `showKeyboard()`, `hideKeyboard()`, `setMode()`
-  - Add DI token: `createIdentifier<IMobileKeyboardService>('sheets-ui.mobile-keyboard.service')`
+  - Add DI token: `createIdentifier<IKeyboardService>('sheets-ui.keyboard.service')`
   - Note: No `beginEdit()` or `endEdit()` - components call `SetCellEditVisibleOperation` directly
-- [x] 1.2 Implement `MobileKeyboardService` class with lightweight state management
+- [x] 1.2 Implement `KeyboardService` class with lightweight state management
   - Track keyboard UI visibility state (separate from editor visibility)
   - Track active mode ('formula' | 'number' | 'text')
   - Inject `IEditorBridgeService`
   - Subscribe to `editorBridgeService.visible$` to sync keyboard UI visibility with editor state
   - Implement `showKeyboard()` and `hideKeyboard()` to manage keyboard UI visibility only
-- [ ] 1.3 Write unit tests for `MobileKeyboardService`
+- [ ] 1.3 Write unit tests for `KeyboardService`
   - Test keyboard UI visibility state transitions (separate from editor state)
   - Test mode changes and observable emissions
   - Test subscription to `editorBridgeService.visible$` for synchronization
   - Note: No tests for beginEdit/endEdit since they don't exist in this service
-- [x] 1.4 Create `MobileKeyboardController` in `packages/sheets-ui/src/controllers/mobile/mobile-keyboard.controller.ts`
-  - Inject `IMobileKeyboardService`, `IEditorBridgeService`, `ICommandService`
+- [x] 1.4 Create `KeyboardController` in `packages/sheets-ui/src/controllers/mobile/keyboard.controller.ts`
+  - Inject `IKeyboardService`, `IEditorBridgeService`, `ICommandService`
   - Subscribe to cell focus events to trigger FAB display logic
   - Handle keyboard show/hide coordination with FAB
   - Integrate with existing `EditorBridgeService` for cell editing state (not duplicate it)
@@ -41,7 +41,7 @@
 - [x] 2.3 Create `ModeSwitcher.tsx` in `views/mobile/keyboard/common/`
   - Render five mode buttons: Tab, f(x), 123, ABC, Enter (↵)
   - Highlight active mode button
-  - Implement mode switch handlers calling `mobileKeyboardService.setMode()`
+  - Implement mode switch handlers calling `KeyboardService.setMode()`
   - Tab button: save cell, move selection right, keep keyboard open
   - Enter button: save cell, move selection down, keep keyboard open
   - Even horizontal spacing, consistent button sizing
@@ -81,10 +81,10 @@
   - Fixed position in bottom-right corner
   - Add shadow/elevation for visual prominence
   - Implement click handler to call `commandService.executeCommand(SetCellEditVisibleOperation.id, { visible: true, ... })`
-  - Note: Direct command call, no `mobileKeyboardService.beginEdit()` wrapper
+  - Note: Direct command call, no `KeyboardService.beginEdit()` wrapper
 - [x] 4.2 Implement FAB visibility logic
   - Show FAB when cell is focused on mobile device
-  - Hide FAB when mobile keyboard is visible (subscribe to `mobileKeyboardService.isKeyboardVisible$`)
+  - Hide FAB when mobile keyboard is visible (subscribe to `KeyboardService.isKeyboardVisible$`)
   - Re-show FAB when keyboard is dismissed
 - [x] 4.3 Register FAB component in `mobile-plugin.ts`
   - Register with `ComponentManager`
@@ -214,7 +214,7 @@
   - Subscribe to `keyboardMode$` observable
   - Conditionally render `FormulaKeyboard`, `NumberKeyboard`, or `TextKeyboard` based on mode
   - Animate mode transitions (fade or slide)
-- [x] 9.3 Update `ModeSwitcher` component to call `mobileKeyboardService.setMode()`
+- [x] 9.3 Update `ModeSwitcher` component to call `KeyboardService.setMode()`
   - f(x) button → 'formula' mode
   - 123 button → 'number' mode
   - ABC button → 'text' mode
@@ -234,10 +234,10 @@
 
 ## 10. Plugin Integration and Registration
 
-- [ ] 10.1 Register `IMobileKeyboardService` in `mobile-plugin.ts`
+- [ ] 10.1 Register `IKeyboardService` in `mobile-plugin.ts`
   - Add to dependency injection in `onStarting()` lifecycle
   - Use `createIdentifier` for DI token
-- [ ] 10.2 Register `MobileKeyboardController` in `mobile-plugin.ts`
+- [ ] 10.2 Register `KeyboardController` in `mobile-plugin.ts`
   - Add to dependency injection
   - Ensure controller is initialized during plugin lifecycle
 - [ ] 10.3 Register keyboard components in `mobile-plugin.ts`
@@ -299,7 +299,7 @@
 ## 13. Documentation and Cleanup
 
 - [ ] 13.1 Add JSDoc comments to all public APIs
-  - Document `IMobileKeyboardService` interface
+  - Document `IKeyboardService` interface
   - Document component props and behaviors
   - Add usage examples in comments
 - [ ] 13.2 Create visual examples/storybook stories

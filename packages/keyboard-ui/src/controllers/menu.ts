@@ -18,18 +18,18 @@ import type { IAccessor } from '@univerjs/core';
 import type { IMenuButtonItem } from '@univerjs/ui';
 import { MenuItemType } from '@univerjs/ui';
 import { map } from 'rxjs';
-import { KeyboardToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
-import { IMobileKeyboardService } from '../services/mobile-keyboard.service';
+import { ToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
+import { IKeyboardService } from '../services/keyboard.service';
 
 export function KeyboardToggleMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
-    const mobileKeyboardService = accessor.get(IMobileKeyboardService);
+    const keyboardService = accessor.get(IKeyboardService);
 
     return {
-        id: KeyboardToggleKeyboardOperation.id,
+        id: ToggleKeyboardOperation.id,
         type: MenuItemType.BUTTON,
         icon: 'KeyboardIcon',
-        activated$: mobileKeyboardService.isKeyboardVisible$,
-        disabled$: mobileKeyboardService.keyboardEnabled$.pipe(
+        activated$: keyboardService.isKeyboardVisible$,
+        disabled$: keyboardService.keyboardEnabled$.pipe(
             map((enabled) => !enabled)
         ),
     };

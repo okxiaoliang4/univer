@@ -20,16 +20,16 @@ import { getCurrentTypeOfRenderer, IRenderManagerService } from '@univerjs/engin
 import { MobileViewportController } from '@univerjs/sheets-ui';
 import { BuiltInUIPart, connectInjector, ILayoutService, IMenuManagerService, IUIPartsService } from '@univerjs/ui';
 import { distinctUntilChanged, filter } from 'rxjs';
-import { KeyboardConfirmAndMoveOperation, KeyboardDeleteBackwardOperation, KeyboardInsertFunctionOperation, KeyboardInsertQuotesOperation, KeyboardInsertTextOperation, KeyboardSetModeOperation, KeyboardToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
-import { IMobileKeyboardService, KeyboardMode } from '../services/mobile-keyboard.service';
+import { KeyboardConfirmAndMoveOperation, KeyboardDeleteBackwardOperation, KeyboardInsertFunctionOperation, KeyboardInsertQuotesOperation, KeyboardInsertTextOperation, KeyboardSetModeOperation, ToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
+import { IKeyboardService, KeyboardMode } from '../services/keyboard.service';
 import { KeyboardContainer } from '../views/keyboard/common/KeyboardContainer';
 import { MobileFormulaBar } from '../views/keyboard/common/MobileFormulaBar';
 import { menuSchema } from './menu.schema';
 
-export class MobileKeyboardController extends Disposable {
+export class KeyboardController extends Disposable {
     constructor(
         @Inject(Injector) private readonly _injector: Injector,
-        @IMobileKeyboardService private readonly _mobileKeyboardService: IMobileKeyboardService,
+        @IKeyboardService private readonly _keyboardService: IKeyboardService,
         @ICommandService private readonly _commandService: ICommandService,
         @IUIPartsService private readonly _uiPartsService: IUIPartsService,
         @ILayoutService private readonly _layoutService: ILayoutService,
@@ -65,7 +65,7 @@ export class MobileKeyboardController extends Disposable {
             KeyboardConfirmAndMoveOperation,
             KeyboardInsertFunctionOperation,
             KeyboardInsertQuotesOperation,
-            KeyboardToggleKeyboardOperation,
+            ToggleKeyboardOperation,
         ].forEach((command) => this.disposeWithMe(this._commandService.registerCommand(command)));
     }
 
@@ -77,9 +77,9 @@ export class MobileKeyboardController extends Disposable {
     private _initViewportListener(): void {
         this.disposeWithMe(this._mobileViewportController.offset$.subscribe((offset) => {
             if (offset === 0) {
-                const mode = this._mobileKeyboardService.getKeyboardMode();
+                const mode = this._keyboardService.getKeyboardMode();
                 if (mode === KeyboardMode.TEXT) {
-                    this._mobileKeyboardService.toggleKeyboard(false);
+                    this._keyboardService.toggleKeyboard(false);
                 }
             }
         }));
@@ -97,7 +97,7 @@ export class MobileKeyboardController extends Disposable {
             if (editorUnitId === DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY) {
                 const formulaEditor = this._editorService.getEditor(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
                 this.disposeWithMe(formulaEditor!.focus$.subscribe(() => {
-                    this._mobileKeyboardService.toggleKeyboard(true);
+                    this._keyboardService.toggleKeyboard(true);
                 }));
             }
         }));
@@ -117,22 +117,22 @@ export class MobileKeyboardController extends Disposable {
                 const shouldToggleKeyboard = focusEditorUnitId === DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY || focusEditorUnitId === DOCS_NORMAL_EDITOR_UNIT_ID_KEY;
                 // focus到非公式栏时，关闭键盘
                 if (!shouldToggleKeyboard) {
-                    this._mobileKeyboardService.toggleKeyboard(false);
+                    this._keyboardService.toggleKeyboard(false);
                 }
             }));
     }
 
     private _initKeyboardListener(): void {
-        this.disposeWithMe(this._mobileKeyboardService.keyboardEnabled$.pipe(distinctUntilChanged()).subscribe((enabled) => {
+        this.disposeWithMe(this._keyboardService.keyboardEnabled$.pipe(distinctUntilChanged()).subscribe((enabled) => {
             if (!enabled) {
-                this._mobileKeyboardService.toggleKeyboard(false);
+                this._keyboardService.toggleKeyboard(false);
             }
         }));
 
-        this.disposeWithMe(this._mobileKeyboardService.isKeyboardVisible$.pipe(distinctUntilChanged()).subscribe((isKeyboardVisible) => {
+        this.disposeWithMe(this._keyboardService.isKeyboardVisible$.pipe(distinctUntilChanged()).subscribe((isKeyboardVisible) => {
             if (isKeyboardVisible) {
                 this._contextService.setContextValue(FOCUSING_FX_BAR_EDITOR, true);
-                this._mobileKeyboardService.autoSelectMode();
+                this._keyboardService.autoSelectMode();
                 this._editorService.focus(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
             } else {
                 const formulaEditor = this._editorService.getEditor(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
@@ -143,7 +143,7 @@ export class MobileKeyboardController extends Disposable {
             }
         }));
 
-        this.disposeWithMe(this._mobileKeyboardService.keyboardMode$.subscribe((mode) => {
+        this.disposeWithMe(this._keyboardService.keyboardMode$.subscribe((mode) => {
             const editor = this._editorService.getEditor(DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY);
             if (!editor) return;
             if (mode === KeyboardMode.TEXT) {

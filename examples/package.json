@@ -38,7 +38,7 @@
         "@univerjs/engine-render": "workspace:*",
         "@univerjs/find-replace": "workspace:*",
         "@univerjs/icons": "1.0.2",
-        "@univerjs/mobile-keyboard-ui": "workspace:*",
+        "@univerjs/keyboard-ui": "workspace:*",
         "@univerjs/mockdata": "workspace:*",
         "@univerjs/network": "workspace:*",
         "@univerjs/rpc": "workspace:*",

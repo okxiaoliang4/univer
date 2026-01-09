@@ -16,12 +16,12 @@
 
 import type { MenuSchemaType } from '@univerjs/ui';
 import { RibbonPosition } from '@univerjs/ui';
-import { KeyboardToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
+import { ToggleKeyboardOperation } from '../commands/operations/keyboard.operation';
 import { KeyboardToggleMenuItemFactory } from './menu';
 
 export const menuSchema: MenuSchemaType = {
     [RibbonPosition.SUBMENU]: {
-        [KeyboardToggleKeyboardOperation.id]: {
+        [ToggleKeyboardOperation.id]: {
             order: 0,
             menuItemFactory: KeyboardToggleMenuItemFactory,
         },

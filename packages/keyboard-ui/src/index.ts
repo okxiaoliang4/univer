@@ -17,13 +17,13 @@
 import './global.css';
 
 // Controllers
-export { MobileKeyboardController } from './controllers/mobile-keyboard.controller';
+export { KeyboardController } from './controllers/keyboard.controller';
 
 // Plugin
-export { UniverMobileKeyboardUIPlugin } from './plugin';
+export { UniverKeyboardUIPlugin } from './plugin';
 
 // Services
-export { IMobileKeyboardService, type KeyboardMode, MobileKeyboardService } from './services/mobile-keyboard.service';
+export { IKeyboardService, type KeyboardMode, KeyboardService } from './services/keyboard.service';
 
 export { KeyboardContainer, KeyboardItem } from './views/keyboard/common/KeyboardContainer';
 export { MobileFormulaBar } from './views/keyboard/common/MobileFormulaBar';
