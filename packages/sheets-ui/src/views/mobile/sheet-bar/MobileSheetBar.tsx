@@ -191,11 +191,6 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
                     </DrawerHeader>
                     <MobileMenu
                         menuType={ContextMenuPosition.FOOTER_TABS}
-                        onOptionSelect={(params) => {
-                            const { label: id, value, commandId } = params;
-                            commandService.executeCommand(commandId ?? id as string, { value, subUnitId: activeKey });
-                            setDrawerOpen(false);
-                        }}
                     />
                 </DrawerContent>
             </Drawer>

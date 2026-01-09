@@ -14,14 +14,12 @@
  * limitations under the License.
  */
 
-import type { IDisplayMenuItem, IMenuItem, IValueOption, MenuItemDefaultValueType } from '../../../services/menu/menu';
 import type { IMenuSchema } from '../../../services/menu/menu-manager.service';
 import type { IBaseMenuProps } from '../desktop/Menu';
-import { clsx } from '@univerjs/design';
 import { useMemo } from 'react';
 import { IMenuManagerService } from '../../../services/menu/menu-manager.service';
-import { useDependency, useObservable } from '../../../utils/di';
-import { CustomLabel } from '../../custom-label';
+import { useDependency } from '../../../utils/di';
+import { MobileMenuItem } from './MobileMenuItem';
 
 /**
  * The mobile context menu wrapper.
@@ -53,57 +51,14 @@ export function MobileMenu(props: IBaseMenuProps) {
 
     return (
         <div
-            className={`
-              univer-box-border univer-grid univer-min-w-8 univer-max-w-52 univer-gap-1 univer-rounded
-              univer-bg-gray-900 univer-px-2 univer-py-1
-            `}
-            style={{
-                gridTemplateColumns: `repeat(${Math.min(2, flattedMenuItems.length)},  72px)`,
-            }}
+            className="univer-box-border univer-grid univer-gap-1 univer-px-2 univer-py-1"
         >
             {flattedMenuItems.map((item) => item.item && (
                 <MobileMenuItem
                     key={item.key}
-                    menuItem={item.item}
-                    onClick={(object: Partial<IValueOption>) => onOptionSelect?.({ value: '', label: item.key, ...object })}
+                    {...item.item}
                 />
             ))}
         </div>
-    );
-}
-
-interface IMobileMenuItemProps {
-    menuItem: IDisplayMenuItem<IMenuItem>;
-    onClick: (object: Partial<IValueOption>) => void;
-}
-
-function MobileMenuItem(props: IMobileMenuItemProps) {
-    const { menuItem, onClick } = props;
-    const { id, type, title, label, icon } = menuItem;
-
-    // if (type !== MenuItemType.BUTTON) {
-    //     throw new Error(`[MobileMenuItem]: on mobile devices only "BUTTON" type menu items are supported. Please check "${id}".`);
-    // }
-
-    const disabled = useObservable<boolean>(menuItem.disabled$, false);
-    // const activated = useObservable<boolean>(menuItem.activated$, false);
-    // const hidden = useObservable(menuItem.hidden$, false);
-    const value = useObservable<MenuItemDefaultValueType>(menuItem.value$);
-
-    return (
-        <button
-            type="button"
-            className={clsx(`
-              univer-w-18 univer-flex univer-flex-col univer-items-center univer-justify-center univer-border-none
-              univer-bg-transparent univer-text-white
-              [&>span]:univer-mt-0.5 [&>span]:univer-w-full [&>span]:univer-truncate [&>span]:univer-text-sm
-              [&>svg]:univer-size-[18px] [&>svg]:univer-text-lg
-            `)}
-            key={id}
-            disabled={disabled}
-            onClick={() => onClick({ id })}
-        >
-            <CustomLabel value={value} title={title} label={label} icon={icon} />
-        </button>
     );
 }
