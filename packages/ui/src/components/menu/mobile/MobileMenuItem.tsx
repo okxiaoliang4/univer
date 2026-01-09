@@ -16,7 +16,7 @@
 
 import type { IDisplayMenuItem, IMenuItem, IMenuSelectorItem, IValueOption } from '../../../services/menu/menu';
 import type { IMenuSchema } from '../../../services/menu/menu-manager.service';
-import { ICommandService, LocaleService } from '@univerjs/core';
+import { LocaleService } from '@univerjs/core';
 import { clsx, Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@univerjs/design';
 import { MoreRightIcon } from '@univerjs/icons';
 import { useEffect, useMemo, useState } from 'react';
@@ -30,9 +30,8 @@ import { IMenuManagerService } from '../../../services/menu/menu-manager.service
 import { useDependency, useObservable } from '../../../utils/di';
 import { useToolbarItemStatus } from '../../../views/components/ribbon/hook';
 
-export function MobileMenuItem(props: IDisplayMenuItem<IMenuItem>) {
+export function MobileMenuItem(props: IDisplayMenuItem<IMenuItem> & { onOptionSelect: (params: IValueOption) => void }) {
     const localeService = useDependency(LocaleService);
-    const commandService = useDependency(ICommandService);
     const layoutService = useDependency(ILayoutService);
     const componentManager = useDependency(ComponentManager);
     const menuManagerService = useDependency(IMenuManagerService);
@@ -41,7 +40,7 @@ export function MobileMenuItem(props: IDisplayMenuItem<IMenuItem>) {
 
     const executeCommand = (commandId: string, params?: Record<string, unknown>) => {
         layoutService.focus();
-        commandService.executeCommand(commandId, params);
+        props.onOptionSelect({ commandId, value: params?.value as string | number });
     };
 
     const { title, tooltip, icon, label, id, commandId, type, params } = props;
@@ -244,8 +243,8 @@ export function MobileMenuItem(props: IDisplayMenuItem<IMenuItem>) {
                     data-disabled={disabled}
                     onClick={handleClick}
                     className={clsx(`
-                      univer-flex univer-h-4 univer-cursor-pointer univer-items-center univer-gap-3 univer-rounded-md
-                      univer-px-4 univer-py-2 univer-transition-colors
+                      univer-box-content univer-flex univer-h-4 univer-cursor-pointer univer-items-center univer-gap-3
+                      univer-rounded-md univer-px-4 univer-py-2 univer-transition-colors
                       active:univer-bg-gray-100
                       dark:active:!univer-bg-gray-700
                     `, {
@@ -299,8 +298,8 @@ export function MobileMenuItem(props: IDisplayMenuItem<IMenuItem>) {
                 onClick={() => executeCommand(props.commandId ?? props.id, commandValue)}
                 onDoubleClick={() => props.subId && executeCommand(props.subId)}
                 className={clsx(`
-                  univer-flex univer-h-4 univer-cursor-pointer univer-items-center univer-gap-3 univer-rounded-md
-                  univer-px-4 univer-py-2 univer-transition-colors
+                  univer-box-content univer-flex univer-h-4 univer-cursor-pointer univer-items-center univer-gap-3
+                  univer-rounded-md univer-px-4 univer-py-2 univer-transition-colors
                   active:univer-bg-gray-100
                   dark:active:!univer-bg-gray-700
                 `, {

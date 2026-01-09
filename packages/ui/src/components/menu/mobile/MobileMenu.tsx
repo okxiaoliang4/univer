@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { IValueOption } from '../../../services/menu/menu';
 import type { IMenuSchema } from '../../../services/menu/menu-manager.service';
 import type { IBaseMenuProps } from '../desktop/Menu';
 import { useMemo } from 'react';
@@ -24,7 +25,7 @@ import { MobileMenuItem } from './MobileMenuItem';
 /**
  * The mobile context menu wrapper.
  */
-export function MobileMenu(props: IBaseMenuProps) {
+export function MobileMenu(props: IBaseMenuProps & { onOptionSelect: (params: IValueOption) => void }) {
     const { menuType, onOptionSelect } = props;
     const menuManagerService = useDependency(IMenuManagerService);
 
@@ -57,6 +58,7 @@ export function MobileMenu(props: IBaseMenuProps) {
                 <MobileMenuItem
                     key={item.key}
                     {...item.item}
+                    onOptionSelect={onOptionSelect}
                 />
             ))}
         </div>

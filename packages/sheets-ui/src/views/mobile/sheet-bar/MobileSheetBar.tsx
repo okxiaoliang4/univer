@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-import type { ICommandInfo, Workbook } from '@univerjs/core';
+import type { BooleanNumber, ICommandInfo, Workbook } from '@univerjs/core';
 import type { ISetWorksheetActiveOperationParams } from '@univerjs/sheets';
-import type { IBaseSheetBarProps } from '../../sheet-bar/sheet-bar-tabs/SheetBarItem';
-import { ICommandService } from '@univerjs/core';
-import { borderRightClassName, Button, clsx, Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@univerjs/design';
+import type { CSSProperties, ReactNode, Ref } from 'react';
+import { ColorKit, ICommandService, ThemeService } from '@univerjs/core';
+import { Button, clsx, Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@univerjs/design';
 import { IncreaseIcon, MoreDownIcon } from '@univerjs/icons';
 import {
     InsertSheetCommand,
     InsertSheetMutation,
     RemoveSheetMutation,
+    SetTabColorMutation,
     SetWorksheetActiveOperation,
     SetWorksheetHideMutation,
     SetWorksheetNameMutation,
@@ -74,7 +75,9 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
         if (tabMapRef.current.has(currentSubUnitId)) {
             const element = tabMapRef.current.get(currentSubUnitId);
             if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 0);
             }
         }
 
@@ -111,6 +114,7 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
                 case InsertSheetMutation.id:
                 case SetWorksheetOrderMutation.id:
                 case SetWorksheetActiveOperation.id:
+                case SetTabColorMutation.id:
                     updateSheetItems();
                     // Close drawer when sheet changes
                     if (commandInfo.id === SetWorksheetActiveOperation.id) {
@@ -136,40 +140,14 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
 
             <div className="univer-flex univer-h-8 univer-flex-nowrap univer-items-center">
                 {sheetList.map((sheet) => (
-                    <div
-                        ref={(element) => {
+                    <MobileSheetBarItem
+                        ref={(element: HTMLDivElement | null) => {
                             tabMapRef.current.set(sheet.sheetId!, element);
                         }}
-                        className={clsx(
-                            `
-                              univer-box-border univer-h-full univer-min-w-12 univer-max-w-[120px] univer-shrink-0
-                              univer-flex-nowrap univer-items-center univer-truncate univer-px-1 univer-py-0.5
-                              univer-text-center univer-leading-7
-                            `,
-                            borderRightClassName,
-                            {
-                                'univer-bg-white univer-text-primary-600 dark:!univer-bg-slate-600': sheet.sheetId === activeKey,
-                            }
-                        )}
                         key={sheet.sheetId}
+                        {...sheet}
                         onClick={() => onTabClick(sheet.sheetId!)}
-                    >
-                        <span
-                            className={`
-                              univer-flex univer-w-full univer-items-center univer-justify-center univer-gap-1
-                            `}
-                        >
-                            <span className="univer-truncate">{sheet.label}</span>
-                            {sheet.sheetId === activeKey && (
-                                <MoreDownIcon
-                                    className={`
-                                      univer-size-3 univer-shrink-0 univer-text-primary-600
-                                      dark:!univer-text-white
-                                    `}
-                                />
-                            )}
-                        </span>
-                    </div>
+                    />
                 ))}
             </div>
             <Button
@@ -191,9 +169,90 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
                     </DrawerHeader>
                     <MobileMenu
                         menuType={ContextMenuPosition.FOOTER_TABS}
+                        onOptionSelect={(params) => {
+                            const { label: id, value, commandId } = params;
+                            commandService.executeCommand(commandId ?? id as string, { value, subUnitId: activeKey });
+                            setDrawerOpen(false);
+                        }}
                     />
                 </DrawerContent>
             </Drawer>
+        </div>
+    );
+}
+
+export interface IBaseSheetBarProps {
+    label?: ReactNode;
+    children?: any[];
+    index?: number;
+    color?: string;
+    sheetId?: string;
+    style?: CSSProperties;
+    hidden?: BooleanNumber;
+    selected?: boolean;
+    menuOverlay?: ReactNode;
+    onClick?: () => void;
+}
+
+export function MobileSheetBarItem(props: IBaseSheetBarProps & { ref: Ref<HTMLDivElement> }) {
+    const { sheetId, label, color, selected, ref, onClick } = props;
+
+    const [currentSelected, setCurrentSelected] = useState(selected);
+
+    const themeService = useDependency(ThemeService);
+
+    useEffect(() => {
+        // TODO: update too many times?
+        setCurrentSelected(selected);
+    }, [selected]);
+
+    const getTextColor = (color: string) => {
+        const darkTextColor = themeService.getColorFromTheme('gray.900');
+        const lightTextColor = themeService.getColorFromTheme('white');
+        return new ColorKit(color).isDark() ? lightTextColor : darkTextColor;
+    };
+
+    return (
+        <div
+            ref={ref}
+            onClick={onClick}
+            data-u-comp="slide-tab-item"
+            key={sheetId}
+            data-id={sheetId}
+            className={clsx(`
+              univer-box-border univer-flex univer-flex-grow univer-cursor-pointer univer-select-none univer-flex-row
+              univer-items-center univer-text-xs univer-transition-[colors,box-shadow]
+            `, {
+                'dark:!univer-text-white': !color || (color && !getTextColor(color)),
+                'univer-justify-center univer-bg-white univer-font-bold univer-text-primary-700 univer-shadow': currentSelected,
+                'dark:!univer-bg-gray-700': currentSelected && !color,
+                'univer-font-medium univer-text-gray-900 hover:univer-bg-gray-100': !currentSelected,
+                'dark:hover:!univer-bg-gray-700': !currentSelected && !color,
+            })}
+            style={{
+                backgroundColor: !currentSelected && color ? color : '',
+                color: !currentSelected && color ? getTextColor(color) : '',
+                boxShadow:
+                    currentSelected && color ? `0px 0px 8px rgba(0, 0, 0, 0.08), inset 0px -2px 0px 0px ${color}` : '',
+            }}
+        >
+            <div
+                className={`
+                  univer-box-border univer-flex univer-max-w-lg univer-items-center univer-gap-1 univer-overflow-hidden
+                  univer-whitespace-nowrap univer-rounded univer-border-2 univer-border-solid univer-border-transparent
+                  univer-px-1.5 univer-py-1
+                `}
+            >
+                {label}
+                {selected && (
+                    <MoreDownIcon
+                        className={`
+                          univer-size-3 univer-shrink-0 univer-text-primary-600
+                          dark:!univer-text-white
+                        `}
+                    />
+                )}
+            </div>
         </div>
     );
 }
