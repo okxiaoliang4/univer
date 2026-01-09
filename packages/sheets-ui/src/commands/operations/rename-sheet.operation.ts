@@ -15,9 +15,11 @@
  */
 
 import type { IAccessor, ICommand } from '@univerjs/core';
-import { CommandType } from '@univerjs/core';
+import { CommandType, LocaleService } from '@univerjs/core';
 
+import { ISidebarService } from '@univerjs/ui';
 import { ISheetBarService } from '../../services/sheet-bar/sheet-bar.service';
+import { RenameInput } from '../../views/mobile/sheet-bar/RenameInput';
 
 interface IRenameSheetOperationParams {
     subUnitId: string;
@@ -30,6 +32,33 @@ export const RenameSheetOperation: ICommand = {
         const sheetBarService = accessor.get(ISheetBarService);
         if (params) {
             sheetBarService.setRenameId(params.subUnitId);
+        }
+        return true;
+    },
+};
+
+export const RENAME_INPUT_DIALOG_ID = 'rename-input-dialog';
+export const RenameSheetMobileOperation: ICommand = {
+    id: 'sheet.operation.mobile-rename-sheet',
+    type: CommandType.OPERATION,
+    handler: async (accessor: IAccessor, params?: IRenameSheetOperationParams) => {
+        const sidebarService = accessor.get(ISidebarService);
+        const localeService = accessor.get(LocaleService);
+        if (params) {
+            sidebarService.open({
+                id: RENAME_INPUT_DIALOG_ID,
+                header: {
+                    title: localeService.t('sheetConfig.rename'),
+                },
+                children: {
+                    label: {
+                        name: RenameInput.componentKey,
+                        props: {
+                            subUnitId: params.subUnitId,
+                        },
+                    },
+                },
+            });
         }
         return true;
     },

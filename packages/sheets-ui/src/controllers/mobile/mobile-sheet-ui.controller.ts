@@ -91,7 +91,7 @@ import {
     SetCellEditVisibleOperation,
     SetCellEditVisibleWithF2Operation,
 } from '../../commands/operations/cell-edit.operation';
-import { RenameSheetOperation } from '../../commands/operations/rename-sheet.operation';
+import { RenameSheetMobileOperation } from '../../commands/operations/rename-sheet.operation';
 import { ScrollToRangeOperation } from '../../commands/operations/scroll-to-range.operation';
 import { SetScrollOperation } from '../../commands/operations/scroll.operation';
 import { SetFormatPainterOperation } from '../../commands/operations/set-format-painter.operation';
@@ -108,8 +108,8 @@ import { CELL_POPUP_COMPONENT_KEY } from '../../views/cell-popup/config';
 import { DEFINED_NAME_CONTAINER } from '../../views/defined-name/component-name';
 import { DefinedNameContainer } from '../../views/defined-name/DefinedNameContainer';
 import { MobileSheetBar } from '../../views/mobile/sheet-bar/MobileSheetBar';
+import { RenameInput } from '../../views/mobile/sheet-bar/RenameInput';
 import { RenderSheetContent } from '../../views/sheet-container/SheetContainer';
-import { menuSchema } from '../menu.schema';
 import {
     EditorBreakLineShortcut,
     EditorCursorCtrlEnterShortcut,
@@ -163,6 +163,7 @@ import {
     ZoomInShortcutItem,
     ZoomOutShortcutItem,
 } from '../shortcuts/view.shortcut';
+import { menuSchema } from './menu.schema';
 
 export class SheetUIMobileController extends Disposable {
     constructor(
@@ -204,6 +205,7 @@ export class SheetUIMobileController extends Disposable {
         this.disposeWithMe(componentManager.register('HideGridlinesDoubleIcon', HideGridlinesDoubleIcon));
         this.disposeWithMe(componentManager.register('AIcon', AIcon));
         this.disposeWithMe(componentManager.register('ALargeSmallIcon', ALargeSmallIcon));
+        this.disposeWithMe(componentManager.register(RenameInput.componentKey, RenameInput));
     }
 
     private _initCommands(): void {
@@ -212,7 +214,7 @@ export class SheetUIMobileController extends Disposable {
             ExpandSelectionCommand,
             MoveSelectionCommand,
             MoveSelectionEnterAndTabCommand,
-            RenameSheetOperation,
+            RenameSheetMobileOperation,
             RemoveSheetConfirmCommand,
             RemoveRowConfirmCommand,
             RemoveColConfirmCommand,

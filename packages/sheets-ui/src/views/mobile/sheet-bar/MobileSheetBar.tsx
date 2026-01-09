@@ -19,16 +19,18 @@ import type { ISetWorksheetActiveOperationParams } from '@univerjs/sheets';
 import type { CSSProperties, ReactNode, Ref } from 'react';
 import { ColorKit, ICommandService, ThemeService } from '@univerjs/core';
 import { Button, clsx, Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@univerjs/design';
-import { IncreaseIcon, MoreDownIcon } from '@univerjs/icons';
+import { IncreaseIcon, LockIcon, MoreDownIcon } from '@univerjs/icons';
 import {
     InsertSheetCommand,
     InsertSheetMutation,
+    RangeProtectionRuleModel,
     RemoveSheetMutation,
     SetTabColorMutation,
     SetWorksheetActiveOperation,
     SetWorksheetHideMutation,
     SetWorksheetNameMutation,
     SetWorksheetOrderMutation,
+    WorksheetProtectionRuleModel,
 } from '@univerjs/sheets';
 import { ContextMenuPosition, MobileMenu, useDependency } from '@univerjs/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -51,6 +53,8 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const tabMapRef = useRef<Map<string, HTMLElement | null>>(new Map());
 
+    const worksheetProtectionRuleModel = useDependency(WorksheetProtectionRuleModel);
+    const rangeProtectionRuleModel = useDependency(RangeProtectionRuleModel);
     const commandService = useDependency(ICommandService);
 
     const updateSheetItems = useCallback(() => {
@@ -60,12 +64,16 @@ function MobileSheetBarImpl(props: { workbook: Workbook }) {
         const sheetListItems = sheets
             .filter((sheet) => !sheet.isSheetHidden())
             .map((sheet, index) => {
+                const worksheetRule = worksheetProtectionRuleModel.getRule(workbook.getUnitId(), sheet.getSheetId());
+                const hasSelectionRule = rangeProtectionRuleModel.getSubunitRuleList(workbook.getUnitId(), sheet.getSheetId()).length > 0;
+                const hasProtect = !!(worksheetRule?.permissionId || hasSelectionRule);
                 return {
                     sheetId: sheet.getSheetId(),
                     label: sheet.getName(),
                     index,
                     selected: activeSheet === sheet,
                     color: sheet.getTabColor() ?? undefined,
+                    hasProtect,
                 };
             });
 
@@ -191,11 +199,12 @@ export interface IBaseSheetBarProps {
     hidden?: BooleanNumber;
     selected?: boolean;
     menuOverlay?: ReactNode;
+    hasProtect?: boolean;
     onClick?: () => void;
 }
 
 export function MobileSheetBarItem(props: IBaseSheetBarProps & { ref: Ref<HTMLDivElement> }) {
-    const { sheetId, label, color, selected, ref, onClick } = props;
+    const { sheetId, label, color, selected, ref, onClick, hasProtect } = props;
 
     const [currentSelected, setCurrentSelected] = useState(selected);
 
@@ -243,6 +252,9 @@ export function MobileSheetBarItem(props: IBaseSheetBarProps & { ref: Ref<HTMLDi
                   univer-px-1.5 univer-py-1
                 `}
             >
+                {hasProtect && (
+                    <LockIcon className="univer-shrink-0" />
+                )}
                 {label}
                 {selected && (
                     <MoreDownIcon

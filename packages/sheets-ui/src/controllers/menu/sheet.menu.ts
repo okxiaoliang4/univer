@@ -37,7 +37,7 @@ import { combineLatest, combineLatestWith, map, Observable } from 'rxjs';
 
 import { RemoveSheetConfirmCommand } from '../../commands/commands/remove-sheet-confirm.command';
 import { ShowMenuListCommand } from '../../commands/commands/unhide.command';
-import { RenameSheetOperation } from '../../commands/operations/rename-sheet.operation';
+import { RenameSheetMobileOperation, RenameSheetOperation } from '../../commands/operations/rename-sheet.operation';
 import { getWorkbookPermissionDisable$ } from './menu-util';
 
 export function DeleteSheetMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
@@ -88,6 +88,16 @@ export function CopySheetMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
 export function RenameSheetMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
     return {
         id: RenameSheetOperation.id,
+        type: MenuItemType.BUTTON,
+        title: 'sheetConfig.rename',
+        disabled$: getWorkbookPermissionDisable$(accessor, [WorkbookEditablePermission, WorkbookRenameSheetPermission]),
+        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
+    };
+}
+
+export function MobileRenameSheetMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
+    return {
+        id: RenameSheetMobileOperation.id,
         type: MenuItemType.BUTTON,
         title: 'sheetConfig.rename',
         disabled$: getWorkbookPermissionDisable$(accessor, [WorkbookEditablePermission, WorkbookRenameSheetPermission]),
