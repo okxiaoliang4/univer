@@ -17,8 +17,6 @@
     },
     "dependencies": {
         "@lit/react": "^1.0.8",
-        "@univerjs-pro/sheets-pivot": "0.14.0",
-        "@univerjs-pro/sheets-pivot-ui": "0.14.0",
         "@univerjs/action-recorder": "workspace:*",
         "@univerjs/core": "workspace:*",
         "@univerjs/data-validation": "workspace:*",
