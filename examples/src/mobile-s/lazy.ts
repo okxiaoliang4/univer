@@ -22,7 +22,7 @@ import { UniverSheetsConditionalFormattingMobileUIPlugin } from '@univerjs/sheet
 import { UniverSheetsDataValidationMobileUIPlugin } from '@univerjs/sheets-data-validation-ui';
 import { UniverSheetsDrawingUIPlugin } from '@univerjs/sheets-drawing-ui';
 import { UniverSheetsFilterMobileUIPlugin } from '@univerjs/sheets-filter-ui';
-import { UniverSheetsFormulaUIPlugin } from '@univerjs/sheets-formula-ui';
+import { UniverSheetsFormulaMobileUIPlugin } from '@univerjs/sheets-formula-ui';
 import { UniverSheetsNoteUIPlugin } from '@univerjs/sheets-note-ui';
 import { UniverSheetsNumfmtMobileUIPlugin } from '@univerjs/sheets-numfmt-ui';
 import { UniverSheetsTableUIPlugin } from '@univerjs/sheets-table-ui';
@@ -38,7 +38,7 @@ export default function getLazyPlugins(): Array<[PluginCtor<Plugin>] | [PluginCt
         [UniverSheetsThreadCommentMobileUIPlugin],
         [UniverSheetsNoteUIPlugin],
         [UniverSheetsTableUIPlugin],
-        [UniverSheetsFormulaUIPlugin],
+        [UniverSheetsFormulaMobileUIPlugin],
         [UniverSheetsDataValidationMobileUIPlugin],
         [UniverSheetsConditionalFormattingMobileUIPlugin],
         [UniverSheetsFilterMobileUIPlugin, { useRemoteFilterValuesGenerator: false }],

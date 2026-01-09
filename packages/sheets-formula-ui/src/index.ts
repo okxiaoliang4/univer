@@ -26,6 +26,7 @@ export { ReferenceAbsoluteOperation } from './commands/operations/reference-abso
 export { SearchFunctionOperation } from './commands/operations/search-function.operation';
 export type { IUniverSheetsFormulaUIConfig } from './controllers/config.schema';
 export { FormulaReorderController } from './controllers/formula-reorder.controller';
+export { UniverSheetsFormulaMobileUIPlugin } from './mobile-plugin';
 export { UniverSheetsFormulaUIPlugin } from './plugin';
 export { FORMULA_PROMPT_ACTIVATED } from './services/prompt.service';
 export { GlobalRangeSelectorService, type IShowRangeSelectorDialogOptions } from './services/range-selector.service';

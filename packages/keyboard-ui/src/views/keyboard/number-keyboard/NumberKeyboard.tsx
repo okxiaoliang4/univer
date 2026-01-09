@@ -54,7 +54,7 @@ export function NumberKeyboard() {
             <div className="univer-grid univer-grid-cols-5 univer-gap-1">
                 <KeyboardItem
                     className="univer-p-2 univer-text-lg"
-                    onClick={() => handleKeyPress('+/-')}
+                    onPointerUp={() => handleKeyPress('+/-')}
                 >
                     +/-
                 </KeyboardItem>
@@ -62,7 +62,7 @@ export function NumberKeyboard() {
                     <KeyboardItem
                         key={key}
                         className="univer-p-2 univer-text-xl univer-font-medium"
-                        onClick={() => handleKeyPress(key)}
+                        onPointerUp={() => handleKeyPress(key)}
                     >
                         {key}
                     </KeyboardItem>
@@ -70,14 +70,14 @@ export function NumberKeyboard() {
                 <KeyboardItem
                     variant="danger"
                     className="univer-p-2 univer-text-base"
-                    onClick={() => handleKeyPress('del')}
+                    onPointerUp={() => handleKeyPress('del')}
                 >
                     ⌫
                 </KeyboardItem>
 
                 <KeyboardItem
                     className="univer-p-2 univer-text-lg"
-                    onClick={() => handleKeyPress('%')}
+                    onPointerUp={() => handleKeyPress('%')}
                 >
                     %
                 </KeyboardItem>
@@ -85,20 +85,20 @@ export function NumberKeyboard() {
                     <KeyboardItem
                         key={key}
                         className="univer-p-2 univer-text-xl univer-font-medium"
-                        onClick={() => handleKeyPress(key)}
+                        onPointerUp={() => handleKeyPress(key)}
                     >
                         {key}
                     </KeyboardItem>
                 ))}
                 <KeyboardItem
                     className="univer-p-2 univer-text-sm"
-                    onClick={() => handleKeyPress('tab')}
+                    onPointerUp={() => handleKeyPress('tab')}
                 >
                     Tab
                 </KeyboardItem>
                 <KeyboardItem
                     className="univer-p-2 univer-text-lg"
-                    onClick={() => handleKeyPress('$')}
+                    onPointerUp={() => handleKeyPress('$')}
                 >
                     $
                 </KeyboardItem>
@@ -106,7 +106,7 @@ export function NumberKeyboard() {
                     <KeyboardItem
                         key={key}
                         className="univer-p-2 univer-text-xl univer-font-medium"
-                        onClick={() => handleKeyPress(key)}
+                        onPointerUp={() => handleKeyPress(key)}
                     >
                         {key}
                     </KeyboardItem>
@@ -114,19 +114,19 @@ export function NumberKeyboard() {
                 <KeyboardItem
                     variant="primary"
                     className="univer-row-span-2 !univer-h-auto univer-p-2 univer-text-base"
-                    onClick={() => handleKeyPress('enter')}
+                    onPointerUp={() => handleKeyPress('enter')}
                 >
                     ↵
                 </KeyboardItem>
                 <KeyboardItem
                     className="univer-p-2 univer-text-lg"
-                    onClick={() => handleKeyPress('¥')}
+                    onPointerUp={() => handleKeyPress('¥')}
                 >
                     ¥
                 </KeyboardItem>
                 <KeyboardItem
                     className="univer-p-2 univer-text-base"
-                    onClick={() => handleKeyPress('00')}
+                    onPointerUp={() => handleKeyPress('00')}
                 >
                     00
                 </KeyboardItem>
@@ -134,7 +134,7 @@ export function NumberKeyboard() {
                     <KeyboardItem
                         key={key}
                         className="univer-p-2 univer-text-xl univer-font-medium"
-                        onClick={() => handleKeyPress(key)}
+                        onPointerUp={() => handleKeyPress(key)}
                     >
                         {key}
                     </KeyboardItem>

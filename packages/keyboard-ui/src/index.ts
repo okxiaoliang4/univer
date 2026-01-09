@@ -30,7 +30,6 @@ export { MobileFormulaBar } from './views/keyboard/common/MobileFormulaBar';
 export { ModeSwitcher } from './views/keyboard/common/ModeSwitcher';
 export { OperationToolbar } from './views/keyboard/common/OperationToolbar';
 export { FormulaKeyboard } from './views/keyboard/formula-keyboard/FormulaKeyboard';
-export { FunctionBrowser } from './views/keyboard/formula-keyboard/FunctionBrowser';
 export { useKeyboardInput } from './views/keyboard/hooks/use-keyboard-input';
 export { NumberKeyboard } from './views/keyboard/number-keyboard/NumberKeyboard';
 export { TextKeyboard } from './views/keyboard/text-keyboard/TextKeyboard';
