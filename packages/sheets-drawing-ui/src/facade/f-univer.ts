@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { IDrawingSearch, Injector } from '@univerjs/core';
+import type { IDisposable, IDrawingSearch, Injector } from '@univerjs/core';
 import type { IEventBase } from '@univerjs/core/facade';
 import type { ISheetFloatDom, ISheetImage } from '@univerjs/sheets-drawing';
 import type { IDeleteDrawingCommandParams, IInsertDrawingCommandParams, ISetDrawingCommandParams } from '@univerjs/sheets-drawing-ui';
@@ -25,7 +25,7 @@ import type {
     IBeforeFloatDomUpdateParam,
     IBeforeOverGridImageChangeParamObject,
 } from './f-event';
-import { CanceledError, DrawingTypeEnum, ICommandService } from '@univerjs/core';
+import { CanceledError, DrawingTypeEnum, ICommandService, IURLImageService } from '@univerjs/core';
 import { FUniver } from '@univerjs/core/facade';
 import { IDrawingManagerService, SetDrawingSelectedOperation } from '@univerjs/drawing';
 import { InsertSheetDrawingCommand, RemoveSheetDrawingCommand, SetSheetDrawingCommand } from '@univerjs/sheets-drawing-ui';
@@ -52,10 +52,32 @@ interface IBeforeOverGridImageSelectParam extends IEventBase {
     oldSelectedImages: FOverGridImage[];
 }
 
+export interface IFUniverDrawingUIMixin {
+    /**
+     * Register a custom image downloader for URL images
+     * @param downloader The downloader function that takes a URL and returns a base64 string
+     * @returns A disposable object to unregister the downloader
+     * @example
+     * ```ts
+     * const disposable = univerAPI.registerURLImageDownloader(async (url) => {
+     *   const response = await fetch(url);
+     *   const blob = await response.blob();
+     *   const base64 = await new Promise<string>((resolve) => {
+     *     const reader = new FileReader();
+     *     reader.onloadend = () => resolve(reader.result as string);
+     *     reader.readAsDataURL(blob);
+     *   });
+     *   return base64;
+     * });
+     * ```
+     */
+    registerURLImageDownloader(downloader: (url: string) => Promise<string>): IDisposable;
+}
+
 /**
  * @ignore
  */
-export class FUniverDrawingMixin extends FUniver {
+export class FUniverDrawingUIMixin extends FUniver implements IFUniverDrawingUIMixin {
     /**
      * @ignore
      */
@@ -476,6 +498,15 @@ export class FUniverDrawingMixin extends FUniver {
             return this._injector.createInstance(FOverGridImage, drawing);
         });
     }
+
+    override registerURLImageDownloader(downloader: (url: string) => Promise<string>): IDisposable {
+        const urlImageService = this._injector.get(IURLImageService);
+        return urlImageService.registerURLImageDownloader(downloader);
+    }
 }
 
-FUniver.extend(FUniverDrawingMixin);
+FUniver.extend(FUniverDrawingUIMixin);
+declare module '@univerjs/core/facade' {
+    // eslint-disable-next-line ts/naming-convention
+    interface FUniver extends IFUniverDrawingUIMixin { }
+}

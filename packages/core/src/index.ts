@@ -42,6 +42,7 @@ export { requestImmediateMacroTask } from './common/request-immediate-macro-task
 export { type ISequenceExecuteResult, sequence, sequenceAsync } from './common/sequence';
 export { mergeSets } from './common/set';
 export { UnitModel, type UnitType, UniverInstanceType } from './common/unit';
+export { resolveWithBasePath } from './common/url';
 export * from './docs/data-model';
 export { JSON1, JSONX } from './docs/data-model/json-x/json-x';
 export type { JSONXActions, JSONXPath } from './docs/data-model/json-x/json-x';
@@ -103,7 +104,9 @@ export { IConfirmService, TestConfirmService } from './services/confirm/confirm.
 export * from './services/context/context';
 export { ContextService, IContextService } from './services/context/context.service';
 export { ErrorService, type IError } from './services/error/error.service';
-export { IImageIoService, type IImageIoServiceParam, ImageSourceType, ImageUploadStatusType } from './services/image-io/image-io.service';
+export { IImageIoService, ImageSourceType, ImageUploadStatusType } from './services/image-io/image-io.service';
+export type { IImageIoServiceParam } from './services/image-io/image-io.service';
+export { IURLImageService } from './services/image-io/url-image.service';
 export { type ICreateUnitOptions, IUniverInstanceService, UniverInstanceService } from './services/instance/instance.service';
 export { LifecycleStages } from './services/lifecycle/lifecycle';
 export { LifecycleService, LifecycleUnreachableError } from './services/lifecycle/lifecycle.service';

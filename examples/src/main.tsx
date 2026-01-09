@@ -71,9 +71,6 @@ function Examples() {
         title: '📚 Docs Uniscript',
         href: './docs-uniscript/',
     }, {
-        title: '🌌 Uni Mode',
-        href: './uni/',
-    }, {
         title: '📱 Mobile',
         href: './mobile-s/',
     }];

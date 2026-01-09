@@ -58,5 +58,7 @@
     "editor.quickSuggestions": {
         "strings": "on"
     },
-    "commentTranslate.hover.enabled": false
+    "commentTranslate.hover.enabled": false,
+
+    "vitest.maximumConfigs": 80
 }

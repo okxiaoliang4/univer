@@ -63,7 +63,7 @@ export { RefillCommand } from './commands/commands/refill.command';
 export { RemoveColConfirmCommand, RemoveRowConfirmCommand } from './commands/commands/remove-row-col-confirm.command';
 export { RemoveSheetConfirmCommand } from './commands/commands/remove-sheet-confirm.command';
 export { ApplyFormatPainterCommand, SetInfiniteFormatPainterCommand, SetOnceFormatPainterCommand } from './commands/commands/set-format-painter.command';
-export { SetColumnFrozenCommand, SetRowFrozenCommand, SetSelectionFrozenCommand } from './commands/commands/set-frozen.command';
+export { SetColumnFrozenCommand, SetFirstColumnFrozenCommand, SetFirstRowFrozenCommand, SetRowFrozenCommand, SetSelectionFrozenCommand } from './commands/commands/set-frozen.command';
 export {
     type IScrollCommandParams,
     type IScrollToCellCommandParams,
@@ -106,7 +106,7 @@ export { EMBEDDING_FORMULA_EDITOR, isEmbeddingFormulaEditor } from './controller
 export { isRangeSelector, RANGE_SELECTOR_SYMBOLS } from './controllers/editor/utils/is-range-selector';
 export { HoverRenderController } from './controllers/hover-render.controller';
 export { menuSchema as SheetsUIMenuSchema } from './controllers/menu.schema';
-export { COPY_SPECIAL_MENU_ID, PASTE_SPECIAL_MENU_ID, SheetMenuPosition } from './controllers/menu/menu';
+export { COPY_SPECIAL_MENU_ID, menuClipboardDisabledObservable, PASTE_SPECIAL_MENU_ID, SheetMenuPosition } from './controllers/menu/menu';
 export { deriveStateFromActiveSheet$, getCurrentExclusiveRangeInterest$, getCurrentRangeDisable$, getObservableWithExclusiveRange$ } from './controllers/menu/menu-util';
 export { MobileViewportController } from './controllers/mobile/mobile-viewport.controller';
 export { SheetPermissionCheckUIController } from './controllers/permission/sheet-permission-check-ui.controller';

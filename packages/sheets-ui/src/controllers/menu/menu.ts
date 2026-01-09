@@ -37,7 +37,6 @@ import {
 import { SetTextSelectionsOperation } from '@univerjs/docs';
 import { SetInlineFormatCommand } from '@univerjs/docs-ui';
 import {
-    CancelFrozenCommand,
     RangeProtectionPermissionEditPoint,
     RangeProtectionPermissionViewPoint,
     ResetBackgroundColorCommand,
@@ -100,9 +99,9 @@ import {
     SetRangeUnderlineCommand,
 } from '../../commands/commands/inline-format.command';
 import { SetInfiniteFormatPainterCommand, SetOnceFormatPainterCommand } from '../../commands/commands/set-format-painter.command';
-import { SetColumnFrozenCommand, SetRowFrozenCommand, SetSelectionFrozenCommand } from '../../commands/commands/set-frozen.command';
 import { SetWorksheetColAutoWidthCommand } from '../../commands/commands/set-worksheet-auto-col-width.command';
 import { MENU_ITEM_INPUT_COMPONENT } from '../../components/menu-item-input';
+import { ISheetClipboardService } from '../../services/clipboard/clipboard.service';
 import { FormatPainterStatus, IFormatPainterService } from '../../services/format-painter/format-painter.service';
 import { deriveStateFromActiveSheet$, getCurrentRangeDisable$, getObservableWithExclusiveRange$ } from './menu-util';
 import { getFontStyleAtCursor } from './utils';
@@ -954,9 +953,20 @@ export function TextRotateMenuItemFactory(accessor: IAccessor): IMenuSelectorIte
 // #region - copy cut paste
 // TODO@wzhudev: maybe we should move these menu factory to @univerjs/ui
 
-function menuClipboardDisabledObservable(injector: IAccessor): Observable<boolean> {
-    const clipboardDisabled$: Observable<boolean> = new Observable((subscriber) => subscriber.next(!injector.get(IClipboardInterfaceService).supportClipboard));
-    return clipboardDisabled$;
+export function menuClipboardDisabledObservable(injector: IAccessor): Observable<boolean> {
+    return new Observable((subscriber) => {
+        const clipboardInterfaceService = injector.get(IClipboardInterfaceService);
+        const supportClipboard = clipboardInterfaceService.supportClipboard;
+
+        const sheetClipboardService = injector.get(ISheetClipboardService);
+        const subscription = sheetClipboardService.copyContentCache().lastCopyId$.subscribe((lastCopyId) => {
+            subscriber.next(!supportClipboard && !lastCopyId);
+        });
+
+        subscriber.next(!supportClipboard);
+
+        return () => subscription.unsubscribe();
+    });
 }
 
 export function CopyMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
@@ -1107,6 +1117,8 @@ export function PasteBesidesBorderMenuItemFactory(accessor: IAccessor): IMenuBut
     };
 }
 
+//#endregion
+
 export function FitContentMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
     return {
         id: SetWorksheetRowIsAutoHeightCommand.id,
@@ -1133,74 +1145,6 @@ export function ColAutoWidthMenuItemFactory(accessor: IAccessor): IMenuButtonIte
             worksheetTypes: [WorksheetSetRowStylePermission, WorksheetEditPermission],
             rangeTypes: [RangeProtectionPermissionEditPoint],
         }),
-        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
-    };
-}
-
-export const SHEET_FROZEN_MENU_ID = 'sheet.menu.sheet-frozen';
-
-export function SheetFrozenMenuItemFactory(accessor: IAccessor): IMenuSelectorItem<string> {
-    return {
-        id: SHEET_FROZEN_MENU_ID,
-        type: MenuItemType.SUBITEMS,
-        title: 'rightClick.freeze',
-        icon: 'FreezeToSelectedIcon',
-        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
-    };
-}
-
-export const SHEET_FROZEN_HEADER_MENU_ID = 'sheet.header-menu.sheet-frozen';
-
-export function SheetFrozenHeaderMenuItemFactory(accessor: IAccessor): IMenuSelectorItem<string> {
-    return {
-        id: SHEET_FROZEN_HEADER_MENU_ID,
-        type: MenuItemType.SUBITEMS,
-        title: 'rightClick.freeze',
-        icon: 'FreezeToSelectedIcon',
-        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
-    };
-}
-
-export function FrozenMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
-    return {
-        id: SetSelectionFrozenCommand.id,
-        type: MenuItemType.BUTTON,
-        title: 'rightClick.freeze',
-        icon: 'FreezeToSelectedIcon',
-        // disabled$: getCurrentRangeDisable$(accessor, { workbookTypes: [WorkbookEditablePermission], worksheetTypes: [WorksheetEditPermission], rangeTypes: [RangeProtectionPermissionEditPoint] }),
-        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
-    };
-}
-
-export function FrozenRowMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
-    return {
-        id: SetRowFrozenCommand.id,
-        type: MenuItemType.BUTTON,
-        title: 'rightClick.freezeRow',
-        icon: 'FreezeRowIcon',
-        // disabled$: getCurrentRangeDisable$(accessor, { workbookTypes: [WorkbookEditablePermission], worksheetTypes: [WorksheetEditPermission], rangeTypes: [RangeProtectionPermissionEditPoint] }),
-        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
-    };
-}
-
-export function FrozenColMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
-    return {
-        id: SetColumnFrozenCommand.id,
-        type: MenuItemType.BUTTON,
-        title: 'rightClick.freezeCol',
-        icon: 'FreezeColumnIcon',
-        // disabled$: getCurrentRangeDisable$(accessor, { workbookTypes: [WorkbookEditablePermission], worksheetTypes: [WorksheetEditPermission], rangeTypes: [RangeProtectionPermissionEditPoint] }),
-        hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
-    };
-}
-
-export function CancelFrozenMenuItemFactory(accessor: IAccessor): IMenuButtonItem {
-    return {
-        id: CancelFrozenCommand.id,
-        type: MenuItemType.BUTTON,
-        title: 'rightClick.cancelFreeze',
-        icon: 'CancelFreezeIcon',
-        // disabled$: getCurrentRangeDisable$(accessor, { workbookTypes: [WorkbookEditablePermission], worksheetTypes: [WorksheetEditPermission], rangeTypes: [RangeProtectionPermissionEditPoint] }),
         hidden$: getMenuHiddenObservable(accessor, UniverInstanceType.UNIVER_SHEET),
     };
 }

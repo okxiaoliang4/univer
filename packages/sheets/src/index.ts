@@ -66,6 +66,7 @@ export {
     AddWorksheetMergeVerticalCommand,
     getClearContentMutationParamForRange,
     getClearContentMutationParamsForRanges,
+    type IMergeCellsUtilOptions,
 } from './commands/commands/add-worksheet-merge.command';
 export { AddWorksheetProtectionCommand } from './commands/commands/add-worksheet-protection.command';
 export { SetWorksheetRangeThemeStyleCommand } from './commands/commands/add-worksheet-range-theme.command';
@@ -139,6 +140,7 @@ export { type ICancelFrozenCommandParams, type ISetFrozenCommandParams } from '.
 export { CancelFrozenCommand, SetFrozenCommand } from './commands/commands/set-frozen.command';
 export { type ISetGridlinesColorCommandParams, SetGridlinesColorCommand } from './commands/commands/set-gridlines-color.command';
 export { SetProtectionCommand } from './commands/commands/set-protection.command';
+export { type ISetRangeCustomMetadataCommandParams, SetRangeCustomMetadataCommand } from './commands/commands/set-range-custom-metadata.command';
 export { type ISetRangeValuesCommandParams, SetRangeValuesCommand } from './commands/commands/set-range-values.command';
 export { type ISetRowDataCommandParams, SetRowDataCommand } from './commands/commands/set-row-data.command';
 export {
