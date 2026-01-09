@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import { Direction } from '@univerjs/core';
+import { Direction, ICommandService } from '@univerjs/core';
+import { MoreFunctionsOperation } from '@univerjs/sheets-formula-ui';
+import { useDependency } from '@univerjs/ui';
 import { useState } from 'react';
 import { KeyboardItem } from '../common/KeyboardItem';
 import { useKeyboardInput } from '../hooks/use-keyboard-input';
@@ -26,6 +28,7 @@ export function FormulaKeyboard() {
     const { insertText, deleteBackward, confirmAndMove, insertFunction, insertQuotes } = useKeyboardInput();
     const [subMode, setSubMode] = useState<SubMode>('formula');
     const [isShiftActive, setIsShiftActive] = useState(false);
+    const commandService = useDependency(ICommandService);
 
     const handleKeyPress = (value: string) => {
         // Special keys
@@ -49,7 +52,7 @@ export function FormulaKeyboard() {
                 insertQuotes();
                 break;
             case 'f(x)':
-                setSubMode('function-browser');
+                commandService.executeCommand(MoreFunctionsOperation.id);
                 break;
             case 'back':
                 // setSubMode('formula');
@@ -188,7 +191,7 @@ export function FormulaKeyboard() {
                         <KeyboardItem
                             type="submit"
                             variant="primary"
-                            className="univer-row-span-2 univer-h-auto univer-p-2 univer-text-base"
+                            className="univer-row-span-2 !univer-h-auto univer-p-2 univer-text-base"
                             onClick={() => handleKeyPress('enter')}
                         >
                             ↵

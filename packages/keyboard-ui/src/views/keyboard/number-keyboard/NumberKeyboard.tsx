@@ -113,7 +113,7 @@ export function NumberKeyboard() {
                 ))}
                 <KeyboardItem
                     variant="primary"
-                    className="univer-row-span-2 univer-h-auto univer-p-2 univer-text-base"
+                    className="univer-row-span-2 !univer-h-auto univer-p-2 univer-text-base"
                     onClick={() => handleKeyPress('enter')}
                 >
                     ↵
