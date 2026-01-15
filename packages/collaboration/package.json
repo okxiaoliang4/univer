@@ -1,0 +1,75 @@
+{
+    "name": "@univerjs/collaboration",
+    "version": "1.0.0",
+    "packageManager": "pnpm@10.27.0",
+    "description": "Collaboration library for Univer",
+    "author": "Univer Team",
+    "license": "Apache-2.0",
+    "keywords": [
+        "univer",
+        "collaboration",
+        "ot",
+        "wasm",
+        "rust",
+        "collaboration"
+    ],
+    "exports": {
+        ".": "./src/index.ts",
+        "./*": "./src/*",
+        "./facade": "./src/facade/index.ts"
+    },
+    "main": "./src/index.ts",
+    "types": "./lib/types/index.d.ts",
+    "publishConfig": {
+        "access": "public",
+        "main": "./lib/es/index.js",
+        "module": "./lib/es/index.js",
+        "exports": {
+            ".": {
+                "import": "./lib/es/index.js",
+                "require": "./lib/cjs/index.js",
+                "types": "./lib/types/index.d.ts"
+            },
+            "./*": {
+                "import": "./lib/es/*",
+                "require": "./lib/cjs/*",
+                "types": "./lib/types/index.d.ts"
+            },
+            "./facade": {
+                "import": "./lib/es/facade.js",
+                "require": "./lib/cjs/facade.js",
+                "types": "./lib/types/facade/index.d.ts"
+            },
+            "./lib/facade": {
+                "import": "./lib/es/facade.js",
+                "require": "./lib/cjs/facade.js",
+                "types": "./lib/types/facade/index.d.ts"
+            },
+            "./lib/*": "./lib/*"
+        }
+    },
+    "directories": {
+        "lib": "lib"
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "coverage": "vitest run --coverage",
+        "typecheck": "tsc --noEmit",
+        "build": "univer-cli build"
+    },
+    "dependencies": {
+        "@univerjs/core": "workspace:*",
+        "@univerjs/network": "workspace:*",
+        "@univerjs/sheets": "workspace:*",
+        "@univerjs/univer-ot-wasm": "workspace:*",
+        "socket.io-client": "^4.8.3"
+    },
+    "devDependencies": {
+        "vite-plugin-top-level-await": "^1.6.0",
+        "vite-plugin-wasm": "^3.5.0"
+    }
+}

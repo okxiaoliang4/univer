@@ -1,0 +1,42 @@
+{
+    "name": "@univerjs/univer-ot-wasm",
+    "version": "0.1.0",
+    "description": "Rust WASM implementation of Univer Operational Transformation",
+    "author": "Univer Team",
+    "license": "Apache-2.0",
+    "homepage": "https://univer.ai",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dream-num/univer.git",
+        "directory": "packages-experimental/univer-ot-wasm"
+    },
+    "bugs": {
+        "url": "https://github.com/dream-num/univer/issues"
+    },
+    "keywords": [
+        "univer",
+        "operational-transformation",
+        "ot",
+        "wasm",
+        "rust",
+        "collaboration"
+    ],
+    "main": "pkg/univer_ot_wasm.js",
+    "types": "pkg/univer_ot_wasm.d.ts",
+    "files": [
+        "pkg/**/*"
+    ],
+    "scripts": {
+        "build": "npx wasm-pack build --target bundler --out-dir pkg",
+        "build:node": "npx wasm-pack build --target nodejs --out-dir pkg",
+        "build:web": "npx wasm-pack build --target web --out-dir pkg",
+        "build:native": "cargo build --release",
+        "test": "cargo test",
+        "test:web": "npx wasm-pack test --headless --firefox",
+        "dev": "npx wasm-pack build --target bundler --out-dir pkg --dev",
+        "clean": "cargo clean && rm -rf pkg",
+        "prepare": "cargo --version && rustc --version"
+    },
+    "dependencies": {},
+    "devDependencies": {}
+}

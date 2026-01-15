@@ -18,6 +18,7 @@
     "dependencies": {
         "@lit/react": "^1.0.8",
         "@univerjs/action-recorder": "workspace:*",
+        "@univerjs/collaboration": "workspace:*",
         "@univerjs/core": "workspace:*",
         "@univerjs/data-validation": "workspace:*",
         "@univerjs/debugger": "workspace:*",
@@ -95,6 +96,7 @@
         "esbuild-plugin-clean": "^1.0.1",
         "esbuild-plugin-copy": "^2.1.1",
         "esbuild-plugin-vue3": "^0.5.1",
+        "esbuild-plugin-wasm": "^1.1.0",
         "esbuild-style-plugin": "^1.6.3",
         "fs-extra": "^11.3.3",
         "minimist": "^1.2.8",

@@ -56,6 +56,9 @@ function Examples() {
         title: '🗂️ Sheets Multi Instance',
         href: './sheets-multi/',
     }, {
+        title: '🗂️ Collaboration',
+        href: './collaboration/',
+    }, {
         title: '🗂️ Sheets With Webcomponent',
         href: './sheets-webcomponent/',
     }, {

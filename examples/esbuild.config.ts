@@ -27,6 +27,7 @@ import aliasPlugin from 'esbuild-plugin-alias';
 import cleanPlugin from 'esbuild-plugin-clean';
 import copyPlugin from 'esbuild-plugin-copy';
 import vue3 from 'esbuild-plugin-vue3';
+import wasm from 'esbuild-plugin-wasm';
 import stylePlugin from 'esbuild-style-plugin';
 import minimist from 'minimist';
 import React from 'react';
@@ -91,7 +92,7 @@ function nodeBuildTask() {
         bundle: true,
         color: true,
         minify: false,
-        target: 'chrome70',
+        target: 'chrome89',
         entryPoints: [
             './src/node/cases/basic.ts',
             './src/node/sdk/worker.ts',
@@ -112,7 +113,7 @@ function monacoBuildTask() {
         entryPoints: monacoEditorEntryPoints.map((entry) => `./node_modules/monaco-editor/esm/${entry}`),
         bundle: true,
         color: true,
-        target: 'chrome70',
+        target: 'chrome89',
         format: 'iife',
         outbase: './node_modules/monaco-editor/esm/',
         outdir: './local',
@@ -175,6 +176,10 @@ const entryPoints = [
     // mobile sheet
     './src/mobile-s/main.ts',
     './src/mobile-s/worker.ts',
+
+    // collaboration
+    './src/collaboration/main.ts',
+    './src/collaboration/worker.ts',
 ];
 
 const config: SameShape<BuildOptions, BuildOptions> = {
@@ -185,7 +190,7 @@ const config: SameShape<BuildOptions, BuildOptions> = {
     loader: { '.svg': 'file', '.ttf': 'file' },
     sourcemap: args.watch,
     minify: false,
-    target: 'chrome70',
+    target: 'chrome89',
     plugins: [
         ignoreGlobalCssPlugin(),
         removeClassnameNewlinesPlugin(),
@@ -206,6 +211,7 @@ const config: SameShape<BuildOptions, BuildOptions> = {
             },
         }),
         vue3() as unknown as Plugin,
+        wasm(),
     ],
     entryPoints,
     outdir: './local',

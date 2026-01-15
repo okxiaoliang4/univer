@@ -60,5 +60,8 @@
     },
     "commentTranslate.hover.enabled": false,
 
-    "vitest.maximumConfigs": 80
+    "vitest.maximumConfigs": 80,
+    "rust-analyzer.linkedProjects": [
+        "packages-experimental/univer-ot-wasm/Cargo.toml"
+    ]
 }
