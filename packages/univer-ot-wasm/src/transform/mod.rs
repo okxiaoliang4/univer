@@ -1,6 +1,7 @@
-use crate::types::{js_value_to_json_value, MutationInfo, MutationInfoInternal, TransformResult, TransformResultInternal};
+use crate::types::{js_value_to_json_value, MutationInfo, MutationInfoInternal, TransformResult, TransformResultInternal, TransformListResult};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
+use js_sys::{Array, Object, Reflect};
 
 pub mod mutation_transform;
 pub mod set_range_values;
@@ -169,6 +170,66 @@ impl TransformService {
 
         // Convert back to wasm types
         TransformResult::from(result)
+    }
+
+    /// Transform two lists of mutations - WASM boundary converts JsValue arrays <-> Vec<MutationInfoInternal>
+    pub fn transform_list(&self, m1_list: &JsValue, m2_list: &JsValue) -> TransformListResult {
+        // Helper function to convert JS object to MutationInfoInternal
+        let js_to_internal = |item: JsValue| -> Option<MutationInfoInternal> {
+            if let Some(obj) = item.dyn_ref::<Object>() {
+                let id = Reflect::get(obj, &JsValue::from_str("id"))
+                    .ok()
+                    .and_then(|v| v.as_string());
+                let params = Reflect::get(obj, &JsValue::from_str("params"))
+                    .ok()
+                    .map(|v| js_value_to_json_value(&v));
+
+                if let (Some(id), Some(params)) = (id, params) {
+                    Some(MutationInfoInternal { id, params })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        // Convert JS arrays to Vec<MutationInfoInternal>
+        let m1_internal_list: Vec<MutationInfoInternal> = if let Some(array) = m1_list.dyn_ref::<Array>() {
+            (0..array.length())
+                .filter_map(|i| js_to_internal(array.get(i)))
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let m2_internal_list: Vec<MutationInfoInternal> = if let Some(array) = m2_list.dyn_ref::<Array>() {
+            (0..array.length())
+                .filter_map(|i| js_to_internal(array.get(i)))
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Call core transform_list
+        let (m1_prime_list, m2_prime_list, error) = self.core.transform_list(&m1_internal_list, &m2_internal_list);
+
+        // Convert back to wasm types
+        let m1_prime_wasm: Vec<MutationInfo> = m1_prime_list
+            .into_iter()
+            .map(|m| MutationInfo::from(m))
+            .collect();
+
+        let m2_prime_wasm: Vec<MutationInfo> = m2_prime_list
+            .into_iter()
+            .map(|m| MutationInfo::from(m))
+            .collect();
+
+        TransformListResult {
+            m1_prime_list: m1_prime_wasm,
+            m2_prime_list: m2_prime_wasm,
+            error,
+        }
     }
 }
 

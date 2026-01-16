@@ -235,6 +235,29 @@ impl TransformResult {
     }
 }
 
+#[wasm_bindgen]
+#[derive(Debug, Clone)]
+pub struct TransformListResult {
+    #[wasm_bindgen(getter_with_clone)]
+    pub m1_prime_list: Vec<MutationInfo>,
+    #[wasm_bindgen(getter_with_clone)]
+    pub m2_prime_list: Vec<MutationInfo>,
+    #[wasm_bindgen(getter_with_clone)]
+    pub error: Option<String>,
+}
+
+#[wasm_bindgen]
+impl TransformListResult {
+    #[wasm_bindgen(constructor)]
+    pub fn new(m1_prime_list: Vec<MutationInfo>, m2_prime_list: Vec<MutationInfo>, error: Option<String>) -> Self {
+        Self {
+            m1_prime_list,
+            m2_prime_list,
+            error,
+        }
+    }
+}
+
 /// Convert serde_json::Value to JsValue as plain object (not Map)
 /// Uses json_compatible serializer to ensure plain JavaScript objects instead of Map objects
 /// This is more efficient than JSON string roundtrips

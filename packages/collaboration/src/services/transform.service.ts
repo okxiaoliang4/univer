@@ -15,7 +15,7 @@
  */
 
 import type { IMutationInfo } from '@univerjs/core';
-import type { TransformResult } from '@univerjs/univer-ot-wasm';
+import type { TransformListResult, TransformResult } from '@univerjs/univer-ot-wasm';
 import { createIdentifier, Disposable } from '@univerjs/core';
 import { MutationInfo, TransformService as UniverOTWasmTransformService } from '@univerjs/univer-ot-wasm';
 
@@ -59,66 +59,80 @@ export class TransformService extends Disposable implements ITransformService {
     }
 
     transformList(m1List: IMutationInfo[], m2List: IMutationInfo[]): ITransformListResult {
-        // Standard OT transformation for two lists of operations
-        // Given:
-        //   - m1List: local pending operations (already applied locally)
-        //   - m2List: server operations (need to be applied locally)
-        // Returns:
-        //   - m1Primes: transformed local ops to send to server
-        //   - m2Primes: transformed server ops to apply locally
-        //
-        // The key insight is:
-        //   - Local state = base + m1List (already applied)
-        //   - Server state = base + m2List
-        //   - To sync: apply m2Primes locally, send m1Primes to server
-        //   - Both sides end up at: base + m1List + m2Primes = base + m2List + m1Primes
+        const m1InfoList: MutationInfo[] = [];
+        const m2InfoList: MutationInfo[] = [];
+        let transformListResult: TransformListResult | undefined;
+        const resultM1InfoList: MutationInfo[] = [];
+        const resultM2InfoList: MutationInfo[] = [];
 
-        if (m1List.length === 0) {
-            return { m1Primes: [], m2Primes: m2List };
-        }
-
-        if (m2List.length === 0) {
-            return { m1Primes: m1List, m2Primes: [] };
-        }
-
-        // Clone the lists to avoid modifying originals
-        let currentM1List = [...m1List];
-        const m2Primes: IMutationInfo[] = [];
-
-        // For each server operation, transform it against all local operations
-        // and update the local operations list
-        for (const m2 of m2List) {
-            let currentM2 = m2;
-            const newM1List: IMutationInfo[] = [];
-
-            // Transform m2 against each m1, updating both
-            for (const m1 of currentM1List) {
-                const transformResult = this.transform(m1, currentM2);
-
-                if (transformResult.error) {
-                    return {
-                        m1Primes: [],
-                        m2Primes: [],
-                        error: transformResult.error,
-                    };
-                }
-
-                // m1' goes to the new list
-                newM1List.push(transformResult.m1Prime);
-                // m2' is used for next transformation
-                currentM2 = transformResult.m2Prime;
+        try {
+            // Convert IMutationInfo[] to MutationInfo[] for wasm
+            for (const m of m1List) {
+                m1InfoList.push(new MutationInfo(m.id, m.params));
+            }
+            for (const m of m2List) {
+                m2InfoList.push(new MutationInfo(m.id, m.params));
             }
 
-            // After transforming against all m1s, add the final m2'
-            m2Primes.push(currentM2);
-            // Update m1 list for next m2
-            currentM1List = newM1List;
-        }
+            // Create JS arrays - MutationInfo objects can be directly used in JS arrays
+            const m1JsArray = m1InfoList;
+            const m2JsArray = m2InfoList;
 
-        return {
-            m1Primes: currentM1List,
-            m2Primes,
-        };
+            // Call wasm transform_list
+            transformListResult = this._transformService.transform_list(m1JsArray, m2JsArray);
+
+            // Extract results and convert back to IMutationInfo[]
+            // Note: getter_with_clone returns cloned Vec, so we need to keep references for cleanup
+            const m1Primes: IMutationInfo[] = transformListResult.m1_prime_list.map((m, index) => {
+                resultM1InfoList.push(m); // Keep reference for cleanup
+                return {
+                    id: m.id,
+                    type: m1List[index]?.type,
+                    params: m.params,
+                };
+            });
+
+            const m2Primes: IMutationInfo[] = transformListResult.m2_prime_list.map((m, index) => {
+                resultM2InfoList.push(m); // Keep reference for cleanup
+                return {
+                    id: m.id,
+                    type: m2List[index]?.type,
+                    params: m.params,
+                };
+            });
+
+            const result: ITransformListResult = {
+                m1Primes,
+                m2Primes,
+                error: transformListResult.error || undefined,
+            };
+
+            if (result.error) {
+                console.error(`[TransformService] transformList error: ${result.error}`);
+            }
+
+            return result;
+        } finally {
+            // Free all MutationInfo instances in the result arrays
+            // These are cloned from TransformListResult via getter_with_clone
+            for (const m of resultM1InfoList) {
+                m.free();
+            }
+            for (const m of resultM2InfoList) {
+                m.free();
+            }
+
+            // Free the TransformListResult (this will free the original Vec<MutationInfo> containers)
+            transformListResult?.free();
+
+            // Free all MutationInfo instances in the input arrays
+            for (const m of m1InfoList) {
+                m.free();
+            }
+            for (const m of m2InfoList) {
+                m.free();
+            }
+        }
     }
 
     transform(m1: IMutationInfo, m2: IMutationInfo): ITransformResult {
