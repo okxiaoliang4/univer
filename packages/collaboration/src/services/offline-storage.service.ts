@@ -42,6 +42,7 @@ const DB_VERSION = 1;
 export class OfflineStorageService extends Disposable implements IOfflineStorageService {
     private _db: IDBDatabase | null = null;
     private _initPromise: Promise<void> | null = null;
+    private _saveQueues: Map<string, Promise<void>> = new Map();
 
     constructor(
         @ILogService private readonly _logger: ILogService
@@ -87,39 +88,59 @@ export class OfflineStorageService extends Disposable implements IOfflineStorage
     }
 
     async savePendingMutations(unitId: string, mutations: IMutationInfo[], baseRev: number, userId: string): Promise<void> {
-        const db = await this._ensureDB();
+        const previous = this._saveQueues.get(unitId) ?? Promise.resolve();
+        const task = previous
+            .catch(() => undefined)
+            .then(async () => {
+                const db = await this._ensureDB();
 
-        // First, load existing mutations to accumulate
-        const existing = await this.loadPendingMutations(unitId);
+                // First, load existing mutations to accumulate
+                const existing = await this.loadPendingMutations(unitId);
+                const existingCount = existing?.mutations.length ?? 0;
+                const newIdCounts = mutations.reduce<Record<string, number>>((acc, mutation) => {
+                    acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
+                    return acc;
+                }, {});
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H8', location: 'offline-storage.service.ts:savePendingMutations', message: 'offline save pending mutations', data: { unitId, baseRev, existingCount, newCount: mutations.length, newIdCounts }, timestamp: Date.now() }) }).catch(() => {});
+                // #endregion
 
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
+                return new Promise<void>((resolve, reject) => {
+                    const transaction = db.transaction([STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
 
-            // Accumulate mutations instead of replacing
-            const accumulatedMutations = existing ? [...existing.mutations, ...mutations] : mutations;
-            // Keep the original baseRev if it exists (from the first mutation)
-            const effectiveBaseRev = existing ? existing.baseRev : baseRev;
+                    // Accumulate mutations instead of replacing
+                    const accumulatedMutations = existing ? [...existing.mutations, ...mutations] : mutations;
+                    // Keep the original baseRev if it exists (from the first mutation)
+                    const effectiveBaseRev = existing ? existing.baseRev : baseRev;
 
-            const data: IPendingMutations = {
-                unitId,
-                mutations: accumulatedMutations,
-                baseRev: effectiveBaseRev,
-                userId,
-                timestamp: Date.now(),
-            };
-            const request = store.put(data);
+                    const data: IPendingMutations = {
+                        unitId,
+                        mutations: accumulatedMutations,
+                        baseRev: effectiveBaseRev,
+                        userId,
+                        timestamp: Date.now(),
+                    };
+                    const request = store.put(data);
 
-            request.onerror = () => {
-                this._logger.error('Failed to save pending mutations:', request.error);
-                reject(request.error);
-            };
+                    request.onerror = () => {
+                        this._logger.error('Failed to save pending mutations:', request.error);
+                        reject(request.error);
+                    };
 
-            request.onsuccess = () => {
-                this._logger.log(`Saved pending mutations for unitId: ${unitId}, count: ${accumulatedMutations.length} (added ${mutations.length})`);
-                resolve();
-            };
-        });
+                    request.onsuccess = () => {
+                        this._logger.log(`Saved pending mutations for unitId: ${unitId}, count: ${accumulatedMutations.length} (added ${mutations.length})`);
+                        resolve();
+                    };
+                });
+            });
+        this._saveQueues.set(unitId, task);
+        task.finally(() => {
+            if (this._saveQueues.get(unitId) === task) {
+                this._saveQueues.delete(unitId);
+            }
+        }).catch(() => undefined);
+        return task;
     }
 
     async loadPendingMutations(unitId: string): Promise<IPendingMutations | null> {

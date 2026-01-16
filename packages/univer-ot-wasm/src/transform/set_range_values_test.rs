@@ -146,8 +146,14 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
-        // Currently returns identity transform (column transform not yet implemented)
-        assert_eq!(result.m1_prime.id, m1.id);
+
+        let transformed_params: SetRangeValuesMutationParams = serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+        assert!(transformed_params.cell_value.is_some());
+
+        let cell_value = transformed_params.cell_value.unwrap();
+        let row = cell_value.data.get("0").unwrap().as_object().unwrap();
+        assert!(row.contains_key("2"));
+        assert!(!row.contains_key("1"));
     }
 
     // SetRangeValues × RemoveRows
@@ -206,7 +212,8 @@ mod tests {
 
         let mut cell_data = serde_json::Map::new();
         let mut row_data = serde_json::Map::new();
-        row_data.insert("2".to_string(), serde_json::json!({"v": "test"}));
+        row_data.insert("2".to_string(), serde_json::json!({"v": "old"}));
+        row_data.insert("5".to_string(), serde_json::json!({"v": "shifted"}));
         cell_data.insert("0".to_string(), serde_json::Value::Object(row_data));
 
         let m1 = create_mutation_info(
@@ -238,7 +245,14 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
-        // Currently returns identity transform (column transform not yet implemented)
-        assert_eq!(result.m1_prime.id, m1.id);
+
+        let transformed_params: SetRangeValuesMutationParams = serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+        assert!(transformed_params.cell_value.is_some());
+
+        let cell_value = transformed_params.cell_value.unwrap();
+        let row = cell_value.data.get("0").unwrap().as_object().unwrap();
+        // Column 2 is removed, column 5 shifts to 2
+        assert!(row.contains_key("2"));
+        assert!(!row.contains_key("5"));
     }
 }

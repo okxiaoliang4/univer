@@ -1,10 +1,7 @@
 use crate::server::database::entities::{documents, document_snapshot, operation_log};
 use crate::server::services::document::DocumentService;
 use crate::server::services::snapshot::SnapshotService;
-use crate::transform::{
-    insert_col, insert_row, remove_col, remove_rows, set_range_values,
-    mutation_transform::MutationTransform,
-};
+use crate::transform::TransformServiceCore;
 use crate::types::{MutationInfoInternal, TransformResultInternal};
 use anyhow::{Context, Result};
 use sea_orm::{
@@ -40,6 +37,7 @@ pub struct OTService {
     db: Arc<DatabaseConnection>,
     document_service: DocumentService,
     snapshot_service: SnapshotService,
+    transform_service: Arc<TransformServiceCore>,
 }
 
 impl OTService {
@@ -52,6 +50,7 @@ impl OTService {
             db: Arc::new(db),
             document_service,
             snapshot_service,
+            transform_service: Arc::new(TransformServiceCore::new()),
         }
     }
 
@@ -214,115 +213,7 @@ impl OTService {
         m1: &MutationInfoInternal,
         m2: &MutationInfoInternal,
     ) -> Result<TransformResultInternal> {
-        // Use the same dispatch logic as transform_internal
-        let result = match (m1.id.as_str(), m2.id.as_str()) {
-            ("sheet.mutation.set-range-values", "sheet.mutation.set-range-values") => {
-                set_range_values::SetRangeValuesTransform::default()
-                    .transform_internal_with_set_range_values(m1, m2)
-            }
-            ("sheet.mutation.set-range-values", "sheet.mutation.insert-row") => {
-                set_range_values::SetRangeValuesTransform::default()
-                    .transform_internal_with_insert_row(m1, m2)
-            }
-            ("sheet.mutation.set-range-values", "sheet.mutation.insert-col") => {
-                set_range_values::SetRangeValuesTransform::default()
-                    .transform_internal_with_insert_col(m1, m2)
-            }
-            ("sheet.mutation.set-range-values", "sheet.mutation.remove-rows") => {
-                set_range_values::SetRangeValuesTransform::default()
-                    .transform_internal_with_remove_rows(m1, m2)
-            }
-            ("sheet.mutation.set-range-values", "sheet.mutation.remove-col") => {
-                set_range_values::SetRangeValuesTransform::default()
-                    .transform_internal_with_remove_col(m1, m2)
-            }
-            ("sheet.mutation.insert-row", "sheet.mutation.set-range-values") => {
-                insert_row::InsertRowTransform::default()
-                    .transform_internal_with_set_range_values(m1, m2)
-            }
-            ("sheet.mutation.insert-row", "sheet.mutation.insert-row") => {
-                insert_row::InsertRowTransform::default()
-                    .transform_internal_with_insert_row(m1, m2)
-            }
-            ("sheet.mutation.insert-row", "sheet.mutation.insert-col") => {
-                insert_row::InsertRowTransform::default()
-                    .transform_internal_with_insert_col(m1, m2)
-            }
-            ("sheet.mutation.insert-row", "sheet.mutation.remove-rows") => {
-                insert_row::InsertRowTransform::default()
-                    .transform_internal_with_remove_rows(m1, m2)
-            }
-            ("sheet.mutation.insert-row", "sheet.mutation.remove-col") => {
-                insert_row::InsertRowTransform::default()
-                    .transform_internal_with_remove_col(m1, m2)
-            }
-            ("sheet.mutation.insert-col", "sheet.mutation.set-range-values") => {
-                insert_col::InsertColTransform::default()
-                    .transform_internal_with_set_range_values(m1, m2)
-            }
-            ("sheet.mutation.insert-col", "sheet.mutation.insert-row") => {
-                insert_col::InsertColTransform::default()
-                    .transform_internal_with_insert_row(m1, m2)
-            }
-            ("sheet.mutation.insert-col", "sheet.mutation.insert-col") => {
-                insert_col::InsertColTransform::default()
-                    .transform_internal_with_insert_col(m1, m2)
-            }
-            ("sheet.mutation.insert-col", "sheet.mutation.remove-rows") => {
-                insert_col::InsertColTransform::default()
-                    .transform_internal_with_remove_rows(m1, m2)
-            }
-            ("sheet.mutation.insert-col", "sheet.mutation.remove-col") => {
-                insert_col::InsertColTransform::default()
-                    .transform_internal_with_remove_col(m1, m2)
-            }
-            ("sheet.mutation.remove-rows", "sheet.mutation.set-range-values") => {
-                remove_rows::RemoveRowsTransform::default()
-                    .transform_internal_with_set_range_values(m1, m2)
-            }
-            ("sheet.mutation.remove-rows", "sheet.mutation.insert-row") => {
-                remove_rows::RemoveRowsTransform::default()
-                    .transform_internal_with_insert_row(m1, m2)
-            }
-            ("sheet.mutation.remove-rows", "sheet.mutation.insert-col") => {
-                remove_rows::RemoveRowsTransform::default()
-                    .transform_internal_with_insert_col(m1, m2)
-            }
-            ("sheet.mutation.remove-rows", "sheet.mutation.remove-rows") => {
-                remove_rows::RemoveRowsTransform::default()
-                    .transform_internal_with_remove_rows(m1, m2)
-            }
-            ("sheet.mutation.remove-rows", "sheet.mutation.remove-col") => {
-                remove_rows::RemoveRowsTransform::default()
-                    .transform_internal_with_remove_col(m1, m2)
-            }
-            ("sheet.mutation.remove-col", "sheet.mutation.set-range-values") => {
-                remove_col::RemoveColTransform::default()
-                    .transform_internal_with_set_range_values(m1, m2)
-            }
-            ("sheet.mutation.remove-col", "sheet.mutation.insert-row") => {
-                remove_col::RemoveColTransform::default()
-                    .transform_internal_with_insert_row(m1, m2)
-            }
-            ("sheet.mutation.remove-col", "sheet.mutation.insert-col") => {
-                remove_col::RemoveColTransform::default()
-                    .transform_internal_with_insert_col(m1, m2)
-            }
-            ("sheet.mutation.remove-col", "sheet.mutation.remove-rows") => {
-                remove_col::RemoveColTransform::default()
-                    .transform_internal_with_remove_rows(m1, m2)
-            }
-            ("sheet.mutation.remove-col", "sheet.mutation.remove-col") => {
-                remove_col::RemoveColTransform::default()
-                    .transform_internal_with_remove_col(m1, m2)
-            }
-            _ => TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
-                error: None,
-            },
-        };
-
-        Ok(result)
+        // Use the unified transform service (shared via Arc)
+        Ok(self.transform_service.transform(m1, m2))
     }
 }

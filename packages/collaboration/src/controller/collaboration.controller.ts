@@ -23,6 +23,8 @@ import { ITransformService } from '../services/transform.service';
 import { COLLABORATION_PLUGIN_CONFIG_KEY } from './config.schema';
 
 export class CollaborationController extends Disposable {
+    private _localMutationSignatures: Map<string, Map<string, number>> = new Map();
+
     constructor(
         @ISocketService private readonly _socketService: ISocketService,
         @IConfigService private readonly _configService: IConfigService,
@@ -114,11 +116,17 @@ export class CollaborationController extends Disposable {
     private _initCommandListener(): void {
         const config = this._configService.getConfig<ICollaborationConfig>(COLLABORATION_PLUGIN_CONFIG_KEY)!;
         this.disposeWithMe(this._commandService.onMutationExecutedForCollab((command, options) => {
+            const commandParams = command.params as { unitId?: string } | undefined;
+            const observedUnitId = commandParams?.unitId;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H6', location: 'collaboration.controller.ts:commandListener', message: 'mutation observed by collab listener', data: { mutationId: command.id, mutationType: command.type, fromCollab: Boolean(options?.fromCollab), unitId: observedUnitId, hasUnitId: Boolean(observedUnitId) }, timestamp: Date.now() }) }).catch(() => {});
+            // #endregion
             if (options?.fromCollab) return;
             const unitId = (command.params as { unitId: string })?.unitId;
             if (!unitId) return;
             const unit = this._univerInstanceService.getUnit(unitId);
             if (!unit || isInternalEditorID(unitId)) return;
+            this._trackLocalMutation(unitId, command as IMutationInfo);
             const baseRev = this._collaborationService.getCurrentVersion(unitId) ?? unit.getRev();
             this._collaborationService.sendChangeset({
                 unitId,
@@ -130,6 +138,7 @@ export class CollaborationController extends Disposable {
     }
 
     private _initChangesetPushedListener(): void {
+        const config = this._configService.getConfig<ICollaborationConfig>(COLLABORATION_PLUGIN_CONFIG_KEY)!;
         this.disposeWithMe(this._socketService.changesetPushed$.subscribe(async (changeset) => {
             const unitId = changeset.docId;
             const unit = this._univerInstanceService.getUnit(unitId);
@@ -142,6 +151,22 @@ export class CollaborationController extends Disposable {
             const localRev = unit.getRev();
             const expectedRev = localRev + 1;
             const serverRev = changeset.serverRev;
+            const localUserId = config.userId;
+            const isSelfChangeset = changeset.userId === localUserId;
+            const filteredChangesetMutations = this._filterLocalEchoMutations(
+                unitId,
+                changeset.mutations,
+                localUserId,
+                changeset.userId,
+                'changeset_pushed'
+            );
+            const incomingIdCounts = filteredChangesetMutations.reduce<Record<string, number>>((acc, mutation) => {
+                acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
+                return acc;
+            }, {});
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H5', location: 'collaboration.controller.ts:changesetPushed:incoming', message: 'changeset_pushed received summary', data: { unitId, serverRev, localRev, pendingCount: this._collaborationService.getPendingMutations(unitId).length, incomingCount: changeset.mutations.length, incomingIdCounts, localUserId, changesetUserId: changeset.userId, isSelfChangeset }, timestamp: Date.now() }) }).catch(() => {});
+            // #endregion
 
             // Check for version gap - need to fetch missed operations
             if (serverRev > expectedRev) {
@@ -149,16 +174,36 @@ export class CollaborationController extends Disposable {
 
                 try {
                     const missedOps = await this._collaborationService.fetchOps(unitId, expectedRev);
+                    const missedLocalOpCount = missedOps.filter((op) => op.userId === localUserId).length;
+                    const missedLocalMutationCount = missedOps.reduce((count, op) => (op.userId === localUserId ? count + op.mutations.length : count), 0);
 
                     // Combine missed ops with incoming changeset
                     const allMissedMutations: IMutationInfo[] = [];
                     for (const op of missedOps) {
-                        allMissedMutations.push(...op.mutations);
+                        const filteredMutations = this._filterLocalEchoMutations(
+                            unitId,
+                            op.mutations,
+                            localUserId,
+                            op.userId,
+                            'changeset_pushed_missed'
+                        );
+                        allMissedMutations.push(...filteredMutations);
                     }
-                    allMissedMutations.push(...changeset.mutations);
+                    allMissedMutations.push(...filteredChangesetMutations);
 
                     // Get pending mutations
                     const pendingMutations = this._collaborationService.getPendingMutations(unitId);
+                    const pendingIdCounts = pendingMutations.reduce<Record<string, number>>((acc, mutation) => {
+                        acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
+                        return acc;
+                    }, {});
+                    const missedIdCounts = allMissedMutations.reduce<Record<string, number>>((acc, mutation) => {
+                        acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
+                        return acc;
+                    }, {});
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H4', location: 'collaboration.controller.ts:changesetPushed:missedSummary', message: 'changeset_pushed missed ops + pending summary', data: { unitId, serverRev, localRev, pendingCount: pendingMutations.length, missedCount: allMissedMutations.length, pendingIdCounts, missedIdCounts, localUserId, missedLocalOpCount, missedLocalMutationCount }, timestamp: Date.now() }) }).catch(() => {});
+                    // #endregion
 
                     if (pendingMutations.length > 0) {
                         // OT transform: apply transformed server mutations locally
@@ -168,7 +213,8 @@ export class CollaborationController extends Disposable {
                             await sequenceExecute(allMissedMutations, this._commandService, { fromCollab: true });
                         } else {
                             await sequenceExecute(result.m2Primes, this._commandService, { fromCollab: true });
-                            this._collaborationService.setTransformedPendingMutations(unitId, result.m1Primes, serverRev);
+                            const pendingBaseRev = this._collaborationService.getPendingBaseRev(unitId);
+                            this._collaborationService.setTransformedPendingMutations(unitId, result.m1Primes, pendingBaseRev ?? serverRev);
                         }
                     } else {
                         // No pending mutations, apply directly
@@ -180,20 +226,24 @@ export class CollaborationController extends Disposable {
                 } catch (error) {
                     this._logger.error('Failed to fetch missed operations:', error);
                     // Fall back to applying incoming changeset directly
-                    await sequenceExecute(changeset.mutations, this._commandService, { fromCollab: true });
+                    if (filteredChangesetMutations.length > 0) {
+                        await sequenceExecute(filteredChangesetMutations, this._commandService, { fromCollab: true });
+                    }
                 }
             } else {
                 // Normal case: no version gap
                 const pendingMutations = this._collaborationService.getPendingMutations(unitId);
 
-                this._logger.log(`Received changeset: serverRev=${serverRev}, localRev=${localRev}, pendingMutations=${pendingMutations.length}, incomingMutations=${changeset.mutations.length}`);
+                this._logger.log(`Received changeset: serverRev=${serverRev}, localRev=${localRev}, pendingMutations=${pendingMutations.length}, incomingMutations=${filteredChangesetMutations.length}`);
 
                 if (pendingMutations.length > 0) {
                     // OT transform: apply transformed server mutations locally
-                    const result = this._transformService.transformList(pendingMutations, changeset.mutations);
+                    const result = this._transformService.transformList(pendingMutations, filteredChangesetMutations);
                     if (result.error) {
                         this._logger.error(`Transform error: ${result.error}`);
-                        await sequenceExecute(changeset.mutations, this._commandService, { fromCollab: true });
+                        if (filteredChangesetMutations.length > 0) {
+                            await sequenceExecute(filteredChangesetMutations, this._commandService, { fromCollab: true });
+                        }
                     } else {
                         this._logger.log(`OT result: m1Primes=${result.m1Primes.length}, m2Primes=${result.m2Primes.length}`);
 
@@ -204,16 +254,19 @@ export class CollaborationController extends Disposable {
 
                         // Always update pending mutations with transformed versions
                         // Even if m1Primes is empty, we need to clear the old pending mutations
-                        this._collaborationService.setTransformedPendingMutations(unitId, result.m1Primes, serverRev);
+                        const pendingBaseRev = this._collaborationService.getPendingBaseRev(unitId);
+                        this._collaborationService.setTransformedPendingMutations(unitId, result.m1Primes, pendingBaseRev ?? serverRev);
                     }
                 } else {
                     // No pending mutations, apply directly
-                    this._logger.log(`No pending mutations, applying ${changeset.mutations.length} mutations directly`);
-                    for (const mutation of changeset.mutations) {
+                    this._logger.log(`No pending mutations, applying ${filteredChangesetMutations.length} mutations directly`);
+                    for (const mutation of filteredChangesetMutations) {
                         this._logger.log(`Executing mutation: id=${mutation.id}, params=${JSON.stringify(mutation.params)?.substring(0, 200)}`);
                     }
-                    const result = await sequenceExecute(changeset.mutations, this._commandService, { fromCollab: true });
-                    this._logger.log(`sequenceExecute result: ${result}`);
+                    if (filteredChangesetMutations.length > 0) {
+                        const result = await sequenceExecute(filteredChangesetMutations, this._commandService, { fromCollab: true });
+                        this._logger.log(`sequenceExecute result: ${result}`);
+                    }
                 }
             }
 
@@ -223,6 +276,7 @@ export class CollaborationController extends Disposable {
     }
 
     private _initReconnectionSync(): void {
+        const config = this._configService.getConfig<ICollaborationConfig>(COLLABORATION_PLUGIN_CONFIG_KEY)!;
         this.disposeWithMe(this._socketService.connected$.subscribe(async () => {
             this._logger.log('Socket reconnected, syncing all joined documents');
 
@@ -239,12 +293,36 @@ export class CollaborationController extends Disposable {
 
                 try {
                     const { missedOps, pendingMutations, serverVersion } = await this._collaborationService.syncOnReconnect(unitId);
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H3', location: 'collaboration.controller.ts:reconnect:syncResult', message: 'reconnect sync result snapshot', data: { unitId, unitRev: unit.getRev(), pendingCount: pendingMutations.length, missedOpsCount: missedOps.length, serverVersion }, timestamp: Date.now() }) }).catch(() => {});
+                    // #endregion
 
                     // Flatten missed mutations
+                    const localUserId = config.userId;
                     const missedMutations: IMutationInfo[] = [];
                     for (const op of missedOps) {
-                        missedMutations.push(...op.mutations);
+                        const filteredMutations = this._filterLocalEchoMutations(
+                            unitId,
+                            op.mutations,
+                            localUserId,
+                            op.userId,
+                            'reconnect_missed'
+                        );
+                        missedMutations.push(...filteredMutations);
                     }
+                    const missedLocalOpCount = missedOps.filter((op) => op.userId === localUserId).length;
+                    const missedLocalMutationCount = missedOps.reduce((count, op) => (op.userId === localUserId ? count + op.mutations.length : count), 0);
+                    const pendingIdCounts = pendingMutations.reduce<Record<string, number>>((acc, mutation) => {
+                        acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
+                        return acc;
+                    }, {});
+                    const missedIdCounts = missedMutations.reduce<Record<string, number>>((acc, mutation) => {
+                        acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
+                        return acc;
+                    }, {});
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H4', location: 'collaboration.controller.ts:reconnect:missedSummary', message: 'reconnect missed ops + pending summary', data: { unitId, serverVersion, unitRev: unit.getRev(), pendingCount: pendingMutations.length, missedCount: missedMutations.length, pendingIdCounts, missedIdCounts, localUserId, missedLocalOpCount, missedLocalMutationCount }, timestamp: Date.now() }) }).catch(() => {});
+                    // #endregion
 
                     // OT Sync Flow:
                     // - Local state = base + pendingMutations (already applied locally)
@@ -256,6 +334,9 @@ export class CollaborationController extends Disposable {
                         this._logger.log(`OT sync: transforming ${pendingMutations.length} local ops against ${missedMutations.length} server ops`);
 
                         const result = this._transformService.transformList(pendingMutations, missedMutations);
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H2', location: 'collaboration.controller.ts:reconnect:transform', message: 'reconnect transform result', data: { unitId, resultError: result.error ?? null, m1Count: result.m1Primes.length, m2Count: result.m2Primes.length, m1Ids: result.m1Primes.slice(0, 3).map((m) => m.id), m2Ids: result.m2Primes.slice(0, 3).map((m) => m.id) }, timestamp: Date.now() }) }).catch(() => {});
+                        // #endregion
                         if (result.error) {
                             this._logger.error(`Transform error: ${result.error}`);
                             // Fall back to applying original missed mutations
@@ -270,7 +351,8 @@ export class CollaborationController extends Disposable {
 
                             // Update pending mutations with transformed versions (m1Primes)
                             // These will be sent to the server
-                            this._collaborationService.setTransformedPendingMutations(unitId, result.m1Primes, serverVersion);
+                            const pendingBaseRev = this._collaborationService.getPendingBaseRev(unitId);
+                            this._collaborationService.setTransformedPendingMutations(unitId, result.m1Primes, pendingBaseRev ?? serverVersion);
                         }
                     } else if (missedMutations.length > 0) {
                         // No pending mutations, just apply missed mutations directly
@@ -288,6 +370,9 @@ export class CollaborationController extends Disposable {
                     } else {
                         this._collaborationService.setCurrentVersion(unitId, serverVersion);
                     }
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H3', location: 'collaboration.controller.ts:reconnect:postApply', message: 'reconnect apply summary', data: { unitId, unitRev: unit.getRev(), currentVersion: this._collaborationService.getCurrentVersion(unitId), missedOpsCount: missedOps.length, pendingCount: this._collaborationService.getPendingMutations(unitId).length }, timestamp: Date.now() }) }).catch(() => {});
+                    // #endregion
 
                     // Flush pending mutations (send transformed m1Primes to server)
                     if (pendingMutations.length > 0) {
@@ -303,5 +388,49 @@ export class CollaborationController extends Disposable {
                 }
             }
         }));
+    }
+
+    private _trackLocalMutation(unitId: string, mutation: IMutationInfo): void {
+        const signature = this._getMutationSignature(mutation);
+        let unitSignatures = this._localMutationSignatures.get(unitId);
+        if (!unitSignatures) {
+            unitSignatures = new Map();
+            this._localMutationSignatures.set(unitId, unitSignatures);
+        }
+        const nextCount = (unitSignatures.get(signature) ?? 0) + 1;
+        unitSignatures.set(signature, nextCount);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H9', location: 'collaboration.controller.ts:trackLocal', message: 'tracked local mutation signature', data: { unitId, mutationId: mutation.id, signatureCount: nextCount }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
+    }
+
+    private _filterLocalEchoMutations(
+        unitId: string,
+        mutations: IMutationInfo[],
+        localUserId: string | undefined,
+        opUserId: string | undefined,
+        source: string
+    ): IMutationInfo[] {
+        if (!localUserId || !opUserId) {
+            return mutations;
+        }
+        if (localUserId !== opUserId) {
+            return mutations;
+        }
+        const removedCount = mutations.length;
+        if (removedCount > 0) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H9', location: 'collaboration.controller.ts:filterLocalEcho', message: 'filtered local-echo mutations by userId', data: { unitId, source, removedCount, remainingCount: 0, localUserId, opUserId }, timestamp: Date.now() }) }).catch(() => {});
+            // #endregion
+        }
+        return [];
+    }
+
+    private _getMutationSignature(mutation: IMutationInfo): string {
+        try {
+            return `${mutation.id}:${JSON.stringify(mutation.params)}`;
+        } catch {
+            return `${mutation.id}:<unstringifiable>`;
+        }
     }
 }

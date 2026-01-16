@@ -28,6 +28,7 @@ export interface ICollaborationService {
     fetchOps(docId: string, startRev: number): Promise<IOperationInfo[]>;
     syncOnReconnect(unitId: string): Promise<{ missedOps: IOperationInfo[]; pendingMutations: IMutationInfo[]; serverVersion: number }>;
     getPendingMutations(unitId: string): IMutationInfo[];
+    getPendingBaseRev(unitId: string): number | undefined;
     setTransformedPendingMutations(unitId: string, mutations: IMutationInfo[], baseRev: number): void;
     getCurrentVersion(unitId: string): number | undefined;
     setCurrentVersion(unitId: string, version: number): void;
@@ -143,6 +144,13 @@ export class CollaborationService extends Disposable implements ICollaborationSe
     }
 
     async sendChangeset(changeset: IChangeset): Promise<void> {
+        const mutationIdCounts = changeset.mutations.reduce<Record<string, number>>((acc, mutation) => {
+            acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
+            return acc;
+        }, {});
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H8', location: 'collaboration.service.ts:sendChangeset:entry', message: 'sendChangeset entry', data: { unitId: changeset.unitId, baseRev: changeset.baseRev, mutationCount: changeset.mutations.length, mutationIdCounts, socketDisconnected: Boolean(this._socketService.getSocket()?.disconnected) }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
         if (!this._socketService.getSocket() || this._socketService.getSocket()?.disconnected) {
             this._logger.error('Socket not connected, saving to offline storage');
             // Save to offline storage when socket is disconnected
@@ -345,6 +353,9 @@ export class CollaborationService extends Disposable implements ICollaborationSe
 
         // Get local version (from currentVersions or pending baseRev)
         const localVersion = this._currentVersions.get(unitId) ?? this._pendingBaseRevs.get(unitId) ?? 0;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1', location: 'collaboration.service.ts:syncOnReconnect:localVersion', message: 'syncOnReconnect local version snapshot', data: { unitId, localVersion, currentVersion: this._currentVersions.get(unitId), pendingBaseRev: this._pendingBaseRevs.get(unitId) }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
 
         // Join doc to get server version
         try {
@@ -362,11 +373,13 @@ export class CollaborationService extends Disposable implements ICollaborationSe
 
         // Get pending mutations (from memory and offline storage)
         let pendingMutations = this._pendingMutations.get(unitId) || [];
+        let offlinePendingCount = 0;
 
         // Also load from offline storage in case there are mutations saved there
         try {
             const offlinePending = await this._offlineStorage.loadPendingMutations(unitId);
             if (offlinePending && offlinePending.mutations.length > 0) {
+                offlinePendingCount = offlinePending.mutations.length;
                 // Merge offline mutations if not already in memory
                 if (pendingMutations.length === 0) {
                     pendingMutations = offlinePending.mutations;
@@ -378,18 +391,19 @@ export class CollaborationService extends Disposable implements ICollaborationSe
         } catch (error) {
             this._logger.error('Failed to load offline pending mutations:', error);
         }
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1', location: 'collaboration.service.ts:syncOnReconnect:pending', message: 'syncOnReconnect pending + server version', data: { unitId, localVersion, serverVersion, pendingCount: pendingMutations.length, offlinePendingCount }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
 
         // If local version is behind server, fetch missed operations
         let missedOps: IOperationInfo[] = [];
         if (localVersion < serverVersion) {
             this._logger.log(`Version gap detected: local=${localVersion}, server=${serverVersion}, fetching missed operations`);
             missedOps = await this.fetchOps(unitId, localVersion);
-
-            // Update baseRev for pending mutations to reflect server version
-            if (pendingMutations.length > 0) {
-                this._pendingBaseRevs.set(unitId, serverVersion);
-            }
         }
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1', location: 'collaboration.service.ts:syncOnReconnect:missedOps', message: 'syncOnReconnect missed ops summary', data: { unitId, localVersion, serverVersion, missedOpsCount: missedOps.length, missedOpsLastRev: missedOps.length > 0 ? missedOps[missedOps.length - 1].rev : undefined }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
 
         return { missedOps, pendingMutations, serverVersion };
     }
@@ -399,6 +413,10 @@ export class CollaborationService extends Disposable implements ICollaborationSe
      */
     getPendingMutations(unitId: string): IMutationInfo[] {
         return this._pendingMutations.get(unitId) || [];
+    }
+
+    getPendingBaseRev(unitId: string): number | undefined {
+        return this._pendingBaseRevs.get(unitId);
     }
 
     /**
