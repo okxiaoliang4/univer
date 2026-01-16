@@ -15,8 +15,7 @@
  */
 
 import type { ICollaborationConfig } from './controller/config.schema';
-import { DependentOn, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
-import { UniverNetworkPlugin } from '@univerjs/network';
+import { IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
 import { CollaborationController } from './controller/collaboration.controller';
 import { COLLABORATION_PLUGIN_CONFIG_KEY, defaultPluginConfig } from './controller/config.schema';
 import { CollaborationService, ICollaborationService } from './services/collaboration.service';
@@ -24,7 +23,6 @@ import { IOfflineStorageService, OfflineStorageService } from './services/offlin
 import { ISocketService, SocketService } from './services/socket.service';
 import { ITransformService, TransformService } from './services/transform.service';
 
-@DependentOn(UniverNetworkPlugin)
 export class CollaborationPlugin extends Plugin {
     static override pluginName = 'COLLABORATION_PLUGIN';
 

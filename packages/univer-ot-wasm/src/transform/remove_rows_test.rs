@@ -36,8 +36,8 @@ mod tests {
 
         let mut cell_data = serde_json::Map::new();
         let mut row_data = serde_json::Map::new();
-        row_data.insert("1".to_string(), serde_json::json!({"v": "test"}));
-        cell_data.insert("1".to_string(), serde_json::Value::Object(row_data));
+        row_data.insert("5".to_string(), serde_json::json!({"v": "test"}));
+        cell_data.insert("5".to_string(), serde_json::Value::Object(row_data));
 
         let m2 = create_mutation_info(
             "sheet.mutation.set-range-values".to_string(),
@@ -52,8 +52,12 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
-        // Remove rows doesn't need to change when set_range_values happens
-        assert_eq!(result.m1_prime.id, m1.id);
+
+        let transformed_params: SetRangeValuesMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        assert!(transformed_params.cell_value.is_some());
+        let cell_value = transformed_params.cell_value.unwrap();
+        assert!(cell_value.data.contains_key("2"));
+        assert!(!cell_value.data.contains_key("5"));
     }
 
     // RemoveRows × InsertRow
@@ -101,6 +105,49 @@ mod tests {
         // Remove range should shift down by 1
         assert_eq!(transformed_params.range.start_row, 4);
         assert_eq!(transformed_params.range.end_row, 6);
+    }
+
+    // RemoveRows × InsertRow (conflict)
+    #[test]
+    fn test_transform_remove_rows_insert_row_conflict() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::to_value(RemoveRowsMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 2,
+                    start_column: 0,
+                    end_row: 4,
+                    end_column: 0,
+                },
+            }).unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-row".to_string(),
+            serde_json::to_value(InsertRowMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 3,
+                    start_column: 0,
+                    end_row: 3,
+                    end_column: 0,
+                },
+                row_info: None,
+            }).unwrap(),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_some());
+        assert!(result.error.unwrap().contains("conflicts"));
     }
 
     // RemoveRows × InsertCol
@@ -229,9 +276,10 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
-        // Non-overlapping removes should work fine
-        assert_eq!(result.m1_prime.id, m1.id);
-        assert_eq!(result.m2_prime.id, m2.id);
+
+        let transformed_params: RemoveRowsMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        assert_eq!(transformed_params.range.start_row, 3);
+        assert_eq!(transformed_params.range.end_row, 4);
     }
 
     // RemoveRows × RemoveCol

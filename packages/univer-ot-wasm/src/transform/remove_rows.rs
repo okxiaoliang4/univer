@@ -1,34 +1,41 @@
 use crate::types::{
-    MutationInfo, TransformResult,
+    MutationInfoInternal, TransformResultInternal,
     InsertRowMutationParams, RemoveRowsMutationParams,
+    SetRangeValuesMutationParams, ObjectMatrixPrimitiveType,
     SubUnitParams, Range,
 };
-#[cfg(any(test, feature = "server"))]
-use crate::types::{MutationInfoInternal, TransformResultInternal};
 use crate::transform::mutation_transform::MutationTransform;
-#[cfg(any(test, feature = "server"))]
 use serde_json;
-use serde_wasm_bindgen;
 
 #[derive(Default)]
 pub struct RemoveRowsTransform;
+
+fn shift_rows_for_remove(cell_value: &mut ObjectMatrixPrimitiveType, remove_start: u32, remove_end: u32) {
+    let remove_count = remove_end - remove_start + 1;
+    let mut new_data = serde_json::Map::new();
+    for (row_key, row_value) in cell_value.data.iter() {
+        if let Ok(row_num) = row_key.parse::<u32>() {
+            if row_num > remove_end {
+                let new_key = (row_num - remove_count).to_string();
+                new_data.insert(new_key, row_value.clone());
+            } else if row_num < remove_start {
+                new_data.insert(row_key.clone(), row_value.clone());
+            }
+            // Rows in [remove_start, remove_end] are removed
+        } else {
+            new_data.insert(row_key.clone(), row_value.clone());
+        }
+    }
+    cell_value.data = new_data;
+}
 
 impl MutationTransform for RemoveRowsTransform {
     fn mutation_id() -> &'static str {
         "sheet.mutation.remove-rows"
     }
 
-    fn transform_with_set_range_values(&self, m1: &MutationInfo, m2: &MutationInfo) -> TransformResult {
-        // Remove rows doesn't need to change when set_range_values happens
-        TransformResult {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
-            error: None,
-        }
-    }
-
-    fn transform_with_insert_row(&self, m1: &MutationInfo, m2: &MutationInfo) -> TransformResult {
-        let m1_params: RemoveRowsMutationParams = serde_wasm_bindgen::from_value(m1.params.clone())
+    fn transform_with_set_range_values(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+        let m1_params: RemoveRowsMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| RemoveRowsMutationParams {
                 sub_unit_params: SubUnitParams {
                     unit_id: "".to_string(),
@@ -42,127 +49,42 @@ impl MutationTransform for RemoveRowsTransform {
                 },
             });
 
-        let m2_params: InsertRowMutationParams = serde_wasm_bindgen::from_value(m2.params.clone())
-            .unwrap_or_else(|_| InsertRowMutationParams {
+        let mut m2_params: SetRangeValuesMutationParams = serde_json::from_value(m2.params.clone())
+            .unwrap_or_else(|_| SetRangeValuesMutationParams {
                 sub_unit_params: SubUnitParams {
                     unit_id: "".to_string(),
                     sub_unit_id: "".to_string(),
                 },
-                range: Range {
-                    start_row: 0,
-                    start_column: 0,
-                    end_row: 0,
-                    end_column: 0,
-                },
-                row_info: None,
+                cell_value: None,
             });
 
-        let remove_start = m1_params.range.start_row;
-        let remove_end = m1_params.range.end_row;
-        let insert_row = m2_params.range.start_row;
-
-        // If insert_row is before remove_start, shift remove range down
-        let mut new_m1_params = m1_params.clone();
-        if insert_row <= remove_start {
-            new_m1_params.range.start_row += 1;
-            new_m1_params.range.end_row += 1;
-        } else if insert_row <= remove_end {
-            // Insert row is within removed range, extend remove range
-            new_m1_params.range.end_row += 1;
-        }
-
-        TransformResult {
-            m1_prime: MutationInfo {
-                id: m1.id.clone(),
-                params: serde_wasm_bindgen::to_value(&new_m1_params).unwrap(),
-            },
-            m2_prime: m2.clone(),
-            error: None,
-        }
-    }
-
-    fn transform_with_insert_col(&self, m1: &MutationInfo, m2: &MutationInfo) -> TransformResult {
-        // Remove rows and insert col are independent
-        TransformResult {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
-            error: None,
-        }
-    }
-
-    fn transform_with_remove_rows(&self, m1: &MutationInfo, m2: &MutationInfo) -> TransformResult {
-        let m1_params: RemoveRowsMutationParams = serde_wasm_bindgen::from_value(m1.params.clone())
-            .unwrap_or_else(|_| RemoveRowsMutationParams {
-                sub_unit_params: SubUnitParams {
-                    unit_id: "".to_string(),
-                    sub_unit_id: "".to_string(),
-                },
-                range: Range {
-                    start_row: 0,
-                    start_column: 0,
-                    end_row: 0,
-                    end_column: 0,
-                },
-            });
-
-        let m2_params: RemoveRowsMutationParams = serde_wasm_bindgen::from_value(m2.params.clone())
-            .unwrap_or_else(|_| RemoveRowsMutationParams {
-                sub_unit_params: SubUnitParams {
-                    unit_id: "".to_string(),
-                    sub_unit_id: "".to_string(),
-                },
-                range: Range {
-                    start_row: 0,
-                    start_column: 0,
-                    end_row: 0,
-                    end_column: 0,
-                },
-            });
-
-        // Check for conflict: overlapping ranges
-        let m1_start = m1_params.range.start_row;
-        let m1_end = m1_params.range.end_row;
-        let m2_start = m2_params.range.start_row;
-        let m2_end = m2_params.range.end_row;
-
-        if (m2_start >= m1_start && m2_start <= m1_end) ||
-           (m2_end >= m1_start && m2_end <= m1_end) ||
-           (m2_start <= m1_start && m2_end >= m1_end) {
-            return TransformResult {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
+           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+            return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
-                error: Some("Conflicting remove operations".to_string()),
+                error: None,
             };
         }
 
-        TransformResult {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
-            error: None,
-        }
-    }
+        let remove_start = m1_params.range.start_row;
+        let remove_end = m1_params.range.end_row;
 
-    fn transform_with_remove_col(&self, m1: &MutationInfo, m2: &MutationInfo) -> TransformResult {
-        // Remove rows and remove col are independent
-        TransformResult {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
-            error: None,
+        if let Some(ref mut cell_value) = m2_params.cell_value {
+            shift_rows_for_remove(cell_value, remove_start, remove_end);
         }
-    }
 
-    // Internal methods that work with MutationInfoInternal (for Rust unit tests and server)
-    #[cfg(any(test, feature = "server"))]
-    fn transform_internal_with_set_range_values(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
         TransformResultInternal {
             m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
+            m2_prime: MutationInfoInternal {
+                id: m2.id.clone(),
+                params: serde_json::to_value(m2_params).unwrap(),
+            },
             error: None,
         }
     }
 
-    #[cfg(any(test, feature = "server"))]
-    fn transform_internal_with_insert_row(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_row(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
         let m1_params: RemoveRowsMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| RemoveRowsMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -192,32 +114,56 @@ impl MutationTransform for RemoveRowsTransform {
                 row_info: None,
             });
 
-        let remove_start = m1_params.range.start_row;
-        let remove_end = m1_params.range.end_row;
-        let insert_row = m2_params.range.start_row;
-
-        // If insert_row is before remove_start, shift remove range down
-        let mut new_m1_params = m1_params.clone();
-        if insert_row <= remove_start {
-            new_m1_params.range.start_row += 1;
-            new_m1_params.range.end_row += 1;
-        } else if insert_row <= remove_end {
-            // Insert row is within removed range, extend remove range
-            new_m1_params.range.end_row += 1;
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
+           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+            return TransformResultInternal {
+                m1_prime: m1.clone(),
+                m2_prime: m2.clone(),
+                error: None,
+            };
         }
 
-        TransformResultInternal {
-            m1_prime: MutationInfoInternal {
-                id: m1.id.clone(),
-                params: serde_json::to_value(new_m1_params).unwrap(),
-            },
-            m2_prime: m2.clone(),
-            error: None,
+        let remove_start = m1_params.range.start_row;
+        let remove_end = m1_params.range.end_row;
+        let remove_count = m1_params.range.end_row - m1_params.range.start_row + 1;
+        let insert_row = m2_params.range.start_row;
+        let insert_count = m2_params.range.end_row - m2_params.range.start_row + 1;
+
+        if insert_row <= remove_start {
+            let mut new_m1_params = m1_params.clone();
+            new_m1_params.range.start_row += insert_count;
+            new_m1_params.range.end_row += insert_count;
+            TransformResultInternal {
+                m1_prime: MutationInfoInternal {
+                    id: m1.id.clone(),
+                    params: serde_json::to_value(new_m1_params).unwrap(),
+                },
+                m2_prime: m2.clone(),
+                error: None,
+            }
+        } else if insert_row > remove_end {
+            let mut new_m2_params = m2_params.clone();
+            new_m2_params.range.start_row -= remove_count;
+            new_m2_params.range.end_row -= remove_count;
+            TransformResultInternal {
+                m1_prime: m1.clone(),
+                m2_prime: MutationInfoInternal {
+                    id: m2.id.clone(),
+                    params: serde_json::to_value(new_m2_params).unwrap(),
+                },
+                error: None,
+            }
+        } else {
+            TransformResultInternal {
+                m1_prime: m1.clone(),
+                m2_prime: m2.clone(),
+                error: Some("Insert row conflicts with remove rows".to_string()),
+            }
         }
     }
 
-    #[cfg(any(test, feature = "server"))]
-    fn transform_internal_with_insert_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+        // Remove rows and insert col are independent
         TransformResultInternal {
             m1_prime: m1.clone(),
             m2_prime: m2.clone(),
@@ -225,8 +171,7 @@ impl MutationTransform for RemoveRowsTransform {
         }
     }
 
-    #[cfg(any(test, feature = "server"))]
-    fn transform_internal_with_remove_rows(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_rows(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
         let m1_params: RemoveRowsMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| RemoveRowsMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -255,6 +200,15 @@ impl MutationTransform for RemoveRowsTransform {
                 },
             });
 
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
+           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+            return TransformResultInternal {
+                m1_prime: m1.clone(),
+                m2_prime: m2.clone(),
+                error: None,
+            };
+        }
+
         // Check for conflict: overlapping ranges
         let m1_start = m1_params.range.start_row;
         let m1_end = m1_params.range.end_row;
@@ -271,6 +225,37 @@ impl MutationTransform for RemoveRowsTransform {
             };
         }
 
+        let m1_count = m1_end - m1_start + 1;
+        let m2_count = m2_end - m2_start + 1;
+
+        if m1_end < m2_start {
+            let mut new_m2_params = m2_params.clone();
+            new_m2_params.range.start_row -= m1_count;
+            new_m2_params.range.end_row -= m1_count;
+            return TransformResultInternal {
+                m1_prime: m1.clone(),
+                m2_prime: MutationInfoInternal {
+                    id: m2.id.clone(),
+                    params: serde_json::to_value(new_m2_params).unwrap(),
+                },
+                error: None,
+            };
+        }
+
+        if m2_end < m1_start {
+            let mut new_m1_params = m1_params.clone();
+            new_m1_params.range.start_row -= m2_count;
+            new_m1_params.range.end_row -= m2_count;
+            return TransformResultInternal {
+                m1_prime: MutationInfoInternal {
+                    id: m1.id.clone(),
+                    params: serde_json::to_value(new_m1_params).unwrap(),
+                },
+                m2_prime: m2.clone(),
+                error: None,
+            };
+        }
+
         TransformResultInternal {
             m1_prime: m1.clone(),
             m2_prime: m2.clone(),
@@ -278,8 +263,8 @@ impl MutationTransform for RemoveRowsTransform {
         }
     }
 
-    #[cfg(any(test, feature = "server"))]
-    fn transform_internal_with_remove_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+        // Remove rows and remove col are independent
         TransformResultInternal {
             m1_prime: m1.clone(),
             m2_prime: m2.clone(),

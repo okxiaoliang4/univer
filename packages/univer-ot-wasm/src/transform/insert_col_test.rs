@@ -37,7 +37,7 @@ mod tests {
 
         let mut cell_data = serde_json::Map::new();
         let mut row_data = serde_json::Map::new();
-        row_data.insert("1".to_string(), serde_json::json!({"v": "test"}));
+        row_data.insert("2".to_string(), serde_json::json!({"v": "test"}));
         cell_data.insert("0".to_string(), serde_json::Value::Object(row_data));
 
         let m2 = create_mutation_info(
@@ -53,8 +53,13 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
-        // Insert col doesn't need to change when set_range_values happens
-        assert_eq!(result.m1_prime.id, m1.id);
+
+        let transformed_params: SetRangeValuesMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        assert!(transformed_params.cell_value.is_some());
+        let cell_value = transformed_params.cell_value.unwrap();
+        let row = cell_value.data.get("0").unwrap().as_object().unwrap();
+        assert!(row.contains_key("3"));
+        assert!(!row.contains_key("2"));
     }
 
     // InsertCol × InsertRow
@@ -144,9 +149,57 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
-        // Currently returns identity transform (column transform not yet implemented)
-        assert_eq!(result.m1_prime.id, m1.id);
-        assert_eq!(result.m2_prime.id, m2.id);
+
+        let transformed_params: InsertColMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        assert_eq!(transformed_params.range.start_column, 3);
+        assert_eq!(transformed_params.range.end_column, 3);
+    }
+
+    // InsertCol × InsertCol (m2 before m1)
+    #[test]
+    fn test_transform_insert_col_insert_col_shift_m1() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 5,
+                    end_row: 0,
+                    end_column: 5,
+                },
+                col_info: None,
+            }).unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 2,
+                    end_row: 0,
+                    end_column: 2,
+                },
+                col_info: None,
+            }).unwrap(),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_none());
+
+        let transformed_params: InsertColMutationParams = serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+        assert_eq!(transformed_params.range.start_column, 6);
+        assert_eq!(transformed_params.range.end_column, 6);
     }
 
     // InsertCol × RemoveRows
@@ -234,8 +287,52 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
-        // Currently returns identity transform (column transform not yet implemented)
-        assert_eq!(result.m1_prime.id, m1.id);
-        assert_eq!(result.m2_prime.id, m2.id);
+
+        let transformed_params: RemoveColMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        assert_eq!(transformed_params.range.start_column, 4);
+        assert_eq!(transformed_params.range.end_column, 6);
+    }
+
+    // InsertCol × RemoveCol (conflict)
+    #[test]
+    fn test_transform_insert_col_remove_col_conflict() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 2,
+                    end_row: 0,
+                    end_column: 2,
+                },
+                col_info: None,
+            }).unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 3,
+                },
+            }).unwrap(),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_some());
+        assert!(result.error.unwrap().contains("conflicts"));
     }
 }

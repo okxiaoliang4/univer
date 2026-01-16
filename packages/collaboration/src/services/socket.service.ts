@@ -110,6 +110,12 @@ export class SocketService extends Disposable implements ISocketService {
             transports: ['websocket'],
             // Explicitly specify root namespace
             path: '/socket.io/',
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5,
+            reconnection: true,
+            timeout: 20000,
+            autoConnect: true,
         });
 
         this._socket.on('connect', () => {
