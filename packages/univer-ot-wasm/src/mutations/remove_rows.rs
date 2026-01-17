@@ -18,7 +18,7 @@ impl RemoveRowsMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{RemoveRowsMutationParams, SubUnitParams, Range};
+    use crate::types::{Range, RemoveRowsMutationParams, SubUnitParams};
 
     #[test]
     fn test_remove_rows_mutation_valid_params() {

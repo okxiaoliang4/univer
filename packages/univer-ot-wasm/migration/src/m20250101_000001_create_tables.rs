@@ -58,21 +58,9 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(
-                        ColumnDef::new(OperationLogs::DocId)
-                            .uuid()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OperationLogs::Rev)
-                            .big_integer()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(OperationLogs::UserId)
-                            .string()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(OperationLogs::DocId).uuid().not_null())
+                    .col(ColumnDef::new(OperationLogs::Rev).big_integer().not_null())
+                    .col(ColumnDef::new(OperationLogs::UserId).string().not_null())
                     .col(
                         ColumnDef::new(OperationLogs::MutationId)
                             .string()

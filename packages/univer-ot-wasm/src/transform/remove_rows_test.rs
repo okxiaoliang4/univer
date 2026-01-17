@@ -1,16 +1,20 @@
 #[cfg(test)]
 mod tests {
-    use crate::types::*;
-    use crate::transform::remove_rows::RemoveRowsTransform;
     use crate::transform::mutation_transform::MutationTransform;
-    use serde_json;
+    use crate::transform::remove_rows::RemoveRowsTransform;
     use crate::transform::test_utils::test_utils::create_mutation_info;
     use crate::transform::TransformService;
+    use crate::transform::NOOP_MUTATION_ID;
+    use crate::types::*;
+    use serde_json;
 
     #[test]
     fn test_remove_rows_transform_trait() {
         let transform = RemoveRowsTransform::default();
-        assert_eq!(RemoveRowsTransform::mutation_id(), "sheet.mutation.remove-rows");
+        assert_eq!(
+            RemoveRowsTransform::mutation_id(),
+            "sheet.mutation.remove-rows"
+        );
     }
 
     // RemoveRows × SetRangeValues
@@ -31,7 +35,8 @@ mod tests {
                     end_row: 4,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let mut cell_data = serde_json::Map::new();
@@ -47,13 +52,15 @@ mod tests {
                     sub_unit_id: "test-sheet".to_string(),
                 },
                 cell_value: Some(ObjectMatrixPrimitiveType { data: cell_data }),
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        let transformed_params: SetRangeValuesMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        let transformed_params: SetRangeValuesMutationParams =
+            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
         assert!(transformed_params.cell_value.is_some());
         let cell_value = transformed_params.cell_value.unwrap();
         assert!(cell_value.data.contains_key("2"));
@@ -78,7 +85,8 @@ mod tests {
                     end_row: 5,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -95,19 +103,21 @@ mod tests {
                     end_column: 0,
                 },
                 row_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        let transformed_params: RemoveRowsMutationParams = serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+        let transformed_params: RemoveRowsMutationParams =
+            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
         // Remove range should shift down by 1
         assert_eq!(transformed_params.range.start_row, 4);
         assert_eq!(transformed_params.range.end_row, 6);
     }
 
-    // RemoveRows × InsertRow (conflict)
+    // RemoveRows × InsertRow (delete wins when overlapped)
     #[test]
     fn test_transform_remove_rows_insert_row_conflict() {
         let service = TransformService::new();
@@ -125,7 +135,8 @@ mod tests {
                     end_row: 4,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -142,12 +153,19 @@ mod tests {
                     end_column: 0,
                 },
                 row_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
-        assert!(result.error.is_some());
-        assert!(result.error.unwrap().contains("conflicts"));
+        assert!(result.error.is_none());
+
+        let transformed_params: RemoveRowsMutationParams =
+            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+        assert_eq!(transformed_params.range.start_row, 2);
+        assert_eq!(transformed_params.range.end_row, 5);
+
+        assert_eq!(result.m2_prime.id, NOOP_MUTATION_ID);
     }
 
     // RemoveRows × InsertCol
@@ -168,7 +186,8 @@ mod tests {
                     end_row: 3,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -185,7 +204,8 @@ mod tests {
                     end_column: 2,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
@@ -195,7 +215,7 @@ mod tests {
         assert_eq!(result.m2_prime.id, m2.id);
     }
 
-    // RemoveRows × RemoveRows
+    // RemoveRows × RemoveRows (overlap shrinks to remaining)
     #[test]
     fn test_transform_remove_rows_conflict() {
         let service = TransformService::new();
@@ -213,7 +233,8 @@ mod tests {
                     end_row: 3,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -229,12 +250,22 @@ mod tests {
                     end_row: 4,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
-        assert!(result.error.is_some());
-        assert!(result.error.unwrap().contains("Conflicting"));
+        assert!(result.error.is_none());
+
+        let transformed_params: RemoveRowsMutationParams =
+            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+        assert_eq!(transformed_params.range.start_row, 1);
+        assert_eq!(transformed_params.range.end_row, 1);
+
+        let transformed_params_m2: RemoveRowsMutationParams =
+            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        assert_eq!(transformed_params_m2.range.start_row, 1);
+        assert_eq!(transformed_params_m2.range.end_row, 1);
     }
 
     // RemoveRows × RemoveRows (non-overlapping)
@@ -255,7 +286,8 @@ mod tests {
                     end_row: 2,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -271,13 +303,15 @@ mod tests {
                     end_row: 6,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        let transformed_params: RemoveRowsMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        let transformed_params: RemoveRowsMutationParams =
+            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
         assert_eq!(transformed_params.range.start_row, 3);
         assert_eq!(transformed_params.range.end_row, 4);
     }
@@ -300,7 +334,8 @@ mod tests {
                     end_row: 3,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -316,7 +351,8 @@ mod tests {
                     end_row: 0,
                     end_column: 4,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);

@@ -66,6 +66,7 @@
         "@univerjs/network": "workspace:*",
         "@univerjs/sheets": "workspace:*",
         "@univerjs/univer-ot-wasm": "workspace:*",
+        "localforage": "^1.10.0",
         "socket.io-client": "^4.8.3"
     },
     "devDependencies": {

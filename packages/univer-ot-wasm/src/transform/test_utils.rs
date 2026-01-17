@@ -6,10 +6,7 @@ pub mod test_utils {
     /// Helper function to create MutationInfoInternal from serde_json::Value for testing
     /// This works in both WASM and non-WASM test environments
     pub fn create_mutation_info(id: String, params: serde_json::Value) -> MutationInfoInternal {
-        MutationInfoInternal {
-            id,
-            params,
-        }
+        MutationInfoInternal { id, params }
     }
 
     /// Helper function to convert MutationInfoInternal back to serde_json::Value for testing

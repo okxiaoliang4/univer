@@ -1,16 +1,18 @@
-use crate::types::{
-    MutationInfoInternal, TransformResultInternal,
-    InsertColMutationParams, RemoveColMutationParams,
-    SetRangeValuesMutationParams, ObjectMatrixPrimitiveType,
-    SubUnitParams, Range,
-};
 use crate::transform::mutation_transform::MutationTransform;
+use crate::types::{
+    InsertColMutationParams, MutationInfoInternal, ObjectMatrixPrimitiveType, Range,
+    RemoveColMutationParams, SetRangeValuesMutationParams, SubUnitParams, TransformResultInternal,
+};
 use serde_json;
 
 #[derive(Default)]
 pub struct InsertColTransform;
 
-fn shift_cols_for_insert(cell_value: &mut ObjectMatrixPrimitiveType, insert_start: u32, insert_count: u32) {
+fn shift_cols_for_insert(
+    cell_value: &mut ObjectMatrixPrimitiveType,
+    insert_start: u32,
+    insert_count: u32,
+) {
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
         if let serde_json::Value::Object(cols) = row_value {
@@ -42,7 +44,11 @@ impl MutationTransform for InsertColTransform {
         "sheet.mutation.insert-col"
     }
 
-    fn transform_with_set_range_values(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_set_range_values(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let m1_params: InsertColMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| InsertColMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -67,8 +73,9 @@ impl MutationTransform for InsertColTransform {
                 cell_value: None,
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -93,7 +100,11 @@ impl MutationTransform for InsertColTransform {
         }
     }
 
-    fn transform_with_insert_row(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_row(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         // Insert col and insert row are independent
         TransformResultInternal {
             m1_prime: m1.clone(),
@@ -102,7 +113,11 @@ impl MutationTransform for InsertColTransform {
         }
     }
 
-    fn transform_with_insert_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_col(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let m1_params: InsertColMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| InsertColMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -133,8 +148,9 @@ impl MutationTransform for InsertColTransform {
                 col_info: None,
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -173,7 +189,11 @@ impl MutationTransform for InsertColTransform {
         }
     }
 
-    fn transform_with_remove_rows(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_rows(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         // Insert col and remove rows are independent
         TransformResultInternal {
             m1_prime: m1.clone(),
@@ -182,7 +202,11 @@ impl MutationTransform for InsertColTransform {
         }
     }
 
-    fn transform_with_remove_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_col(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let m1_params: InsertColMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| InsertColMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -212,8 +236,9 @@ impl MutationTransform for InsertColTransform {
                 },
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),

@@ -1,11 +1,11 @@
-use crate::server::database::entities::{documents, document_snapshot, operation_log};
+use crate::server::database::entities::{document_snapshot, documents, operation_log};
 use crate::server::services::document::DocumentService;
 use crate::server::services::snapshot::SnapshotService;
 use crate::transform::TransformServiceCore;
 use crate::types::{MutationInfoInternal, TransformResultInternal};
 use anyhow::{Context, Result};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
 };
 use serde_json::Value as JsonValue;
@@ -66,6 +66,7 @@ impl OTService {
 
         // Get current version from documents table (SeaORM 2.0 uses transactions for locking)
         let current_version = documents::Entity::find_by_id(doc_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .map(|d| d.current_version)
@@ -79,13 +80,6 @@ impl OTService {
                 current_version
             ));
         }
-
-        // Get operations that happened after base_rev (for OT transformation)
-        // This will be empty if base_rev == current_version, or contain concurrent operations
-        let concurrent_ops = self
-            .document_service
-            .get_operations_since(doc_id, changeset.base_rev)
-            .await?;
 
         // Check for duplicate client_msg_id (idempotency) - check once for the entire changeset
         // Use the first mutation's client_msg_id to check if the entire changeset was already processed
@@ -103,7 +97,11 @@ impl OTService {
             let changeset_size = changeset.mutations.len() as i64;
             let existing_mutations = self
                 .document_service
-                .get_operations(doc_id, existing_rev, Some(existing_rev + changeset_size - 1))
+                .get_operations(
+                    doc_id,
+                    existing_rev,
+                    Some(existing_rev + changeset_size - 1),
+                )
                 .await?;
             return Ok(ChangesetApplied {
                 server_rev: existing_rev + changeset_size - 1,
@@ -118,46 +116,52 @@ impl OTService {
             });
         }
 
-        // Transform each mutation against concurrent operations
+        // Get operations that happened after base_rev (for OT transformation)
+        // This will be empty if base_rev == current_version, or contain concurrent operations
+        let concurrent_ops = self
+            .document_service
+            .get_operations_since(doc_id, changeset.base_rev)
+            .await?;
+
+        // Convert concurrent operations to MutationInfoInternal list
+        let concurrent_mutations: Vec<MutationInfoInternal> = concurrent_ops
+            .iter()
+            .map(|op| MutationInfoInternal {
+                id: op.mutation_id.clone(),
+                params: op.params.clone(),
+            })
+            .collect();
+
+        // Transform all mutations against concurrent operations using transform_list
+        let (m1_primes, _, error) = self
+            .transform_service
+            .transform_list(&changeset.mutations, &concurrent_mutations);
+
+        if let Some(err) = error {
+            return Err(anyhow::anyhow!("Transform error: {}", err));
+        }
+
+        // Store all transformed operations (m1_primes) into database
         let mut transformed_mutations = Vec::new();
         let mut next_rev = current_version + 1;
+        let now = chrono::Utc::now();
 
-        for (index, mutation) in changeset.mutations.into_iter().enumerate() {
-
-            // Transform mutation against all concurrent operations
-            let mut current_mutation = mutation.clone();
-            for op in &concurrent_ops {
-                let op_mutation = MutationInfoInternal {
-                    id: op.mutation_id.clone(),
-                    params: op.params.clone(),
-                };
-
-                let transform_result = self.transform_mutations(&current_mutation, &op_mutation)?;
-
-                if let Some(error) = &transform_result.error {
-                    return Err(anyhow::anyhow!("Transform error: {}", error));
-                }
-
-                current_mutation = transform_result.m1_prime;
-            }
-
-            // Store the transformed operation
+        for (index, m1_prime) in m1_primes.into_iter().enumerate() {
             // Generate unique client_msg_id for each mutation: {base_client_msg_id}-{index}
             let unique_client_msg_id = format!("{}-{}", client_msg_id, index);
-            let now = chrono::Utc::now();
             let operation = operation_log::ActiveModel {
                 doc_id: Set(doc_id),
                 rev: Set(next_rev),
                 user_id: Set(changeset.user_id.clone()),
-                mutation_id: Set(current_mutation.id.clone()),
-                params: Set(current_mutation.params.clone()),
+                mutation_id: Set(m1_prime.id.clone()),
+                params: Set(m1_prime.params.clone()),
                 client_msg_id: Set(unique_client_msg_id),
                 created_at: Set(now.into()),
                 ..Default::default()
             };
 
             operation.insert(&txn).await?;
-            transformed_mutations.push(current_mutation);
+            transformed_mutations.push(m1_prime);
             next_rev += 1;
         }
 

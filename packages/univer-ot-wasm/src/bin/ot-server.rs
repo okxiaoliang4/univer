@@ -3,21 +3,21 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use migration::{Migrator, MigratorTrait};
 use sea_orm::Database;
+use sea_orm::DatabaseConnection;
 use std::{net::SocketAddr, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::cors::{AllowHeaders, Any, CorsLayer};
 use tracing::{info, Level};
-use migration::{Migrator, MigratorTrait};
-use sea_orm::DatabaseConnection;
 
 // Include modules that server code depends on
-#[path = "../types.rs"]
-mod types;
-#[path = "../transform/mod.rs"]
-mod transform;
 #[path = "../mutations/mod.rs"]
 mod mutations;
+#[path = "../transform/mod.rs"]
+mod transform;
+#[path = "../types.rs"]
+mod types;
 
 // Re-export server modules for binary
 #[path = "../server/mod.rs"]
@@ -36,9 +36,7 @@ async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
 
     // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     // Load configuration
     let config = Config::from_env();
@@ -65,10 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(api::health_check))
         .route("/api/documents", post(api::create_document))
-        .route(
-            "/api/documents/{doc_id}",
-            get(api::get_document),
-        )
+        .route("/api/documents/{doc_id}", get(api::get_document))
         .route(
             "/api/documents/{doc_id}/snapshot",
             post(api::update_snapshot),
@@ -91,9 +86,7 @@ async fn main() -> anyhow::Result<()> {
                             Method::OPTIONS,
                         ])
                         .allow_headers(Any)
-                        .expose_headers([
-                            axum::http::header::CONTENT_TYPE,
-                        ]),
+                        .expose_headers([axum::http::header::CONTENT_TYPE]),
                 )
                 .layer(layer),
         )

@@ -1,7 +1,8 @@
 use crate::server::database::entities::{document_snapshot, documents, operation_log};
 use anyhow::Result;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -25,7 +26,7 @@ impl DocumentService {
         name: Option<String>,
     ) -> Result<i64> {
         let now = chrono::Utc::now();
-        
+
         // Create document entry in documents table
         let document = documents::ActiveModel {
             id: sea_orm::Set(doc_id),
@@ -35,13 +36,11 @@ impl DocumentService {
             updated_at: sea_orm::Set(now.into()),
         };
 
-        documents::Entity::insert(document)
-            .exec(&*self.db)
-            .await?;
+        documents::Entity::insert(document).exec(&*self.db).await?;
 
         // Create initial snapshot
         let snapshot = document_snapshot::ActiveModel {
-            id: sea_orm::Set(doc_id), // id = doc_id for snapshot
+            id: sea_orm::Set(doc_id),     // id = doc_id for snapshot
             doc_id: sea_orm::Set(doc_id), // doc_id references documents.id
             content: sea_orm::Set(JsonValue::from(initial_content)),
             version: sea_orm::Set(0), // Snapshot version = version at which snapshot was taken
@@ -57,10 +56,7 @@ impl DocumentService {
     }
 
     /// Get document snapshot by doc_id
-    pub async fn get_document(
-        &self,
-        doc_id: Uuid,
-    ) -> Result<Option<(JsonValue, i64)>> {
+    pub async fn get_document(&self, doc_id: Uuid) -> Result<Option<(JsonValue, i64)>> {
         let snapshot = document_snapshot::Entity::find_by_id(doc_id)
             .one(&*self.db)
             .await?;
@@ -101,9 +97,7 @@ impl DocumentService {
 
     /// Get the current version of a document from documents table
     pub async fn get_current_version(&self, doc_id: Uuid) -> Result<Option<i64>> {
-        let document = documents::Entity::find_by_id(doc_id)
-            .one(&*self.db)
-            .await?;
+        let document = documents::Entity::find_by_id(doc_id).one(&*self.db).await?;
 
         Ok(document.map(|d| d.current_version))
     }
@@ -125,7 +119,11 @@ impl DocumentService {
     }
 
     /// Get operations since a specific revision (for OT transformation)
-    pub async fn get_operations_since(&self, doc_id: Uuid, since_rev: i64) -> Result<Vec<OperationInfo>> {
+    pub async fn get_operations_since(
+        &self,
+        doc_id: Uuid,
+        since_rev: i64,
+    ) -> Result<Vec<OperationInfo>> {
         self.get_operations(doc_id, since_rev + 1, None).await
     }
 }

@@ -20,21 +20,18 @@ extern "C" {
     fn alert(s: &str);
 }
 
-mod types;
 mod mutations;
 mod transform;
+mod types;
 mod utils;
 
 #[cfg(feature = "server")]
 mod server;
 
-pub use types::*;
 pub use mutations::{
+    InsertColMutation, InsertRowMutation, RemoveColMutation, RemoveRowsMutation,
     SetRangeValuesMutation,
-    InsertRowMutation,
-    InsertColMutation,
-    RemoveRowsMutation,
-    RemoveColMutation,
 };
 pub use transform::TransformService;
+pub use types::*;
 pub use utils::*;

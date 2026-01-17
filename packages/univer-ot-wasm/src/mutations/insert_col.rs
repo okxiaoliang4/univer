@@ -18,7 +18,7 @@ impl InsertColMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InsertColMutationParams, SubUnitParams, Range};
+    use crate::types::{InsertColMutationParams, Range, SubUnitParams};
 
     #[test]
     fn test_insert_col_mutation_valid_params() {

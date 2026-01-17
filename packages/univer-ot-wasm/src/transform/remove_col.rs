@@ -1,16 +1,18 @@
-use crate::types::{
-    MutationInfoInternal, TransformResultInternal,
-    InsertColMutationParams, RemoveColMutationParams,
-    SetRangeValuesMutationParams, ObjectMatrixPrimitiveType,
-    SubUnitParams, Range,
-};
 use crate::transform::mutation_transform::MutationTransform;
+use crate::types::{
+    InsertColMutationParams, MutationInfoInternal, ObjectMatrixPrimitiveType, Range,
+    RemoveColMutationParams, SetRangeValuesMutationParams, SubUnitParams, TransformResultInternal,
+};
 use serde_json;
 
 #[derive(Default)]
 pub struct RemoveColTransform;
 
-fn shift_cols_for_remove(cell_value: &mut ObjectMatrixPrimitiveType, remove_start: u32, remove_end: u32) {
+fn shift_cols_for_remove(
+    cell_value: &mut ObjectMatrixPrimitiveType,
+    remove_start: u32,
+    remove_end: u32,
+) {
     let remove_count = remove_end - remove_start + 1;
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
@@ -44,7 +46,11 @@ impl MutationTransform for RemoveColTransform {
         "sheet.mutation.remove-col"
     }
 
-    fn transform_with_set_range_values(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_set_range_values(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| RemoveColMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -68,8 +74,9 @@ impl MutationTransform for RemoveColTransform {
                 cell_value: None,
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -94,7 +101,11 @@ impl MutationTransform for RemoveColTransform {
         }
     }
 
-    fn transform_with_insert_row(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_row(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         // Remove col and insert row are independent
         TransformResultInternal {
             m1_prime: m1.clone(),
@@ -103,7 +114,11 @@ impl MutationTransform for RemoveColTransform {
         }
     }
 
-    fn transform_with_insert_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_col(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| RemoveColMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -133,8 +148,9 @@ impl MutationTransform for RemoveColTransform {
                 col_info: None,
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -181,7 +197,11 @@ impl MutationTransform for RemoveColTransform {
         }
     }
 
-    fn transform_with_remove_rows(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_rows(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         // Remove col and remove rows are independent
         TransformResultInternal {
             m1_prime: m1.clone(),
@@ -190,7 +210,11 @@ impl MutationTransform for RemoveColTransform {
         }
     }
 
-    fn transform_with_remove_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_col(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| RemoveColMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -219,8 +243,9 @@ impl MutationTransform for RemoveColTransform {
                 },
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -233,9 +258,10 @@ impl MutationTransform for RemoveColTransform {
         let m2_start = m2_params.range.start_column;
         let m2_end = m2_params.range.end_column;
 
-        if (m2_start >= m1_start && m2_start <= m1_end) ||
-           (m2_end >= m1_start && m2_end <= m1_end) ||
-           (m2_start <= m1_start && m2_end >= m1_end) {
+        if (m2_start >= m1_start && m2_start <= m1_end)
+            || (m2_end >= m1_start && m2_end <= m1_end)
+            || (m2_start <= m1_start && m2_end >= m1_end)
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),

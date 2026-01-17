@@ -19,7 +19,7 @@ import { IConfigService, Inject, Injector, merge, Plugin, registerDependencies, 
 import { CollaborationController } from './controller/collaboration.controller';
 import { COLLABORATION_PLUGIN_CONFIG_KEY, defaultPluginConfig } from './controller/config.schema';
 import { CollaborationService, ICollaborationService } from './services/collaboration.service';
-import { IOfflineStorageService, OfflineStorageService } from './services/offline-storage.service';
+import { IPendingMutationSerivce, PendingMutationSerivce } from './services/offline-storage.service';
 import { ISocketService, SocketService } from './services/socket.service';
 import { ITransformService, TransformService } from './services/transform.service';
 
@@ -44,7 +44,7 @@ export class CollaborationPlugin extends Plugin {
         registerDependencies(this._injector, [
             [CollaborationController],
             [ITransformService, { useClass: TransformService }],
-            [IOfflineStorageService, { useClass: OfflineStorageService }],
+            [IPendingMutationSerivce, { useClass: PendingMutationSerivce }],
             [ICollaborationService, { useClass: CollaborationService }],
             [ISocketService, { useClass: SocketService }],
         ]);

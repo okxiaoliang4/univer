@@ -1,7 +1,9 @@
 use crate::server::database::entities::{document_snapshot, operation_log};
 use crate::server::services::document::OperationInfo;
 use anyhow::{Context, Result};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait,
+};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -61,7 +63,7 @@ impl SnapshotService {
             // 1. Parse the mutation_id and params
             // 2. Apply the mutation to the content using the appropriate transformation
             // 3. Handle different mutation types (set-range-values, insert-row, etc.)
-            
+
             // Placeholder: Mark that mutations need to be applied
             // The actual implementation would require a full document model in Rust
             // or calling out to a JavaScript/WASM module that has the document model
@@ -79,11 +81,12 @@ impl SnapshotService {
     ) -> Result<()> {
         let now = chrono::Utc::now();
 
-        let mut snapshot: document_snapshot::ActiveModel = document_snapshot::Entity::find_by_id(doc_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Document not found: {}", doc_id))?
-            .into();
+        let mut snapshot: document_snapshot::ActiveModel =
+            document_snapshot::Entity::find_by_id(doc_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Document not found: {}", doc_id))?
+                .into();
 
         snapshot.content = sea_orm::Set(JsonValue::from(content));
         snapshot.version = sea_orm::Set(version); // Snapshot checkpoint version

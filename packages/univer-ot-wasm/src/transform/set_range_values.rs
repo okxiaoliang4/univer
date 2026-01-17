@@ -1,17 +1,19 @@
-use crate::types::{
-    MutationInfoInternal, TransformResultInternal,
-    SetRangeValuesMutationParams, InsertRowMutationParams,
-    InsertColMutationParams, RemoveRowsMutationParams,
-    RemoveColMutationParams, ObjectMatrixPrimitiveType,
-    SubUnitParams, Range,
-};
 use crate::transform::mutation_transform::MutationTransform;
+use crate::types::{
+    InsertColMutationParams, InsertRowMutationParams, MutationInfoInternal,
+    ObjectMatrixPrimitiveType, Range, RemoveColMutationParams, RemoveRowsMutationParams,
+    SetRangeValuesMutationParams, SubUnitParams, TransformResultInternal,
+};
 use serde_json;
 
 #[derive(Default)]
 pub struct SetRangeValuesTransform;
 
-fn shift_rows_for_insert(cell_value: &mut ObjectMatrixPrimitiveType, insert_start: u32, insert_count: u32) {
+fn shift_rows_for_insert(
+    cell_value: &mut ObjectMatrixPrimitiveType,
+    insert_start: u32,
+    insert_count: u32,
+) {
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
         if let Ok(row_num) = row_key.parse::<u32>() {
@@ -28,7 +30,11 @@ fn shift_rows_for_insert(cell_value: &mut ObjectMatrixPrimitiveType, insert_star
     cell_value.data = new_data;
 }
 
-fn shift_rows_for_remove(cell_value: &mut ObjectMatrixPrimitiveType, remove_start: u32, remove_end: u32) {
+fn shift_rows_for_remove(
+    cell_value: &mut ObjectMatrixPrimitiveType,
+    remove_start: u32,
+    remove_end: u32,
+) {
     let remove_count = remove_end - remove_start + 1;
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
@@ -47,7 +53,11 @@ fn shift_rows_for_remove(cell_value: &mut ObjectMatrixPrimitiveType, remove_star
     cell_value.data = new_data;
 }
 
-fn shift_cols_for_insert(cell_value: &mut ObjectMatrixPrimitiveType, insert_start: u32, insert_count: u32) {
+fn shift_cols_for_insert(
+    cell_value: &mut ObjectMatrixPrimitiveType,
+    insert_start: u32,
+    insert_count: u32,
+) {
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
         if let serde_json::Value::Object(cols) = row_value {
@@ -74,7 +84,11 @@ fn shift_cols_for_insert(cell_value: &mut ObjectMatrixPrimitiveType, insert_star
     cell_value.data = new_data;
 }
 
-fn shift_cols_for_remove(cell_value: &mut ObjectMatrixPrimitiveType, remove_start: u32, remove_end: u32) {
+fn shift_cols_for_remove(
+    cell_value: &mut ObjectMatrixPrimitiveType,
+    remove_start: u32,
+    remove_end: u32,
+) {
     let remove_count = remove_end - remove_start + 1;
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
@@ -108,31 +122,35 @@ impl MutationTransform for SetRangeValuesTransform {
         "sheet.mutation.set-range-values"
     }
 
-    fn transform_with_set_range_values(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
-        // SetRangeValues with SetRangeValues: resolve conflicts
-        // m2 is the server operation that was applied first, so m2 wins for conflicting cells
-
-        let mut m1_params: SetRangeValuesMutationParams = serde_json::from_value(m1.params.clone())
-            .unwrap_or_else(|_| SetRangeValuesMutationParams {
-                sub_unit_params: SubUnitParams {
-                    unit_id: "".to_string(),
-                    sub_unit_id: "".to_string(),
-                },
-                cell_value: None,
-            });
-
-        let m2_params: SetRangeValuesMutationParams = serde_json::from_value(m2.params.clone())
-            .unwrap_or_else(|_| SetRangeValuesMutationParams {
-                sub_unit_params: SubUnitParams {
-                    unit_id: "".to_string(),
-                    sub_unit_id: "".to_string(),
-                },
-                cell_value: None,
-            });
+    /// Transform SetRangeValues against another SetRangeValues
+    ///
+    /// Implements Last-Writer-Wins (LWW) conflict resolution strategy:
+    /// - When two operations modify the same cell, the one accepted by server first (m2) wins
+    /// - The later operation (m1) sets conflicting cells to null to indicate conflict resolution
+    ///
+    /// This ensures OT consistency property:
+    /// $State + m1 + m2' = $State + m2 + m1'
+    ///
+    /// Example:
+    /// - m1: SetRangeValues(A1, "World")  // Client B's operation
+    /// - m2: SetRangeValues(A1, "Hello")  // Client A's operation (arrived at server first)
+    /// - Result: m1' sets A1 = null (conflict), m2' unchanged
+    /// - Server state: $State + m2 + m1' = A1 = "Hello" (m2 wins)
+    /// - Both clients end up with A1 = "Hello"
+    fn transform_with_set_range_values(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
+        let mut m1_params: SetRangeValuesMutationParams =
+            serde_json::from_value(m1.params.clone()).unwrap();
+        let m2_params: SetRangeValuesMutationParams =
+            serde_json::from_value(m2.params.clone()).unwrap();
 
         // Check if they're on the same sheet
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             // Different sheets, no conflict
             return TransformResultInternal {
                 m1_prime: m1.clone(),
@@ -141,27 +159,45 @@ impl MutationTransform for SetRangeValuesTransform {
             };
         }
 
-        // Remove conflicting cells from m1
-        if let (Some(ref mut m1_cell_value), Some(ref m2_cell_value)) = (&mut m1_params.cell_value, &m2_params.cell_value) {
+        // LWW (Last-Writer-Wins) conflict resolution:
+        // m2 was accepted by the server first (higher priority)
+        // m1 needs to set conflicting cells to null (instead of removing them)
+
+        // If both have cell_value, check for conflicts
+        if let (Some(ref mut m1_cell_value), Some(ref m2_cell_value)) =
+            (&mut m1_params.cell_value, &m2_params.cell_value)
+        {
+            // Set conflicting cells to null in m1_prime
+            // A cell conflicts if both m1 and m2 modify it
             let mut new_data = serde_json::Map::new();
 
             for (row_key, row_value) in m1_cell_value.data.iter() {
-                if let Some(m2_row) = m2_cell_value.data.get(row_key) {
-                    if let (serde_json::Value::Object(m1_cols), serde_json::Value::Object(m2_cols)) = (row_value, m2_row) {
-                        let mut new_row = serde_json::Map::new();
-                        for (col_key, col_value) in m1_cols.iter() {
-                            if !m2_cols.contains_key(col_key) {
-                                new_row.insert(col_key.clone(), col_value.clone());
-                            }
+                if let serde_json::Value::Object(m1_cols) = row_value {
+                    let mut new_row = serde_json::Map::new();
+
+                    for (col_key, col_value) in m1_cols.iter() {
+                        // Check if m2 also modifies this cell
+                        let has_conflict = if let Some(serde_json::Value::Object(m2_cols)) =
+                            m2_cell_value.data.get(row_key)
+                        {
+                            m2_cols.contains_key(col_key)
+                        } else {
+                            false
+                        };
+
+                        if has_conflict {
+                            // Set conflicting cell to null
+                            new_row.insert(col_key.clone(), serde_json::Value::Null);
+                        } else {
+                            // Keep non-conflicting cell as-is
+                            new_row.insert(col_key.clone(), col_value.clone());
                         }
-                        if !new_row.is_empty() {
-                            new_data.insert(row_key.clone(), serde_json::Value::Object(new_row));
-                        }
-                    } else {
-                        new_data.insert(row_key.clone(), row_value.clone());
                     }
-                } else {
-                    new_data.insert(row_key.clone(), row_value.clone());
+
+                    // Always add the row if it has any cells
+                    if !new_row.is_empty() {
+                        new_data.insert(row_key.clone(), serde_json::Value::Object(new_row));
+                    }
                 }
             }
 
@@ -178,7 +214,11 @@ impl MutationTransform for SetRangeValuesTransform {
         }
     }
 
-    fn transform_with_insert_row(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_row(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let mut m1_params: SetRangeValuesMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| SetRangeValuesMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -203,8 +243,9 @@ impl MutationTransform for SetRangeValuesTransform {
                 row_info: None,
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -229,7 +270,11 @@ impl MutationTransform for SetRangeValuesTransform {
         }
     }
 
-    fn transform_with_insert_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_insert_col(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let mut m1_params: SetRangeValuesMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| SetRangeValuesMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -254,8 +299,9 @@ impl MutationTransform for SetRangeValuesTransform {
                 col_info: None,
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -280,7 +326,11 @@ impl MutationTransform for SetRangeValuesTransform {
         }
     }
 
-    fn transform_with_remove_rows(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_rows(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let mut m1_params: SetRangeValuesMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| SetRangeValuesMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -304,8 +354,9 @@ impl MutationTransform for SetRangeValuesTransform {
                 },
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),
@@ -330,7 +381,11 @@ impl MutationTransform for SetRangeValuesTransform {
         }
     }
 
-    fn transform_with_remove_col(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal) -> TransformResultInternal {
+    fn transform_with_remove_col(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         let mut m1_params: SetRangeValuesMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| SetRangeValuesMutationParams {
                 sub_unit_params: SubUnitParams {
@@ -354,8 +409,9 @@ impl MutationTransform for SetRangeValuesTransform {
                 },
             });
 
-        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id ||
-           m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id {
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
             return TransformResultInternal {
                 m1_prime: m1.clone(),
                 m2_prime: m2.clone(),

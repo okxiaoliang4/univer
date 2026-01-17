@@ -72,7 +72,7 @@ describe('CollaborationService', () => {
         await service.sendChangeset(changeset);
         await service.flush(TEST_UNIT_ID);
 
-        expect(service.getCurrentVersion(TEST_UNIT_ID)).toBe(2);
+        expect(service.getDocRev(TEST_UNIT_ID)).toBe(2);
         expect(offlineStorage.clearCalls).toContain(TEST_UNIT_ID);
     });
 
@@ -108,7 +108,7 @@ describe('CollaborationService', () => {
         };
 
         await offlineStorage.savePendingMutations(TEST_UNIT_ID, [createSetRangeValuesMutation()], 2, 'user-1');
-        service.setCurrentVersion(TEST_UNIT_ID, 2);
+        service.updateDocRev(TEST_UNIT_ID, 2);
 
         const result = await service.syncOnReconnect(TEST_UNIT_ID);
         expect(result.pendingMutations).toHaveLength(1);

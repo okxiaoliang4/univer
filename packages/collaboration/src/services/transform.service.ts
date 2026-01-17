@@ -39,6 +39,8 @@ export interface ITransformService {
 
 export const ITransformService = createIdentifier<ITransformService>('univer.collaboration.transform.service');
 
+const NOOP_MUTATION_ID = '__noop__';
+
 export class TransformService extends Disposable implements ITransformService {
     private _transformService: UniverOTWasmTransformService;
 
@@ -102,8 +104,8 @@ export class TransformService extends Disposable implements ITransformService {
             });
 
             const result: ITransformListResult = {
-                m1Primes,
-                m2Primes,
+                m1Primes: m1Primes.filter((m) => m.id !== NOOP_MUTATION_ID),
+                m2Primes: m2Primes.filter((m) => m.id !== NOOP_MUTATION_ID),
                 error: transformListResult.error || undefined,
             };
 

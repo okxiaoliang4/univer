@@ -33,7 +33,6 @@ export interface ISocketService {
 export interface IChangeset {
     unitId: string;
     baseRev: number;
-    userId: string;
     mutations: IMutationInfo[];
 }
 
@@ -53,13 +52,17 @@ export interface IChangesetRequest {
     baseRev: number;
     clientMsgId: string;
     mutations: IMutationInfo[];
-    userId: string;
     docId: string;
 }
 
 export interface IChangesetAck {
     status: string;
     serverRev?: number;
+    /**
+     * The mutations after server-side OT transformation
+     * This is the "authoritative" result from server that clients should use to ensure consistency
+     */
+    mutations?: IMutationInfo[];
     message?: string;
 }
 
@@ -91,7 +94,6 @@ export const ISocketService = createIdentifier<ISocketService>('univer.collabora
 
 export class SocketService extends Disposable implements ISocketService {
     private _socket?: Nullable<Socket>;
-    private _connected = false;
     private _connected$: Subject<void> = new Subject();
     connected$ = this._connected$.asObservable();
     private _disconnected$: Subject<void> = new Subject();
@@ -110,24 +112,18 @@ export class SocketService extends Disposable implements ISocketService {
             transports: ['websocket'],
             // Explicitly specify root namespace
             path: '/socket.io/',
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            reconnectionAttempts: 5,
             reconnection: true,
-            timeout: 20000,
             autoConnect: true,
         });
 
         this._socket.on('connect', () => {
             this._logger.log('Socket.IO connected');
             this._connected$.next();
-            this._connected = true;
         });
 
         this._socket.on('disconnect', () => {
             this._logger.log('Socket.IO disconnected');
             this._disconnected$.next();
-            this._connected = false;
         });
 
         this._socket.on('connect_error', (error) => {

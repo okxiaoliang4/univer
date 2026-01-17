@@ -18,7 +18,7 @@ impl RemoveColMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{RemoveColMutationParams, SubUnitParams, Range};
+    use crate::types::{Range, RemoveColMutationParams, SubUnitParams};
 
     #[test]
     fn test_remove_col_mutation_valid_params() {

@@ -18,11 +18,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(
-                        ColumnDef::new(Documents::Name)
-                            .string()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Documents::Name).string().not_null())
                     .col(
                         ColumnDef::new(Documents::CurrentVersion)
                             .big_integer()
@@ -52,11 +48,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(DocumentSnapshots::Table)
-                    .add_column(
-                        ColumnDef::new(DocumentSnapshots::DocId)
-                            .uuid()
-                            .not_null(),
-                    )
+                    .add_column(ColumnDef::new(DocumentSnapshots::DocId).uuid().not_null())
                     .to_owned(),
             )
             .await?;

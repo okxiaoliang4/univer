@@ -28,7 +28,7 @@ import type {
     UnitType,
 } from '@univerjs/core';
 import type { Socket } from 'socket.io-client';
-import type { IOfflineStorageService, IPendingMutations } from '../offline-storage.service';
+import type { IPendingMutations, IPendingMutationSerivce } from '../offline-storage.service';
 import type { IChangesetAck, IChangesetPushed, IFetchOpsAck, IJoinDocAck, ISocketService } from '../socket.service';
 import { CommandType, UniverInstanceType } from '@univerjs/core';
 import { InsertColMutation, InsertRowMutation, RemoveColMutation, RemoveRowMutation, SetRangeValuesMutation } from '@univerjs/sheets';
@@ -127,7 +127,7 @@ export class MockSocketService implements ISocketService {
     }
 }
 
-export class MockOfflineStorageService implements IOfflineStorageService {
+export class MockOfflineStorageService implements IPendingMutationSerivce {
     private _store = new Map<string, IPendingMutations>();
     clearCalls: string[] = [];
     saveCalls: string[] = [];

@@ -12,8 +12,6 @@ pub struct ChangesetRequest {
     #[serde(rename = "clientMsgId")]
     pub client_msg_id: String,
     pub mutations: Vec<MutationInfoInternal>,
-    #[serde(rename = "userId")]
-    pub user_id: String,
 }
 
 /// Ack response for changeset event
@@ -22,6 +20,9 @@ pub struct ChangesetAck {
     pub status: String, // "ok" | "error"
     #[serde(rename = "serverRev")]
     pub server_rev: Option<i64>,
+    /// The mutations after server-side OT transformation
+    /// This is the "authoritative" result that clients should use to ensure consistency
+    pub mutations: Option<Vec<MutationInfoInternal>>,
     pub message: Option<String>,
 }
 

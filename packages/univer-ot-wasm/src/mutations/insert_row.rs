@@ -18,7 +18,7 @@ impl InsertRowMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InsertRowMutationParams, SubUnitParams, Range};
+    use crate::types::{InsertRowMutationParams, Range, SubUnitParams};
 
     #[test]
     fn test_insert_row_mutation_valid_params() {

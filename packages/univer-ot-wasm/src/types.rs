@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen::Serializer;
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellData {
@@ -249,7 +249,11 @@ pub struct TransformListResult {
 #[wasm_bindgen]
 impl TransformListResult {
     #[wasm_bindgen(constructor)]
-    pub fn new(m1_prime_list: Vec<MutationInfo>, m2_prime_list: Vec<MutationInfo>, error: Option<String>) -> Self {
+    pub fn new(
+        m1_prime_list: Vec<MutationInfo>,
+        m2_prime_list: Vec<MutationInfo>,
+        error: Option<String>,
+    ) -> Self {
         Self {
             m1_prime_list,
             m2_prime_list,
@@ -271,8 +275,7 @@ pub fn json_value_to_js_value(value: &serde_json::Value) -> JsValue {
 /// Convert JsValue to serde_json::Value
 /// Efficient conversion for wasm boundary using serde-wasm-bindgen
 pub fn js_value_to_json_value(value: &JsValue) -> serde_json::Value {
-    serde_wasm_bindgen::from_value(value.clone())
-        .unwrap_or(serde_json::Value::Null)
+    serde_wasm_bindgen::from_value(value.clone()).unwrap_or(serde_json::Value::Null)
 }
 
 /// Convert any Serialize type to JsValue as plain object (not Map)

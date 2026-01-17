@@ -22,7 +22,7 @@ impl SetRangeValuesMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{SetRangeValuesMutationParams, SubUnitParams, ObjectMatrixPrimitiveType};
+    use crate::types::{ObjectMatrixPrimitiveType, SetRangeValuesMutationParams, SubUnitParams};
     use serde_json;
 
     #[test]

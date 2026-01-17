@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
-import type { IMutationInfo } from '@univerjs/core';
+import type {
+    IMutationInfo,
+} from '@univerjs/core';
 import type { IChangeset, IChangesetAck, IChangesetRequest, IFetchOpsAck, IFetchOpsRequest, IJoinDocAck, IJoinDocRequest, IOperationInfo } from './socket.service';
-import { createIdentifier, Disposable, generateRandomId, ILogService } from '@univerjs/core';
-import { IOfflineStorageService } from './offline-storage.service';
+import { createIdentifier, Disposable, generateRandomId, ICommandService, IConfigService, ILogService, isInternalEditorID, IUniverInstanceService, sequenceExecute } from '@univerjs/core';
+import { IPendingMutationSerivce } from './offline-storage.service';
 import { ISocketService } from './socket.service';
+import { ITransformService } from './transform.service';
+
+const NOOP_MUTATION_ID = '__noop__';
 
 export interface ICollaborationService {
     sendChangeset(changeset: IChangeset): void;
@@ -26,31 +31,17 @@ export interface ICollaborationService {
     leaveDoc(docId: string): void;
     flush(unitId?: string): Promise<void>;
     fetchOps(docId: string, startRev: number): Promise<IOperationInfo[]>;
-    syncOnReconnect(unitId: string): Promise<{ missedOps: IOperationInfo[]; pendingMutations: IMutationInfo[]; serverVersion: number }>;
-    getPendingMutations(unitId: string): IMutationInfo[];
-    getPendingBaseRev(unitId: string): number | undefined;
-    setTransformedPendingMutations(unitId: string, mutations: IMutationInfo[], baseRev: number): void;
-    getCurrentVersion(unitId: string): number | undefined;
-    setCurrentVersion(unitId: string, version: number): void;
+    getDocRev(docId: string): number;
+    updateDocRev(docId: string, rev: number): void;
 }
 
 export const ICollaborationService = createIdentifier<ICollaborationService>('univer.collaboration.service');
 
 export class CollaborationService extends Disposable implements ICollaborationService {
     private _joinedDocs: Set<string> = new Set();
-    private _currentVersions: Map<string, number> = new Map();
-
-    // 按 unitId 积攒的 mutations 队列
-    private _pendingMutations: Map<string, IMutationInfo[]> = new Map();
 
     // 每个 unitId 的 debounce 定时器
     private _debounceTimers: Map<string, NodeJS.Timeout> = new Map();
-
-    // 每个 unitId 的 baseRev（用于批次发送）
-    private _pendingBaseRevs: Map<string, number> = new Map();
-
-    // 每个 unitId 的 userId（用于批次发送）
-    private _pendingUserIds: Map<string, string> = new Map();
 
     // 批次大小限制
     private readonly _BATCH_SIZE_LIMIT = 20;
@@ -58,46 +49,146 @@ export class CollaborationService extends Disposable implements ICollaborationSe
     // Debounce 延迟时间（毫秒）
     private readonly _DEBOUNCE_DELAY = 200;
 
+    private _collabUnits: Set<string> = new Set();
+
     constructor(
         @ISocketService private readonly _socketService: ISocketService,
         @ILogService private readonly _logger: ILogService,
-        @IOfflineStorageService private readonly _offlineStorage: IOfflineStorageService
+        @IPendingMutationSerivce private readonly _pendingMutationSerivce: IPendingMutationSerivce,
+        @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
+        @ICommandService private readonly _commandService: ICommandService,
+        @ITransformService private readonly _transformService: ITransformService,
+        @IConfigService private readonly _configService: IConfigService
     ) {
         super();
-        this._loadPendingMutationsFromStorage();
+        this._init();
+    }
+
+    private _init(): void {
         this._initSocketListeners();
+        this._initInstanceListener();
+        this._initChangesetPushedListener();
     }
 
     /**
      * Initialize socket connection/disconnection listeners
      */
     private _initSocketListeners(): void {
+        this.disposeWithMe(this._socketService.connected$.subscribe(() => {
+            this._collabUnits.forEach(async (unitId) => {
+                await this.joinDoc(unitId);
+            });
+        }));
+
         // Clear joined docs on disconnect so we rejoin on reconnect
         this.disposeWithMe(this._socketService.disconnected$.subscribe(() => {
             this._logger.log('Socket disconnected, clearing joined docs for rejoin on reconnect');
             this._joinedDocs.clear();
-            // Don't clear currentVersions - we need them to detect version gaps on reconnect
+            this._collabUnits.forEach(async (unitId) => {
+                await this.leaveDoc(unitId);
+            });
+        }));
+    }
+
+    private _initInstanceListener(): void {
+        this.disposeWithMe(this._univerInstanceService.unitAdded$.subscribe(async (unit) => {
+            const unitId = unit.getUnitId();
+            if (isInternalEditorID(unitId)) return;
+            this._collabUnits.add(unitId);
+        }));
+
+        this.disposeWithMe(this._univerInstanceService.unitDisposed$.subscribe((workbook) => {
+            const unitId = workbook.getUnitId();
+            if (isInternalEditorID(unitId)) return;
+            this._collabUnits.delete(unitId);
         }));
     }
 
     /**
-     * Load pending mutations from offline storage on initialization
+     * Handle changeset_pushed event from server (OT broadcast)
+     *
+     * This implements the client-side OT algorithm using "coordinate realignment" (rebase) strategy:
+     * - When receiving a broadcast while having pending mutations, we DON'T undo local operations
+     * - Instead, we transform both the pending and incoming operations to maintain consistency
+     * - This avoids UI flickering and provides a smooth collaborative editing experience
+     *
+     * Example scenario:
+     * 1. Client B sends mutation m_B (pending), local UI shows: $State + m_B
+     * 2. Client B receives broadcast(m_A) from server
+     * 3. Transform: (m_B', m_A') = transform(m_B, m_A)
+     * 4. Apply m_A' to current UI (which already has m_B applied)
+     * 5. Update pending to m_B' (coordinate realignment)
+     * 6. When Ack arrives, clear pending
+     * Final state: $State + m_B + m_A' (guaranteed to equal $State + m_A + m_B' by OT properties)
      */
-    private async _loadPendingMutationsFromStorage(): Promise<void> {
-        try {
-            const allPending = await this._offlineStorage.loadAllPendingMutations();
-            for (const pending of allPending) {
-                this._pendingMutations.set(pending.unitId, pending.mutations);
-                this._pendingBaseRevs.set(pending.unitId, pending.baseRev);
-                this._pendingUserIds.set(pending.unitId, pending.userId);
-                this._logger.log(`Loaded ${pending.mutations.length} pending mutations for unitId: ${pending.unitId}`);
+    private _initChangesetPushedListener(): void {
+        this.disposeWithMe(this._socketService.changesetPushed$.subscribe(async (changeset) => {
+            const unitId = changeset.docId;
+            const unit = this._univerInstanceService.getUnit(unitId);
+
+            if (!unit || isInternalEditorID(unitId)) {
+                this._logger.warn(`Unit not found or is internal: ${unitId}`);
+                return;
             }
-        } catch (error) {
-            this._logger.error('Failed to load pending mutations from storage:', error);
-        }
+
+            const localRev = unit.getRev();
+            const expectedRev = localRev + 1;
+            const serverRev = changeset.serverRev;
+            const remoteMutations = changeset.mutations;
+
+            if (serverRev <= localRev) return; // 已经处理过的版本，直接忽略
+            // Check for version gap - need to fetch missed operations
+            if (serverRev > expectedRev) {
+                await this._resync(unitId, localRev);
+            } else {
+                // Normal case: no version gap
+                const pendingMutations = await this._pendingMutationSerivce.get(unitId);
+
+                if (pendingMutations?.length && pendingMutations.length > 0) {
+                    // OT Coordinate Realignment Strategy:
+                    // 1. Transform pending and remote mutations against each other
+                    // 2. Apply transformed remote mutations (m2Primes) to current UI
+                    // 3. Update pending queue with transformed versions (m1Primes)
+                    // This ensures: $State + m1 + m2' = $State + m2 + m1' (OT consistency)
+                    const result = this._transformService.transformList(pendingMutations, remoteMutations);
+                    if (result.error) {
+                        this._logger.error(`Transform error: ${result.error}`);
+                        const filteredRemoteMutations = this._filterNoopMutations(remoteMutations);
+                        if (filteredRemoteMutations.length > 0) {
+                            await sequenceExecute(filteredRemoteMutations, this._commandService, { fromCollab: true });
+                        }
+                    } else {
+                        this._logger.log(`OT result: m1Primes=${result.m1Primes.length}, m2Primes=${result.m2Primes.length}`);
+
+                        // Apply transformed server mutations (m2') to current UI
+                        // Note: Current UI already has pending mutations applied
+                        const filteredM2Primes = this._filterNoopMutations(result.m2Primes);
+                        if (filteredM2Primes.length > 0) {
+                            await sequenceExecute(filteredM2Primes, this._commandService, { fromCollab: true });
+                        }
+
+                        // Update pending queue with transformed versions (m1')
+                        // This "coordinate realignment" ensures future operations are correctly positioned
+                        await this._pendingMutationSerivce.update(unitId, result.m1Primes, serverRev);
+                    }
+                } else {
+                  // No pending mutations, apply directly
+                    const filteredRemoteMutations = this._filterNoopMutations(remoteMutations);
+                    if (filteredRemoteMutations.length > 0) {
+                        const result = await sequenceExecute(filteredRemoteMutations, this._commandService, { fromCollab: true });
+                        this._logger.log(`sequenceExecute result: ${result}`);
+                    }
+                }
+                this.updateDocRev(unitId, serverRev);
+            }
+        }));
     }
 
-    joinDoc(docId: string): Promise<void> {
+    private _filterNoopMutations(mutations: IMutationInfo[]): IMutationInfo[] {
+        return mutations.filter((mutation) => mutation.id !== NOOP_MUTATION_ID);
+    }
+
+    async joinDoc(docId: string): Promise<void> {
         if (!this._socketService.getSocket() || this._socketService.getSocket()?.disconnected) {
             this._logger.error('Socket not connected');
             return Promise.reject(new Error('Socket not connected'));
@@ -109,23 +200,74 @@ export class CollaborationService extends Disposable implements ICollaborationSe
         }
 
         const request: IJoinDocRequest = { docId };
-        return new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
             this._socketService.emit('join_doc', request, (ack: IJoinDocAck) => {
                 if (ack.status === 'ok') {
                     this._joinedDocs.add(docId);
-                    if (ack.version !== undefined) {
-                        this._currentVersions.set(docId, ack.version);
-                    }
                     this._logger.log(`Joined doc ${docId}, version: ${ack.version}`);
                     resolve();
-
-              // TODO: Load content from ack.content if needed
-                } else {
-                    this._logger.error(`Failed to join doc ${docId}: ${ack.message}`);
-                    reject(new Error(`Failed to join doc ${docId}: ${ack.message}`));
                 }
             });
         });
+        await this._resync(docId, this.getDocRev(docId));
+    }
+
+    /**
+     * Sync version after joining a doc - fetch missed ops if local version is behind
+     */
+    private async _resync(unitId: string, localRev: number): Promise<void> {
+        try {
+            // 1. 获取本地离线期间产生且尚未被服务器 Ack 的操作 (m1_list)
+            // 注意：你需要从你的客户端状态管理器中取出 pending 队列或 buffer 队列
+            const pendingMutations = this._pendingMutationSerivce.get(unitId) ?? [];
+            // 2. 获取服务器上从 localRev 开始的所有后续操作 (m2_list)
+            const missedOps = await this.fetchOps(unitId, localRev);
+
+            if (missedOps.length > 0) {
+                // 3. 执行 OT 转换
+                // m1: 本地离线, m2: 服务器历史
+                const result = await this._transformService.transformList(pendingMutations, [...missedOps.map((op) => op.mutations).flat()]);
+
+                if (result.error) {
+                    this._logger.error(`Transform error: ${result.error}`);
+                  // 严重错误：可能需要强制刷新页面重新拉取快照
+                    return;
+                }
+
+                // 4. 应用 m2Primes 到本地 UI
+                // 目的：让本地看到别人在你离线时做的修改（已针对你的修改做过偏移）
+                const filteredM2Primes = this._filterNoopMutations(result.m2Primes);
+                if (filteredM2Primes.length > 0) {
+                    await sequenceExecute(filteredM2Primes, this._commandService, { fromCollab: true });
+                }
+
+                // 5. 更新本地版本号
+                // 版本号应直接对齐到服务器已知的最新版本
+                const serverLatestRev = localRev + missedOps.length;
+                this.updateDocRev(unitId, serverLatestRev);
+
+                // 6. 处理 m1Primes (你的离线操作经过偏移后的新样子)
+                if (result.m1Primes.length > 0) {
+                    this._pendingMutationSerivce.update(unitId, result.m1Primes, serverLatestRev);
+                    await this.flush(unitId);
+                }
+
+                this._logger.log(`Sync completed. Applied ${missedOps.length} remote ops. Sent ${result.m1Primes.length} local ops.`);
+            } else if (pendingMutations.length > 0) {
+                // 如果服务器没新东西，但本地有离线操作，直接补发即可
+                await this.flush(unitId);
+            }
+        } catch (error) {
+            this._logger.error(`Failed to fetch ops for ${unitId}:`, error);
+        }
+    }
+
+    getDocRev(docId: string): number {
+        return this._univerInstanceService.getUnit(docId)?.getRev() ?? 0;
+    }
+
+    updateDocRev(docId: string, rev: number): void {
+        this._univerInstanceService.getUnit(docId)?.setRev(rev);
     }
 
     leaveDoc(docId: string): void {
@@ -139,11 +281,12 @@ export class CollaborationService extends Disposable implements ICollaborationSe
 
         this._socketService.emit('leave_doc', { docId });
         this._joinedDocs.delete(docId);
-        this._currentVersions.delete(docId);
         this._logger.log(`Left doc: ${docId}`);
     }
 
     async sendChangeset(changeset: IChangeset): Promise<void> {
+        await this._pendingMutationSerivce.add(changeset.unitId, changeset.mutations, changeset.baseRev);
+        this._logger.log(`Sending changeset: ${JSON.stringify(changeset)}`);
         const mutationIdCounts = changeset.mutations.reduce<Record<string, number>>((acc, mutation) => {
             acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
             return acc;
@@ -152,22 +295,7 @@ export class CollaborationService extends Disposable implements ICollaborationSe
         fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H8', location: 'collaboration.service.ts:sendChangeset:entry', message: 'sendChangeset entry', data: { unitId: changeset.unitId, baseRev: changeset.baseRev, mutationCount: changeset.mutations.length, mutationIdCounts, socketDisconnected: Boolean(this._socketService.getSocket()?.disconnected) }, timestamp: Date.now() }) }).catch(() => {});
         // #endregion
         if (!this._socketService.getSocket() || this._socketService.getSocket()?.disconnected) {
-            this._logger.error('Socket not connected, saving to offline storage');
-            // Save to offline storage when socket is disconnected
-            const unitId = changeset.unitId;
-            if (unitId) {
-                try {
-                    await this._offlineStorage.savePendingMutations(
-                        unitId,
-                        changeset.mutations,
-                        changeset.baseRev,
-                        changeset.userId
-                    );
-                } catch (error) {
-                    this._logger.error('Failed to save to offline storage:', error);
-                }
-            }
-            return Promise.reject(new Error('Socket not connected'));
+            return;
         }
 
         // Extract unitId from mutations (unitId is used as docId)
@@ -184,20 +312,13 @@ export class CollaborationService extends Disposable implements ICollaborationSe
         }
 
         // Initialize queue if not exists
-        if (!this._pendingMutations.has(unitId)) {
-            this._pendingMutations.set(unitId, []);
+        if (!this._pendingMutationSerivce.has(unitId)) {
+            this._pendingMutationSerivce.update(unitId, [], changeset.baseRev);
         }
 
         // Add mutations to queue
-        const queue = this._pendingMutations.get(unitId)!;
-        queue.push(...changeset.mutations);
-
-        // Record baseRev and userId on first mutation
-        if (!this._pendingBaseRevs.has(unitId)) {
-            const currentVersion = this._currentVersions.get(unitId);
-            this._pendingBaseRevs.set(unitId, currentVersion ?? changeset.baseRev);
-            this._pendingUserIds.set(unitId, changeset.userId);
-        }
+        this._pendingMutationSerivce.add(unitId, changeset.mutations, changeset.baseRev);
+        const queue = this._pendingMutationSerivce.get(unitId) ?? [];
 
         // Check if reached batch size limit
         if (queue.length >= this._BATCH_SIZE_LIMIT) {
@@ -243,40 +364,25 @@ export class CollaborationService extends Disposable implements ICollaborationSe
         // Clear debounce timer
         this._clearDebounceTimer(unitId);
 
-        // Get pending mutations, baseRev, and userId
-        const mutations = this._pendingMutations.get(unitId);
-        const baseRev = this._pendingBaseRevs.get(unitId);
-        const userId = this._pendingUserIds.get(unitId);
+        // Get pending mutations
+        const pendingMutations = this._pendingMutationSerivce.get(unitId);
 
         // If no pending mutations, return
-        if (!mutations || mutations.length === 0) {
+        if (!pendingMutations || pendingMutations.length === 0) {
             return;
         }
 
-        // If no baseRev, use current version or 0
-        const currentBaseRev = baseRev ?? this._currentVersions.get(unitId) ?? 0;
+        const currentBaseRev = this.getDocRev(unitId);
 
-        // If no userId, error
-        if (!userId) {
-            this._logger.error('Cannot determine userId for unitId');
-            // Put mutations back to queue for retry
-            this._pendingMutations.set(unitId, mutations);
-            this._pendingBaseRevs.set(unitId, currentBaseRev);
-            return;
-        }
-
-        // Clear queue, baseRev, and userId before sending
-        this._pendingMutations.delete(unitId);
-        this._pendingBaseRevs.delete(unitId);
-        this._pendingUserIds.delete(unitId);
+        // Clear queue before sending
+        this._pendingMutationSerivce.clear(unitId);
 
         // Build request
         const clientMsgId = `${this._socketService.getSocket()?.id}-${Date.now()}-${generateRandomId()}`;
         const request: IChangesetRequest = {
             baseRev: currentBaseRev,
             clientMsgId,
-            mutations,
-            userId,
+            mutations: pendingMutations,
             docId: unitId,
         };
 
@@ -284,33 +390,39 @@ export class CollaborationService extends Disposable implements ICollaborationSe
         return new Promise<void>((resolve, reject) => {
             this._socketService.emit('changeset', request, async (ack: IChangesetAck) => {
                 if (ack.status === 'ok' && ack.serverRev !== undefined) {
-                    this._currentVersions.set(unitId, ack.serverRev);
-                    this._logger.log(`Changeset applied, new version: ${ack.serverRev}, mutations count: ${mutations.length}`);
-                    // Clear offline storage for this unitId since mutations were successfully sent
-                    try {
-                        await this._offlineStorage.clearPendingMutations(unitId);
-                    } catch (error) {
-                        this._logger.error('Failed to clear offline storage:', error);
+                    this.updateDocRev(unitId, ack.serverRev);
+
+                    // Server returns transformed mutations - this is the authoritative result
+                    if (ack.mutations && ack.mutations.length > 0) {
+                        this._logger.log(
+                            `Ack received with ${ack.mutations.length} transformed mutations (server_rev: ${ack.serverRev})`
+                        );
+
+                        // Optional: Verify consistency between client and server transform
+                        // If there's a discrepancy, we should trust the server's result
+                        const currentPending = await this._pendingMutationSerivce.get(unitId);
+                        if (currentPending && currentPending.length > 0) {
+                            this._logger.warn(
+                                `Client still has ${currentPending.length} pending mutations after Ack. ` +
+                                'This may indicate concurrent operations during Ack processing.'
+                            );
+                        }
+
+                        // The server's transformed mutations are now the source of truth
+                        // Clear pending since server has processed our operations
+                        await this._pendingMutationSerivce.clear(unitId);
+
+                        // Note: We don't re-apply ack.mutations here because:
+                        // 1. The operations were already applied locally when sent
+                        // 2. Any concurrent operations have been handled via changeset_pushed broadcasts
+                        // 3. The server's mutations serve as a verification/audit trail
+                    } else {
+                        this._logger.log(`Changeset applied, new version: ${ack.serverRev}, mutations count: ${pendingMutations.length}`);
+                        await this._pendingMutationSerivce.clear(unitId);
                     }
+
                     resolve();
                 } else {
-                    this._logger.error(`Changeset failed: ${ack.message}`);
-                    // Put mutations back to queue for retry
-                    const existingMutations = this._pendingMutations.get(unitId) || [];
-                    this._pendingMutations.set(unitId, [...existingMutations, ...mutations]);
-                    this._pendingBaseRevs.set(unitId, currentBaseRev);
-                    this._pendingUserIds.set(unitId, userId);
-                    // Save to offline storage for retry later
-                    try {
-                        await this._offlineStorage.savePendingMutations(
-                            unitId,
-                            [...existingMutations, ...mutations],
-                            currentBaseRev,
-                            userId
-                        );
-                    } catch (error) {
-                        this._logger.error('Failed to save to offline storage:', error);
-                    }
                     // TODO: Handle version mismatch - may need to fetch_ops and resync
                     reject(new Error(`Changeset failed: ${ack.message}`));
                 }
@@ -342,136 +454,22 @@ export class CollaborationService extends Disposable implements ICollaborationSe
     }
 
     /**
-     * Sync on reconnect: fetch missed operations and return them for processing
-     * The controller will handle applying mutations and transforming pending ops
-     */
-    async syncOnReconnect(unitId: string): Promise<{ missedOps: IOperationInfo[]; pendingMutations: IMutationInfo[]; serverVersion: number }> {
-        if (!this._socketService.getSocket() || this._socketService.getSocket()?.disconnected) {
-            this._logger.error('Socket not connected');
-            return Promise.reject(new Error('Socket not connected'));
-        }
-
-        // Get local version (from currentVersions or pending baseRev)
-        const localVersion = this._currentVersions.get(unitId) ?? this._pendingBaseRevs.get(unitId) ?? 0;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1', location: 'collaboration.service.ts:syncOnReconnect:localVersion', message: 'syncOnReconnect local version snapshot', data: { unitId, localVersion, currentVersion: this._currentVersions.get(unitId), pendingBaseRev: this._pendingBaseRevs.get(unitId) }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
-
-        // Join doc to get server version
-        try {
-            await this.joinDoc(unitId);
-        } catch (error) {
-            this._logger.error(`Failed to join doc ${unitId} during sync:`, error);
-            throw error;
-        }
-
-        const serverVersion = this._currentVersions.get(unitId);
-        if (serverVersion === undefined) {
-            this._logger.error(`Server version not available for unitId: ${unitId}`);
-            return { missedOps: [], pendingMutations: [], serverVersion: 0 };
-        }
-
-        // Get pending mutations (from memory and offline storage)
-        let pendingMutations = this._pendingMutations.get(unitId) || [];
-        let offlinePendingCount = 0;
-
-        // Also load from offline storage in case there are mutations saved there
-        try {
-            const offlinePending = await this._offlineStorage.loadPendingMutations(unitId);
-            if (offlinePending && offlinePending.mutations.length > 0) {
-                offlinePendingCount = offlinePending.mutations.length;
-                // Merge offline mutations if not already in memory
-                if (pendingMutations.length === 0) {
-                    pendingMutations = offlinePending.mutations;
-                    this._pendingMutations.set(unitId, pendingMutations);
-                    this._pendingBaseRevs.set(unitId, offlinePending.baseRev);
-                    this._pendingUserIds.set(unitId, offlinePending.userId);
-                }
-            }
-        } catch (error) {
-            this._logger.error('Failed to load offline pending mutations:', error);
-        }
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1', location: 'collaboration.service.ts:syncOnReconnect:pending', message: 'syncOnReconnect pending + server version', data: { unitId, localVersion, serverVersion, pendingCount: pendingMutations.length, offlinePendingCount }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
-
-        // If local version is behind server, fetch missed operations
-        let missedOps: IOperationInfo[] = [];
-        if (localVersion < serverVersion) {
-            this._logger.log(`Version gap detected: local=${localVersion}, server=${serverVersion}, fetching missed operations`);
-            missedOps = await this.fetchOps(unitId, localVersion);
-        }
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H1', location: 'collaboration.service.ts:syncOnReconnect:missedOps', message: 'syncOnReconnect missed ops summary', data: { unitId, localVersion, serverVersion, missedOpsCount: missedOps.length, missedOpsLastRev: missedOps.length > 0 ? missedOps[missedOps.length - 1].rev : undefined }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
-
-        return { missedOps, pendingMutations, serverVersion };
-    }
-
-    /**
-     * Get pending mutations for a unit
-     */
-    getPendingMutations(unitId: string): IMutationInfo[] {
-        return this._pendingMutations.get(unitId) || [];
-    }
-
-    getPendingBaseRev(unitId: string): number | undefined {
-        return this._pendingBaseRevs.get(unitId);
-    }
-
-    /**
-     * Set transformed pending mutations after OT
-     */
-    setTransformedPendingMutations(unitId: string, mutations: IMutationInfo[], baseRev: number): void {
-        this._pendingMutations.set(unitId, mutations);
-        this._pendingBaseRevs.set(unitId, baseRev);
-    }
-
-    /**
-     * Get the latest known server version for a unit
-     */
-    getCurrentVersion(unitId: string): number | undefined {
-        return this._currentVersions.get(unitId);
-    }
-
-    /**
-     * Update the latest known server version for a unit
-     */
-    setCurrentVersion(unitId: string, version: number): void {
-        this._currentVersions.set(unitId, version);
-    }
-
-    /**
      * Flush pending mutations immediately
      * @param unitId If provided, only flush this unitId's queue. Otherwise flush all.
      */
-    async flush(unitId?: string): Promise<void> {
-        if (unitId) {
+    async flush(unitId: string): Promise<void> {
             // Flush specific unitId
-            await this._flushChangeset(unitId);
-        } else {
-            // Flush all unitIds
-            const unitIds = Array.from(this._pendingMutations.keys());
-            await Promise.all(unitIds.map((id) => this._flushChangeset(id)));
-        }
+        await this._flushChangeset(unitId);
     }
 
     override dispose(): void {
+        super.dispose();
+
         // Clear all debounce timers
         for (const unitId of this._debounceTimers.keys()) {
             this._clearDebounceTimer(unitId);
         }
 
-        // Flush all pending mutations
-        const unitIds = Array.from(this._pendingMutations.keys());
-        for (const unitId of unitIds) {
-            // Flush synchronously to ensure all mutations are sent before dispose
-            this._flushChangeset(unitId).catch((error) => {
-                this._logger.error(`Error flushing changeset for ${unitId} during dispose:`, error);
-            });
-        }
-
-        super.dispose();
         // Leave all joined docs
         for (const docId of this._joinedDocs) {
             this.leaveDoc(docId);

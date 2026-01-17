@@ -1,16 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use crate::types::*;
     use crate::transform::insert_col::InsertColTransform;
     use crate::transform::mutation_transform::MutationTransform;
     use crate::transform::test_utils::test_utils::create_mutation_info;
-    use serde_json;
     use crate::transform::TransformService;
+    use crate::types::*;
+    use serde_json;
 
     #[test]
     fn test_insert_col_transform_trait() {
         let transform = InsertColTransform::default();
-        assert_eq!(InsertColTransform::mutation_id(), "sheet.mutation.insert-col");
+        assert_eq!(
+            InsertColTransform::mutation_id(),
+            "sheet.mutation.insert-col"
+        );
     }
 
     // InsertCol × SetRangeValues
@@ -32,7 +35,8 @@ mod tests {
                     end_column: 2,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let mut cell_data = serde_json::Map::new();
@@ -48,13 +52,15 @@ mod tests {
                     sub_unit_id: "test-sheet".to_string(),
                 },
                 cell_value: Some(ObjectMatrixPrimitiveType { data: cell_data }),
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        let transformed_params: SetRangeValuesMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        let transformed_params: SetRangeValuesMutationParams =
+            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
         assert!(transformed_params.cell_value.is_some());
         let cell_value = transformed_params.cell_value.unwrap();
         let row = cell_value.data.get("0").unwrap().as_object().unwrap();
@@ -81,7 +87,8 @@ mod tests {
                     end_column: 2,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -98,7 +105,8 @@ mod tests {
                     end_column: 0,
                 },
                 row_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
@@ -127,7 +135,8 @@ mod tests {
                     end_column: 1,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -144,13 +153,15 @@ mod tests {
                     end_column: 2,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        let transformed_params: InsertColMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        let transformed_params: InsertColMutationParams =
+            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
         assert_eq!(transformed_params.range.start_column, 3);
         assert_eq!(transformed_params.range.end_column, 3);
     }
@@ -174,7 +185,8 @@ mod tests {
                     end_column: 5,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -191,13 +203,15 @@ mod tests {
                     end_column: 2,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        let transformed_params: InsertColMutationParams = serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+        let transformed_params: InsertColMutationParams =
+            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
         assert_eq!(transformed_params.range.start_column, 6);
         assert_eq!(transformed_params.range.end_column, 6);
     }
@@ -221,7 +235,8 @@ mod tests {
                     end_column: 2,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -237,7 +252,8 @@ mod tests {
                     end_row: 3,
                     end_column: 0,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
@@ -266,7 +282,8 @@ mod tests {
                     end_column: 1,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -282,13 +299,15 @@ mod tests {
                     end_row: 0,
                     end_column: 5,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        let transformed_params: RemoveColMutationParams = serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+        let transformed_params: RemoveColMutationParams =
+            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
         assert_eq!(transformed_params.range.start_column, 4);
         assert_eq!(transformed_params.range.end_column, 6);
     }
@@ -312,7 +331,8 @@ mod tests {
                     end_column: 2,
                 },
                 col_info: None,
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let m2 = create_mutation_info(
@@ -328,7 +348,8 @@ mod tests {
                     end_row: 0,
                     end_column: 3,
                 },
-            }).unwrap(),
+            })
+            .unwrap(),
         );
 
         let result = service.transform_internal(&m1, &m2);

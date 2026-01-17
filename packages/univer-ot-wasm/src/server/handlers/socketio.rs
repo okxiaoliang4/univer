@@ -1,10 +1,10 @@
+use crate::server::services::ot::Changeset;
 use crate::server::services::{DocumentService, OTService};
 use crate::server::state::AppState;
 use crate::server::types::{
-    ChangesetAck, ChangesetPushed, ChangesetRequest, FetchOpsAck, FetchOpsRequest,
-    JoinDocAck, JoinDocRequest, LeaveDocRequest, OperationInfo, PresenceUpdateRequest,
+    ChangesetAck, ChangesetPushed, ChangesetRequest, FetchOpsAck, FetchOpsRequest, JoinDocAck,
+    JoinDocRequest, LeaveDocRequest, OperationInfo, PresenceUpdateRequest,
 };
-use crate::server::services::ot::Changeset;
 use anyhow::Result;
 use socketioxide::{
     extract::{AckSender, Data, SocketRef},
@@ -25,9 +25,7 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
         // Handle join_doc event
         socket.on(
             "join_doc",
-            move |socket: SocketRef,
-                  Data::<JoinDocRequest>(req),
-                  ack: AckSender| {
+            move |socket: SocketRef, Data::<JoinDocRequest>(req), ack: AckSender| {
                 let state = state.clone();
                 async move {
                     match handle_join_doc(&socket, &state, req).await {
@@ -65,13 +63,13 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
         // Handle changeset event
         socket.on(
             "changeset",
-            move |socket: SocketRef,
-                  Data::<ChangesetRequest>(req),
-                  ack: AckSender| {
+            move |socket: SocketRef, Data::<ChangesetRequest>(req), ack: AckSender| {
                 let state = state.clone();
                 async move {
-                    info!("Received changeset event: socket_id={:?}, doc_id={}, base_rev={}",
-                          socket.id, req.doc_id, req.base_rev);
+                    info!(
+                        "·: socket_id={:?}, doc_id={}, base_rev={}",
+                        socket.id, req.doc_id, req.base_rev
+                    );
                     match handle_changeset(&socket, &state, req).await {
                         Ok(ack_data) => {
                             if let Ok(json) = serde_json::to_value(&ack_data) {
@@ -83,6 +81,7 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
                             let error_ack = ChangesetAck {
                                 status: "error".to_string(),
                                 server_rev: None,
+                                mutations: None,
                                 message: Some(e.to_string()),
                             };
                             if let Ok(json) = serde_json::to_value(&error_ack) {
@@ -98,9 +97,7 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
         // Handle fetch_ops event
         socket.on(
             "fetch_ops",
-            move |socket: SocketRef,
-                  Data::<FetchOpsRequest>(req),
-                  ack: AckSender| {
+            move |socket: SocketRef, Data::<FetchOpsRequest>(req), ack: AckSender| {
                 let state = state.clone();
                 async move {
                     match handle_fetch_ops(&socket, &state, req).await {
@@ -140,8 +137,8 @@ async fn handle_join_doc(
     state: &AppState,
     req: JoinDocRequest,
 ) -> Result<JoinDocAck> {
-    let doc_id = Uuid::parse_str(&req.doc_id)
-        .map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
+    let doc_id =
+        Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
 
     // Verify document exists and get current version from documents table
     let version = state
@@ -174,21 +171,26 @@ async fn handle_changeset(
     state: &AppState,
     req: ChangesetRequest,
 ) -> Result<ChangesetAck> {
-  info!("Handling changeset: doc_id={}, base_rev={}, mutations_count={}", req.doc_id, req.base_rev, req.mutations.len());
-    let doc_id = Uuid::parse_str(&req.doc_id)
-        .map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
+    info!(
+        "Handling changeset: doc_id={}, base_rev={}, mutations_count={}",
+        req.doc_id,
+        req.base_rev,
+        req.mutations.len()
+    );
+    let doc_id =
+        Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
 
     // Convert ChangesetRequest to Changeset for OTService
     let changeset = Changeset {
         base_rev: req.base_rev,
-        user_id: req.user_id.clone(),
+        user_id: socket.id.to_string(), // TODO: 后面换成auth token中的userId
         mutations: req.mutations.clone(),
         client_id: format!("socket:{}", socket.id), // Use socket ID as client ID
     };
 
     // Apply changeset via OTService
     let result = state
-        .ot_service
+        .document_actor_manager
         .apply_changeset(doc_id, changeset, req.client_msg_id)
         .await?;
 
@@ -210,23 +212,38 @@ async fn handle_changeset(
 
     match serde_json::to_value(&pushed) {
         Ok(json) => {
-            match socket.to(room.clone()).emit("changeset_pushed", &json).await {
+            match socket
+                .to(room.clone())
+                .emit("changeset_pushed", &json)
+                .await
+            {
                 Ok(_) => {
-                    info!("Broadcasted changeset_pushed to room {}: server_rev={}", room, result.server_rev);
+                    info!(
+                        "Broadcasted changeset_pushed to room {}: server_rev={}",
+                        room, result.server_rev
+                    );
                 }
                 Err(e) => {
-                    error!("Failed to broadcast changeset_pushed to room {}: {}", room, e);
+                    error!(
+                        "Failed to broadcast changeset_pushed to room {}: {}",
+                        room, e
+                    );
                 }
             }
         }
         Err(e) => {
-            error!("Failed to serialize changeset_pushed for room {}: {}", room, e);
+            error!(
+                "Failed to serialize changeset_pushed for room {}: {}",
+                room, e
+            );
         }
     }
 
     Ok(ChangesetAck {
         status: "ok".to_string(),
         server_rev: Some(result.server_rev),
+        // Return the transformed mutations so client can verify/sync with server state
+        mutations: Some(result.mutations.clone()),
         message: None,
     })
 }
@@ -236,8 +253,8 @@ async fn handle_fetch_ops(
     state: &AppState,
     req: FetchOpsRequest,
 ) -> Result<FetchOpsAck> {
-    let doc_id = Uuid::parse_str(&req.doc_id)
-        .map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
+    let doc_id =
+        Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
 
     // Get operations since start_rev
     let ops = state
@@ -249,10 +266,7 @@ async fn handle_fetch_ops(
     use std::collections::HashMap;
     let mut ops_by_rev: HashMap<i64, Vec<_>> = HashMap::new();
     for op in ops {
-        ops_by_rev
-            .entry(op.rev)
-            .or_insert_with(Vec::new)
-            .push(op);
+        ops_by_rev.entry(op.rev).or_insert_with(Vec::new).push(op);
     }
 
     // Convert to OperationInfo format (grouped by rev)

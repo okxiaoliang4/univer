@@ -59,8 +59,7 @@ pub async fn create_document(
     State(state): State<AppState>,
     Json(req): Json<CreateDocumentRequest>,
 ) -> Result<Json<CreateDocumentResponse>, StatusCode> {
-    let doc_id = Uuid::parse_str(&req.doc_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let doc_id = Uuid::parse_str(&req.doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     state
         .document_service
@@ -80,8 +79,7 @@ pub async fn update_snapshot(
     Path(doc_id): Path<String>,
     Json(req): Json<UpdateSnapshotRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let doc_uuid = Uuid::parse_str(&doc_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     state
         .snapshot_service
@@ -97,8 +95,7 @@ pub async fn get_document(
     State(state): State<AppState>,
     Path(doc_id): Path<String>,
 ) -> Result<Json<DocumentResponse>, StatusCode> {
-    let doc_uuid = Uuid::parse_str(&doc_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let (content, version) = state
         .document_service
@@ -120,8 +117,7 @@ pub async fn get_operations(
     Path(doc_id): Path<String>,
     Query(query): Query<GetOperationsQuery>,
 ) -> Result<Json<OperationsResponse>, StatusCode> {
-    let doc_uuid = Uuid::parse_str(&doc_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let from_rev = query.from_rev.unwrap_or(0);
     let operations = state
