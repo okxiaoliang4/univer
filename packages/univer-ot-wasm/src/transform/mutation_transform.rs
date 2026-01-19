@@ -41,4 +41,8 @@ pub trait MutationTransform: Default {
         m1: &MutationInfoInternal,
         m2: &MutationInfoInternal,
     ) -> TransformResultInternal;
+
+    /// Compose two mutations of the same type
+    fn compose(&self, m1: &MutationInfoInternal, m2: &MutationInfoInternal)
+        -> Vec<MutationInfoInternal>;
 }

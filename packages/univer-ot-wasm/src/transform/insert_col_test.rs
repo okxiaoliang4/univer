@@ -356,4 +356,140 @@ mod tests {
         assert!(result.error.is_some());
         assert!(result.error.unwrap().contains("conflicts"));
     }
+
+    #[test]
+    fn test_compose_insert_col_contiguous() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 2,
+                    end_row: 0,
+                    end_column: 3,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 4,
+                    end_row: 0,
+                    end_column: 4,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 1);
+        let composed_params: InsertColMutationParams =
+            serde_json::from_value(result[0].params.clone()).unwrap();
+        assert_eq!(composed_params.range.start_column, 2);
+        assert_eq!(composed_params.range.end_column, 4);
+    }
+
+    #[test]
+    fn test_compose_insert_col_non_contiguous() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 2,
+                    end_row: 0,
+                    end_column: 2,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 6,
+                    end_row: 0,
+                    end_column: 6,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_compose_insert_col_different_sheet() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-1".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 2,
+                    end_row: 0,
+                    end_column: 2,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-2".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 2,
+                    end_row: 0,
+                    end_column: 2,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 2);
+    }
 }

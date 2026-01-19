@@ -247,6 +247,13 @@ pub struct TransformListResult {
 }
 
 #[wasm_bindgen]
+#[derive(Debug, Clone)]
+pub struct ComposeResult {
+    #[wasm_bindgen(getter_with_clone)]
+    pub mutations: Vec<MutationInfo>,
+}
+
+#[wasm_bindgen]
 impl TransformListResult {
     #[wasm_bindgen(constructor)]
     pub fn new(
@@ -259,6 +266,14 @@ impl TransformListResult {
             m2_prime_list,
             error,
         }
+    }
+}
+
+#[wasm_bindgen]
+impl ComposeResult {
+    #[wasm_bindgen(constructor)]
+    pub fn new(mutations: Vec<MutationInfo>) -> Self {
+        Self { mutations }
     }
 }
 

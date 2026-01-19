@@ -1,6 +1,6 @@
 #[cfg(test)]
 pub mod test_utils {
-    use crate::types::{MutationInfo, MutationInfoInternal};
+    use crate::types::MutationInfoInternal;
     use serde_json;
 
     /// Helper function to create MutationInfoInternal from serde_json::Value for testing

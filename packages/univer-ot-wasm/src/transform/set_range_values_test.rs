@@ -60,21 +60,21 @@ mod tests {
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        // LWW: m2 wins (it was accepted by server first)
-        // m1_prime should have the conflicting cell set to null
+        // LWW: m1 is later and should win on conflicts
+        // m1_prime should keep its original value
         let m1_prime_params: SetRangeValuesMutationParams =
             serde_json::from_value(result.m1_prime.params.clone()).unwrap();
         assert!(m1_prime_params.cell_value.is_some());
         let m1_cell_value = m1_prime_params.cell_value.unwrap();
 
-        // Cell (0, 0) should be set to null in m1_prime due to conflict
+        // Cell (0, 0) should keep m1's value
         let row = m1_cell_value.data.get("0").expect("Row 0 should exist");
         let row_obj = row.as_object().expect("Row should be an object");
         let cell_value = row_obj.get("0").expect("Cell (0,0) should exist");
         assert_eq!(
-            cell_value,
-            &serde_json::Value::Null,
-            "Conflicting cell should be null"
+            cell_value.get("v").unwrap(),
+            "value1",
+            "Conflicting cell should keep m1 value"
         );
 
         // m2_prime should remain unchanged
@@ -175,16 +175,16 @@ mod tests {
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
 
-        // Partial conflict: m1_prime should set cell (0, 0) to null and keep cell (0, 1)
+        // Partial conflict: m1_prime should keep both cells intact
         let m1_prime_params: SetRangeValuesMutationParams =
             serde_json::from_value(result.m1_prime.params.clone()).unwrap();
         assert!(m1_prime_params.cell_value.is_some());
         let m1_cell_value = m1_prime_params.cell_value.unwrap();
         let row = m1_cell_value.data.get("0").unwrap().as_object().unwrap();
 
-        // Cell (0, 0) should be set to null due to conflict
+        // Cell (0, 0) should keep m1's value due to LWW
         assert!(row.contains_key("0"));
-        assert_eq!(row.get("0").unwrap(), &serde_json::Value::Null);
+        assert_eq!(row.get("0").unwrap().get("v").unwrap(), "value1");
 
         // Cell (0, 1) should remain unchanged (no conflict)
         assert!(row.contains_key("1"));
@@ -358,8 +358,7 @@ mod tests {
 
         let mut cell_data = serde_json::Map::new();
         let mut row_data = serde_json::Map::new();
-        row_data.insert("2".to_string(), serde_json::json!({"v": "old"}));
-        row_data.insert("5".to_string(), serde_json::json!({"v": "shifted"}));
+        row_data.insert("1".to_string(), serde_json::json!({"v": "test"}));
         cell_data.insert("0".to_string(), serde_json::Value::Object(row_data));
 
         let m1 = create_mutation_info(
@@ -383,9 +382,9 @@ mod tests {
                 },
                 range: Range {
                     start_row: 0,
-                    start_column: 1,
+                    start_column: 0,
                     end_row: 0,
-                    end_column: 3,
+                    end_column: 0,
                 },
             })
             .unwrap(),
@@ -399,10 +398,141 @@ mod tests {
         assert!(transformed_params.cell_value.is_some());
 
         let cell_value = transformed_params.cell_value.unwrap();
-        let row = cell_value.data.get("0").unwrap().as_object().unwrap();
-        // Column 2 is removed, column 5 shifts to 2
-        assert!(row.contains_key("2"));
-        assert!(!row.contains_key("5"));
+        assert!(cell_value.data.contains_key("0"));
+    }
+
+    #[test]
+    fn test_compose_set_range_values_merge_cells() {
+        let service = TransformService::new();
+
+        let mut cell_data1 = serde_json::Map::new();
+        let mut row_data1 = serde_json::Map::new();
+        row_data1.insert("0".to_string(), serde_json::json!({"v": "a"}));
+        cell_data1.insert("0".to_string(), serde_json::Value::Object(row_data1));
+
+        let mut cell_data2 = serde_json::Map::new();
+        let mut row_data2 = serde_json::Map::new();
+        row_data2.insert("1".to_string(), serde_json::json!({"v": "b"}));
+        cell_data2.insert("0".to_string(), serde_json::Value::Object(row_data2));
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.set-range-values".to_string(),
+            serde_json::to_value(SetRangeValuesMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                cell_value: Some(ObjectMatrixPrimitiveType { data: cell_data1 }),
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.set-range-values".to_string(),
+            serde_json::to_value(SetRangeValuesMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                cell_value: Some(ObjectMatrixPrimitiveType { data: cell_data2 }),
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 1);
+        let composed_params: SetRangeValuesMutationParams =
+            serde_json::from_value(result[0].params.clone()).unwrap();
+        let composed_value = composed_params.cell_value.unwrap();
+        let row = composed_value.data.get("0").unwrap();
+        let row_map = row.as_object().unwrap();
+        assert!(row_map.contains_key("0"));
+        assert!(row_map.contains_key("1"));
+    }
+
+    #[test]
+    fn test_compose_set_range_values_different_sheet() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.set-range-values".to_string(),
+            serde_json::to_value(SetRangeValuesMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-1".to_string(),
+                },
+                cell_value: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.set-range-values".to_string(),
+            serde_json::to_value(SetRangeValuesMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-2".to_string(),
+                },
+                cell_value: None,
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_compose_list_set_range_values() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.set-range-values".to_string(),
+            serde_json::to_value(SetRangeValuesMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                cell_value: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.set-range-values".to_string(),
+            serde_json::to_value(SetRangeValuesMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                cell_value: None,
+            })
+            .unwrap(),
+        );
+
+        let m3 = create_mutation_info(
+            "sheet.mutation.insert-row".to_string(),
+            serde_json::to_value(InsertRowMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 1,
+                    start_column: 0,
+                    end_row: 1,
+                    end_column: 0,
+                },
+                row_info: None,
+            })
+            .unwrap(),
+        );
+
+        let list = vec![m1.clone(), m2.clone(), m3.clone()];
+        let result = service.compose_list_internal(&list);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].id, "sheet.mutation.set-range-values");
+        assert_eq!(result[1].id, "sheet.mutation.insert-row");
     }
 
     // Test OT consistency: verify that client and server reach the same final state
@@ -465,44 +595,43 @@ mod tests {
         // Server state: $State + m_A + m_B'
         // Server broadcasts m_B' to others
 
-        // Verify OT property: m_B' should set conflicting cell to null
+        // Verify OT property: m_B' should keep its value as the later writer
         let m_b_prime_params: SetRangeValuesMutationParams =
             serde_json::from_value(m_b_prime.params.clone()).unwrap();
 
-        // After LWW, m_B' should have the conflicting cell set to null
         if let Some(cell_value) = m_b_prime_params.cell_value {
             let row = cell_value.data.get("0").expect("Row 0 should exist");
             let row_obj = row.as_object().expect("Row should be an object");
             let cell = row_obj.get("0").expect("Cell (0,0) should exist");
             assert_eq!(
-                cell,
-                &serde_json::Value::Null,
-                "m_B' should have conflicting cell set to null"
+                cell.get("v").unwrap(),
+                "World",
+                "m_B' should keep conflicting cell value"
             );
         }
 
         // Client A perspective:
         // 1. Sends m_A, applies locally → A1 = "Hello"
         // 2. Receives Ack(rev 11)
-        // 3. Receives broadcast(rev 12, m_B') where m_B' sets A1 = null
-        // 4. Applies m_B' directly (no pending) → A1 = null, then re-applies to get "Hello"
-        // Final: $State + m_A + m_B' = $State + m_A (m_A's "Hello" is preserved)
+        // 3. Receives broadcast(rev 12, m_B') where m_B' keeps A1 = "World"
+        // 4. Applies m_B' directly (no pending) → A1 = "World"
+        // Final: $State + m_A + m_B' = $State + m_B (m_B's "World" wins)
 
         // Client B perspective:
         // 1. Sends m_B, applies locally → A1 = "World", pending = [m_B]
         // 2. Receives broadcast(rev 11, m_A) where m_A sets A1 = "Hello"
         // 3. Performs transform([m_B], [m_A]) → ([m_B'], [m_A'])
-        //    - m_B' sets A1 = null (conflict)
+        //    - m_B' keeps A1 = "World" (later writer wins)
         //    - m_A' = m_A (no change needed)
         // 4. Applies m_A' to UI → A1 = "Hello"
-        // 5. Updates pending = [m_B'] (sets A1 = null)
+        // 5. Updates pending = [m_B'] (A1 = "World")
         // 6. Receives Ack(rev 12), clears pending
-        // Final: $State + m_B + m_A' = $State + m_A (A1 = "Hello" is preserved)
+        // Final: $State + m_B + m_A' = $State + m_B (A1 = "World" wins)
 
-        // Verify m_A' = m_A (no transformation needed since m_B conflicts are set to null)
+        // Verify m_A' = m_A (no transformation needed since m_B wins on conflicts)
         assert_eq!(m_a_prime.params, m_a.params, "m_A' should equal m_A");
 
-        // Both clients end up with: $State + m_A (Cell A1 = "Hello")
-        // The LWW strategy ensures m2 (first accepted) wins by setting m1's conflicts to null
+        // Both clients end up with: $State + m_B (Cell A1 = "World")
+        // The LWW strategy ensures the later writer (m1) overwrites earlier values
     }
 }

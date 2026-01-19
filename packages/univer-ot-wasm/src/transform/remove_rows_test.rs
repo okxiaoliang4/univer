@@ -316,6 +316,135 @@ mod tests {
         assert_eq!(transformed_params.range.end_row, 4);
     }
 
+    #[test]
+    fn test_compose_remove_rows_contiguous() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::to_value(RemoveRowsMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 1,
+                    start_column: 0,
+                    end_row: 2,
+                    end_column: 0,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::to_value(RemoveRowsMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 1,
+                    start_column: 0,
+                    end_row: 1,
+                    end_column: 0,
+                },
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 1);
+        let composed_params: RemoveRowsMutationParams =
+            serde_json::from_value(result[0].params.clone()).unwrap();
+        assert_eq!(composed_params.range.start_row, 1);
+        assert_eq!(composed_params.range.end_row, 3);
+    }
+
+    #[test]
+    fn test_compose_remove_rows_non_contiguous() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::to_value(RemoveRowsMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 1,
+                    start_column: 0,
+                    end_row: 1,
+                    end_column: 0,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::to_value(RemoveRowsMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 4,
+                    start_column: 0,
+                    end_row: 4,
+                    end_column: 0,
+                },
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_compose_remove_rows_different_sheet() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::to_value(RemoveRowsMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-1".to_string(),
+                },
+                range: Range {
+                    start_row: 1,
+                    start_column: 0,
+                    end_row: 1,
+                    end_column: 0,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::to_value(RemoveRowsMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-2".to_string(),
+                },
+                range: Range {
+                    start_row: 1,
+                    start_column: 0,
+                    end_row: 1,
+                    end_column: 0,
+                },
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 2);
+    }
     // RemoveRows × RemoveCol
     #[test]
     fn test_transform_remove_rows_remove_col() {

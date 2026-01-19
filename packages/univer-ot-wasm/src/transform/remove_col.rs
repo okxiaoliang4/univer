@@ -306,4 +306,79 @@ impl MutationTransform for RemoveColTransform {
             error: None,
         }
     }
+
+    fn compose(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> Vec<MutationInfoInternal> {
+        let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
+            .unwrap_or_else(|_| RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+            });
+
+        let m2_params: RemoveColMutationParams = serde_json::from_value(m2.params.clone())
+            .unwrap_or_else(|_| RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+            });
+
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
+            return vec![m1.clone(), m2.clone()];
+        }
+
+        let m1_start = m1_params.range.start_column;
+        let m1_end = m1_params.range.end_column;
+        let m1_count = m1_end - m1_start + 1;
+        let m2_start = m2_params.range.start_column;
+        let m2_end = m2_params.range.end_column;
+
+        if m2_start < m1_start && m2_end >= m1_start {
+            return vec![m1.clone(), m2.clone()];
+        }
+
+        let (mapped_start, mapped_end) = if m2_start >= m1_start {
+            (m2_start + m1_count, m2_end + m1_count)
+        } else {
+            (m2_start, m2_end)
+        };
+
+        if mapped_start > m1_end + 1 || m1_start > mapped_end + 1 {
+            return vec![m1.clone(), m2.clone()];
+        }
+
+        let composed_params = RemoveColMutationParams {
+            sub_unit_params: m1_params.sub_unit_params,
+            range: Range {
+                start_row: m1_params.range.start_row,
+                start_column: std::cmp::min(m1_start, mapped_start),
+                end_row: m1_params.range.end_row,
+                end_column: std::cmp::max(m1_end, mapped_end),
+            },
+        };
+
+        vec![MutationInfoInternal {
+            id: m1.id.clone(),
+            params: serde_json::to_value(composed_params).unwrap(),
+        }]
+    }
 }

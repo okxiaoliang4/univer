@@ -285,9 +285,9 @@ mod tests {
                 },
                 range: Range {
                     start_row: 0,
-                    start_column: 4,
+                    start_column: 5,
                     end_row: 0,
-                    end_column: 5,
+                    end_column: 6,
                 },
             })
             .unwrap(),
@@ -298,7 +298,138 @@ mod tests {
 
         let transformed_params: RemoveColMutationParams =
             serde_json::from_value(result.m2_prime.params.clone()).unwrap();
-        assert_eq!(transformed_params.range.start_column, 2);
-        assert_eq!(transformed_params.range.end_column, 3);
+        assert_eq!(transformed_params.range.start_column, 3);
+        assert_eq!(transformed_params.range.end_column, 4);
+    }
+
+    #[test]
+    fn test_compose_remove_col_contiguous() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 2,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 1,
+                },
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 1);
+        let composed_params: RemoveColMutationParams =
+            serde_json::from_value(result[0].params.clone()).unwrap();
+        assert_eq!(composed_params.range.start_column, 1);
+        assert_eq!(composed_params.range.end_column, 3);
+    }
+
+    #[test]
+    fn test_compose_remove_col_non_contiguous() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 1,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 5,
+                    end_row: 0,
+                    end_column: 5,
+                },
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_compose_remove_col_different_sheet() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-1".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 1,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "sheet-2".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 1,
+                },
+            })
+            .unwrap(),
+        );
+
+        let result = service.compose_internal(&m1, &m2);
+        assert_eq!(result.len(), 2);
     }
 }
+

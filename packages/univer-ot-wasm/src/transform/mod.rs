@@ -1,5 +1,5 @@
 use crate::types::{
-    js_value_to_json_value, MutationInfo, MutationInfoInternal, TransformListResult,
+    js_value_to_json_value, ComposeResult, MutationInfo, MutationInfoInternal, TransformListResult,
     TransformResult, TransformResultInternal,
 };
 use js_sys::{Array, Object, Reflect};
@@ -45,6 +45,12 @@ trait TransformDispatch: Send + Sync {
         m1: &MutationInfoInternal,
         m2: &MutationInfoInternal,
     ) -> TransformResultInternal;
+
+    fn compose_dispatch(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> Vec<MutationInfoInternal>;
 }
 
 impl<T: MutationTransform + Send + Sync + 'static> TransformDispatch for T {
@@ -75,6 +81,14 @@ impl<T: MutationTransform + Send + Sync + 'static> TransformDispatch for T {
                 error: None,
             },
         }
+    }
+
+    fn compose_dispatch(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> Vec<MutationInfoInternal> {
+        self.compose(m1, m2)
     }
 }
 
@@ -158,6 +172,41 @@ impl TransformServiceCore {
             error: None,
         }
     }
+
+    pub fn compose(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> Vec<MutationInfoInternal> {
+        if m1.id != m2.id {
+            return vec![m1.clone(), m2.clone()];
+        }
+
+        if let Some(transform) = self.transforms.get(&m1.id) {
+            return transform.compose_dispatch(m1, m2);
+        }
+
+        vec![m1.clone(), m2.clone()]
+    }
+
+    pub fn compose_list(&self, list: &[MutationInfoInternal]) -> Vec<MutationInfoInternal> {
+        let mut result: Vec<MutationInfoInternal> = Vec::new();
+        for mutation in list.iter() {
+            let current = mutation.clone();
+            if let Some(last) = result.pop() {
+                let composed = self.compose(&last, &current);
+                if composed.len() == 1 {
+                    result.push(composed[0].clone());
+                } else {
+                    result.push(last);
+                    result.push(current);
+                }
+            } else {
+                result.push(current);
+            }
+        }
+        result
+    }
 }
 
 // WASM wrapper that converts at the boundary
@@ -194,9 +243,7 @@ impl TransformService {
         TransformResult::from(result)
     }
 
-    /// Transform two lists of mutations - WASM boundary converts JsValue arrays <-> Vec<MutationInfoInternal>
-    pub fn transform_list(&self, m1_list: &JsValue, m2_list: &JsValue) -> TransformListResult {
-        // Helper function to convert JS object to MutationInfoInternal
+    fn js_value_to_internal_list(&self, list: &JsValue) -> Vec<MutationInfoInternal> {
         let js_to_internal = |item: JsValue| -> Option<MutationInfoInternal> {
             if let Some(obj) = item.dyn_ref::<Object>() {
                 let id = Reflect::get(obj, &JsValue::from_str("id"))
@@ -216,24 +263,19 @@ impl TransformService {
             }
         };
 
-        // Convert JS arrays to Vec<MutationInfoInternal>
-        let m1_internal_list: Vec<MutationInfoInternal> =
-            if let Some(array) = m1_list.dyn_ref::<Array>() {
-                (0..array.length())
-                    .filter_map(|i| js_to_internal(array.get(i)))
-                    .collect()
-            } else {
-                Vec::new()
-            };
+        if let Some(array) = list.dyn_ref::<Array>() {
+            (0..array.length())
+                .filter_map(|i| js_to_internal(array.get(i)))
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
 
-        let m2_internal_list: Vec<MutationInfoInternal> =
-            if let Some(array) = m2_list.dyn_ref::<Array>() {
-                (0..array.length())
-                    .filter_map(|i| js_to_internal(array.get(i)))
-                    .collect()
-            } else {
-                Vec::new()
-            };
+    /// Transform two lists of mutations - WASM boundary converts JsValue arrays <-> Vec<MutationInfoInternal>
+    pub fn transform_list(&self, m1_list: &JsValue, m2_list: &JsValue) -> TransformListResult {
+        let m1_internal_list = self.js_value_to_internal_list(m1_list);
+        let m2_internal_list = self.js_value_to_internal_list(m2_list);
 
         // Call core transform_list
         let (m1_prime_list, m2_prime_list, error) = self
@@ -256,6 +298,30 @@ impl TransformService {
             m2_prime_list: m2_prime_wasm,
             error,
         }
+    }
+
+    /// Compose two mutations - WASM boundary converts JsValue <-> serde_json::Value
+    pub fn compose(&self, m1: &MutationInfo, m2: &MutationInfo) -> ComposeResult {
+        let m1_internal = MutationInfoInternal {
+            id: m1.id.clone(),
+            params: js_value_to_json_value(&m1.params),
+        };
+        let m2_internal = MutationInfoInternal {
+            id: m2.id.clone(),
+            params: js_value_to_json_value(&m2.params),
+        };
+
+        let result = self.core.compose(&m1_internal, &m2_internal);
+        let mutations = result.into_iter().map(MutationInfo::from).collect();
+        ComposeResult { mutations }
+    }
+
+    /// Compose list of mutations - WASM boundary converts JsValue arrays <-> Vec<MutationInfoInternal>
+    pub fn compose_list(&self, list: &JsValue) -> ComposeResult {
+        let internal_list = self.js_value_to_internal_list(list);
+        let result = self.core.compose_list(&internal_list);
+        let mutations = result.into_iter().map(MutationInfo::from).collect();
+        ComposeResult { mutations }
     }
 }
 
@@ -280,5 +346,20 @@ impl TransformService {
         Option<String>,
     ) {
         self.core.transform_list(m1_list, m2_list)
+    }
+
+    pub fn compose_internal(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> Vec<MutationInfoInternal> {
+        self.core.compose(m1, m2)
+    }
+
+    pub fn compose_list_internal(
+        &self,
+        list: &[MutationInfoInternal],
+    ) -> Vec<MutationInfoInternal> {
+        self.core.compose_list(list)
     }
 }

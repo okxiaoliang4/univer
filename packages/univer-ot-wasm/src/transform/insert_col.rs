@@ -1,7 +1,8 @@
 use crate::transform::mutation_transform::MutationTransform;
 use crate::types::{
-    InsertColMutationParams, MutationInfoInternal, ObjectMatrixPrimitiveType, Range,
-    RemoveColMutationParams, SetRangeValuesMutationParams, SubUnitParams, TransformResultInternal,
+    InsertColMutationParams, MutationInfoInternal, ObjectArrayPrimitiveType,
+    ObjectMatrixPrimitiveType, Range, RemoveColMutationParams, SetRangeValuesMutationParams,
+    SubUnitParams, TransformResultInternal,
 };
 use serde_json;
 
@@ -283,5 +284,105 @@ impl MutationTransform for InsertColTransform {
                 error: Some("Insert col conflicts with remove col".to_string()),
             }
         }
+    }
+
+    fn compose(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> Vec<MutationInfoInternal> {
+        let m1_params: InsertColMutationParams = serde_json::from_value(m1.params.clone())
+            .unwrap_or_else(|_| InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+                col_info: None,
+            });
+
+        let m2_params: InsertColMutationParams = serde_json::from_value(m2.params.clone())
+            .unwrap_or_else(|_| InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+                col_info: None,
+            });
+
+        if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
+            || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
+        {
+            return vec![m1.clone(), m2.clone()];
+        }
+
+        let m1_start = m1_params.range.start_column;
+        let m1_count = m1_params.range.end_column - m1_params.range.start_column + 1;
+        let m2_start = m2_params.range.start_column;
+        let m2_count = m2_params.range.end_column - m2_params.range.start_column + 1;
+
+        if m2_start < m1_start || m2_start > m1_start + m1_count {
+            return vec![m1.clone(), m2.clone()];
+        }
+
+        let offset = m2_start - m1_start;
+        let mut merged_info: Option<ObjectArrayPrimitiveType> = None;
+
+        if m1_params.col_info.is_some() || m2_params.col_info.is_some() {
+            let mut new_data = serde_json::Map::new();
+
+            if let Some(col_info) = &m1_params.col_info {
+                for (key, value) in col_info.data.iter() {
+                    if let Ok(index) = key.parse::<u32>() {
+                        let shifted = if index >= offset {
+                            index + m2_count
+                        } else {
+                            index
+                        };
+                        new_data.insert(shifted.to_string(), value.clone());
+                    }
+                }
+            }
+
+            if let Some(col_info) = &m2_params.col_info {
+                for (key, value) in col_info.data.iter() {
+                    if let Ok(index) = key.parse::<u32>() {
+                        let shifted = index + offset;
+                        new_data.insert(shifted.to_string(), value.clone());
+                    }
+                }
+            }
+
+            if !new_data.is_empty() {
+                merged_info = Some(ObjectArrayPrimitiveType { data: new_data });
+            }
+        }
+
+        let composed_params = InsertColMutationParams {
+            sub_unit_params: m1_params.sub_unit_params,
+            range: Range {
+                start_row: m1_params.range.start_row,
+                start_column: m1_start,
+                end_row: m1_params.range.end_row,
+                end_column: m1_start + m1_count + m2_count - 1,
+            },
+            col_info: merged_info,
+        };
+
+        vec![MutationInfoInternal {
+            id: m1.id.clone(),
+            params: serde_json::to_value(composed_params).unwrap(),
+        }]
     }
 }
