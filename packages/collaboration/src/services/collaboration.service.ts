@@ -15,6 +15,7 @@
  */
 
 import type { IMutationInfo } from '@univerjs/core';
+import type { Subscription } from 'rxjs';
 import type {
     IChangeset,
     IChangesetAck,
@@ -69,6 +70,10 @@ export class CollaborationService
     private readonly _debounceDelay = 200;
 
     private _collabUnits: Set<string> = new Set();
+    private _pendingJoins: Map<
+        string,
+        { promise: Promise<void>; resolve: () => void; subscription: Subscription }
+    > = new Map();
 
     constructor(
         @ISocketService private readonly _socketService: ISocketService,
@@ -121,6 +126,7 @@ export class CollaborationService
                 const unitId = unit.getUnitId();
                 if (isInternalEditorID(unitId)) return;
                 this._collabUnits.add(unitId);
+                await this.joinDoc(unitId);
             })
         );
 
@@ -129,6 +135,7 @@ export class CollaborationService
                 const unitId = workbook.getUnitId();
                 if (isInternalEditorID(unitId)) return;
                 this._collabUnits.delete(unitId);
+                this.leaveDoc(unitId);
             })
         );
     }
@@ -247,13 +254,37 @@ export class CollaborationService
             !this._socketService.getSocket() ||
             this._socketService.getSocket()?.disconnected
         ) {
-            this._logger.error('Socket not connected');
-            return Promise.reject(new Error('Socket not connected'));
+            const pending = this._pendingJoins.get(docId);
+            if (pending) {
+                return pending.promise;
+            }
+
+            let resolveFn: () => void;
+            const promise = new Promise<void>((resolve) => {
+                resolveFn = resolve;
+            });
+            const subscription = this._socketService.connected$.subscribe(() => {
+                const entry = this._pendingJoins.get(docId);
+                if (!entry) return;
+                entry.subscription.unsubscribe();
+                this._pendingJoins.delete(docId);
+                this._joinDocNow(docId).finally(entry.resolve);
+            });
+            this._pendingJoins.set(docId, {
+                promise,
+                resolve: resolveFn!,
+                subscription,
+            });
+            return promise;
         }
 
+        return this._joinDocNow(docId);
+    }
+
+    private async _joinDocNow(docId: string): Promise<void> {
         if (this._joinedDocs.has(docId)) {
             this._logger.log(`Already joined doc: ${docId}`);
-            return Promise.resolve();
+            return;
         }
 
         const request: IJoinDocRequest = { docId };
@@ -347,6 +378,15 @@ export class CollaborationService
     }
 
     leaveDoc(docId: string): void {
+        const pending = this._pendingJoins.get(docId);
+        if (pending) {
+            pending.subscription.unsubscribe();
+            pending.resolve();
+            this._pendingJoins.delete(docId);
+        }
+
+        this._joinedDocs.delete(docId);
+
         if (
             !this._socketService.getSocket() ||
             this._socketService.getSocket()?.disconnected
@@ -354,12 +394,7 @@ export class CollaborationService
             return;
         }
 
-        if (!this._joinedDocs.has(docId)) {
-            return;
-        }
-
         this._socketService.emit('leave_doc', { docId });
-        this._joinedDocs.delete(docId);
         this._logger.log(`Left doc: ${docId}`);
     }
 
