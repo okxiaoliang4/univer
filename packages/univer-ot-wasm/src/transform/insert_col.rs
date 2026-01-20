@@ -1,9 +1,11 @@
 use crate::transform::mutation_transform::MutationTransform;
-use crate::types::{
-    InsertColMutationParams, MutationInfoInternal, ObjectArrayPrimitiveType,
-    ObjectMatrixPrimitiveType, Range, RemoveColMutationParams, SetRangeValuesMutationParams,
-    SubUnitParams, TransformResultInternal,
+use crate::mutations::types::{
+    ColumnData, InsertColMutationParams, RemoveColMutationParams, SetRangeValuesMutationParams,
 };
+use crate::types::{
+    MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
+};
+use crate::{wasm_log_debug, wasm_log_warn};
 use serde_json;
 
 #[derive(Default)]
@@ -14,6 +16,13 @@ fn shift_cols_for_insert(
     insert_start: u32,
     insert_count: u32,
 ) {
+    wasm_log_debug!(
+        "insert_col shift_cols_for_insert start insert_start={} insert_count={} rows={}",
+        insert_start,
+        insert_count,
+        cell_value.data.len()
+    );
+
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
         if let serde_json::Value::Object(cols) = row_value {
@@ -51,35 +60,41 @@ impl MutationTransform for InsertColTransform {
         m2: &MutationInfoInternal,
     ) -> TransformResultInternal {
         let m1_params: InsertColMutationParams = serde_json::from_value(m1.params.clone())
-            .unwrap_or_else(|_| InsertColMutationParams {
-                sub_unit_params: SubUnitParams {
-                    unit_id: "".to_string(),
-                    sub_unit_id: "".to_string(),
-                },
-                range: Range {
-                    start_row: 0,
-                    start_column: 0,
-                    end_row: 0,
-                    end_column: 0,
-                },
-                col_info: None,
+            .unwrap_or_else(|_| {
+                wasm_log_warn!("insert_col transform set_range_values: invalid m1 params {:?}", m1);
+                InsertColMutationParams {
+                    sub_unit_params: SubUnitParams {
+                        unit_id: "".to_string(),
+                        sub_unit_id: "".to_string(),
+                    },
+                    range: Range {
+                        start_row: 0,
+                        start_column: 0,
+                        end_row: 0,
+                        end_column: 0,
+                    },
+                    col_info: None,
+                }
             });
 
         let mut m2_params: SetRangeValuesMutationParams = serde_json::from_value(m2.params.clone())
-            .unwrap_or_else(|_| SetRangeValuesMutationParams {
-                sub_unit_params: SubUnitParams {
-                    unit_id: "".to_string(),
-                    sub_unit_id: "".to_string(),
-                },
-                cell_value: None,
+            .unwrap_or_else(|_| {
+                wasm_log_warn!("insert_col transform set_range_values: invalid m2 params");
+                SetRangeValuesMutationParams {
+                    sub_unit_params: SubUnitParams {
+                        unit_id: "".to_string(),
+                        sub_unit_id: "".to_string(),
+                    },
+                    cell_value: None,
+                }
             });
 
         if m1_params.sub_unit_params.unit_id != m2_params.sub_unit_params.unit_id
             || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
         {
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: None,
             };
         }
@@ -87,16 +102,23 @@ impl MutationTransform for InsertColTransform {
         let insert_col = m1_params.range.start_column;
         let insert_count = m1_params.range.end_column - m1_params.range.start_column + 1;
 
+        wasm_log_debug!(
+            "insert_col transform set_range_values insert_col={} insert_count={} has_cell_value={}",
+            insert_col,
+            insert_count,
+            m2_params.cell_value.is_some()
+        );
+
         if let Some(ref mut cell_value) = m2_params.cell_value {
             shift_cols_for_insert(cell_value, insert_col, insert_count);
         }
 
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: MutationInfoInternal {
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(MutationInfoInternal {
                 id: m2.id.clone(),
                 params: serde_json::to_value(m2_params).unwrap(),
-            },
+            }),
             error: None,
         }
     }
@@ -108,8 +130,8 @@ impl MutationTransform for InsertColTransform {
     ) -> TransformResultInternal {
         // Insert col and insert row are independent
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(m2.clone()),
             error: None,
         }
     }
@@ -153,8 +175,8 @@ impl MutationTransform for InsertColTransform {
             || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
         {
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: None,
             };
         }
@@ -168,11 +190,11 @@ impl MutationTransform for InsertColTransform {
             m2_params.range.start_column += m1_count;
             m2_params.range.end_column += m1_count;
             TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: MutationInfoInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(MutationInfoInternal {
                     id: m2.id.clone(),
                     params: serde_json::to_value(m2_params).unwrap(),
-                },
+                }),
                 error: None,
             }
         } else {
@@ -180,11 +202,11 @@ impl MutationTransform for InsertColTransform {
             new_m1_params.range.start_column += m2_count;
             new_m1_params.range.end_column += m2_count;
             TransformResultInternal {
-                m1_prime: MutationInfoInternal {
+                m1_prime: Some(MutationInfoInternal {
                     id: m1.id.clone(),
                     params: serde_json::to_value(new_m1_params).unwrap(),
-                },
-                m2_prime: m2.clone(),
+                }),
+                m2_prime: Some(m2.clone()),
                 error: None,
             }
         }
@@ -197,8 +219,8 @@ impl MutationTransform for InsertColTransform {
     ) -> TransformResultInternal {
         // Insert col and remove rows are independent
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(m2.clone()),
             error: None,
         }
     }
@@ -241,8 +263,8 @@ impl MutationTransform for InsertColTransform {
             || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
         {
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: None,
             };
         }
@@ -258,11 +280,11 @@ impl MutationTransform for InsertColTransform {
             new_m2_params.range.start_column += insert_count;
             new_m2_params.range.end_column += insert_count;
             TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: MutationInfoInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(MutationInfoInternal {
                     id: m2.id.clone(),
                     params: serde_json::to_value(new_m2_params).unwrap(),
-                },
+                }),
                 error: None,
             }
         } else if insert_col > remove_end {
@@ -270,17 +292,17 @@ impl MutationTransform for InsertColTransform {
             new_m1_params.range.start_column -= remove_count;
             new_m1_params.range.end_column -= remove_count;
             TransformResultInternal {
-                m1_prime: MutationInfoInternal {
+                m1_prime: Some(MutationInfoInternal {
                     id: m1.id.clone(),
                     params: serde_json::to_value(new_m1_params).unwrap(),
-                },
-                m2_prime: m2.clone(),
+                }),
+                m2_prime: Some(m2.clone()),
                 error: None,
             }
         } else {
             TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: Some("Insert col conflicts with remove col".to_string()),
             }
         }
@@ -337,36 +359,44 @@ impl MutationTransform for InsertColTransform {
         }
 
         let offset = m2_start - m1_start;
-        let mut merged_info: Option<ObjectArrayPrimitiveType> = None;
+        let mut merged_info: Option<Vec<ColumnData>> = None;
 
         if m1_params.col_info.is_some() || m2_params.col_info.is_some() {
-            let mut new_data = serde_json::Map::new();
+            let _m1_len = m1_params.col_info.as_ref().map(|v| v.len()).unwrap_or(0);
+            let _m2_len = m2_params.col_info.as_ref().map(|v| v.len()).unwrap_or(0);
+            let total_len = (m1_count + m2_count) as usize;
+            let mut merged_vec = Vec::with_capacity(total_len);
 
+            // Initialize with default values
+            for _ in 0..total_len {
+                merged_vec.push(ColumnData { w: None, hd: None });
+            }
+
+            // Copy m1 col_info, shifting items at offset and beyond
             if let Some(col_info) = &m1_params.col_info {
-                for (key, value) in col_info.data.iter() {
-                    if let Ok(index) = key.parse::<u32>() {
-                        let shifted = if index >= offset {
-                            index + m2_count
-                        } else {
-                            index
-                        };
-                        new_data.insert(shifted.to_string(), value.clone());
+                for (index, col_data) in col_info.iter().enumerate() {
+                    let target_index = if (index as u32) >= offset {
+                        (index as u32 + m2_count) as usize
+                    } else {
+                        index
+                    };
+                    if target_index < merged_vec.len() {
+                        merged_vec[target_index] = col_data.clone();
                     }
                 }
             }
 
+            // Insert m2 col_info at offset position
             if let Some(col_info) = &m2_params.col_info {
-                for (key, value) in col_info.data.iter() {
-                    if let Ok(index) = key.parse::<u32>() {
-                        let shifted = index + offset;
-                        new_data.insert(shifted.to_string(), value.clone());
+                for (index, col_data) in col_info.iter().enumerate() {
+                    let target_index = (offset as usize) + index;
+                    if target_index < merged_vec.len() {
+                        merged_vec[target_index] = col_data.clone();
                     }
                 }
             }
 
-            if !new_data.is_empty() {
-                merged_info = Some(ObjectArrayPrimitiveType { data: new_data });
-            }
+            merged_info = Some(merged_vec);
         }
 
         let composed_params = InsertColMutationParams {

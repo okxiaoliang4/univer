@@ -4,12 +4,16 @@ mod tests {
     use crate::transform::set_range_values::SetRangeValuesTransform;
     use crate::transform::test_utils::test_utils::create_mutation_info;
     use crate::transform::TransformService;
-    use crate::types::*;
+    use crate::mutations::types::{
+        InsertColMutationParams, InsertRowMutationParams, RemoveColMutationParams,
+        RemoveRowsMutationParams, SetRangeValuesMutationParams,
+    };
+    use crate::types::{ObjectMatrixPrimitiveType, Range, SubUnitParams};
     use serde_json;
 
     #[test]
     fn test_set_range_values_transform_trait() {
-        let transform = SetRangeValuesTransform::default();
+        let _transform = SetRangeValuesTransform::default();
         assert_eq!(
             SetRangeValuesTransform::mutation_id(),
             "sheet.mutation.set-range-values"
@@ -63,7 +67,7 @@ mod tests {
         // LWW: m1 is later and should win on conflicts
         // m1_prime should keep its original value
         let m1_prime_params: SetRangeValuesMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert!(m1_prime_params.cell_value.is_some());
         let m1_cell_value = m1_prime_params.cell_value.unwrap();
 
@@ -77,8 +81,8 @@ mod tests {
             "Conflicting cell should keep m1 value"
         );
 
-        // m2_prime should remain unchanged
-        assert_eq!(result.m2_prime.params, m2.params);
+        // m2_prime should be dropped because it conflicts with m1
+        assert!(result.m2_prime.is_none());
     }
 
     // SetRangeValues × SetRangeValues (no conflict - different cells)
@@ -126,8 +130,8 @@ mod tests {
         assert!(result.error.is_none());
 
         // No conflict: both operations should remain unchanged
-        assert_eq!(result.m1_prime.params, m1.params);
-        assert_eq!(result.m2_prime.params, m2.params);
+        assert_eq!(result.m1_prime.unwrap().params, m1.params);
+        assert_eq!(result.m2_prime.unwrap().params, m2.params);
     }
 
     // SetRangeValues × SetRangeValues (partial conflict)
@@ -177,7 +181,7 @@ mod tests {
 
         // Partial conflict: m1_prime should keep both cells intact
         let m1_prime_params: SetRangeValuesMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert!(m1_prime_params.cell_value.is_some());
         let m1_cell_value = m1_prime_params.cell_value.unwrap();
         let row = m1_cell_value.data.get("0").unwrap().as_object().unwrap();
@@ -190,8 +194,8 @@ mod tests {
         assert!(row.contains_key("1"));
         assert_eq!(row.get("1").unwrap().get("v").unwrap(), "value2");
 
-        // m2_prime should remain unchanged
-        assert_eq!(result.m2_prime.params, m2.params);
+        // m2_prime should be dropped because it conflicts with m1
+        assert!(result.m2_prime.is_none());
     }
 
     // SetRangeValues × InsertRow
@@ -238,7 +242,7 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: SetRangeValuesMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert!(transformed_params.cell_value.is_some());
 
         let cell_value = transformed_params.cell_value.unwrap();
@@ -290,7 +294,7 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: SetRangeValuesMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert!(transformed_params.cell_value.is_some());
 
         let cell_value = transformed_params.cell_value.unwrap();
@@ -342,7 +346,7 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: SetRangeValuesMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert!(transformed_params.cell_value.is_some());
 
         let cell_value = transformed_params.cell_value.unwrap();
@@ -394,7 +398,7 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: SetRangeValuesMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert!(transformed_params.cell_value.is_some());
 
         let cell_value = transformed_params.cell_value.unwrap();
@@ -597,7 +601,7 @@ mod tests {
 
         // Verify OT property: m_B' should keep its value as the later writer
         let m_b_prime_params: SetRangeValuesMutationParams =
-            serde_json::from_value(m_b_prime.params.clone()).unwrap();
+            serde_json::from_value(m_b_prime.unwrap().params.clone()).unwrap();
 
         if let Some(cell_value) = m_b_prime_params.cell_value {
             let row = cell_value.data.get("0").expect("Row 0 should exist");
@@ -628,8 +632,8 @@ mod tests {
         // 6. Receives Ack(rev 12), clears pending
         // Final: $State + m_B + m_A' = $State + m_B (A1 = "World" wins)
 
-        // Verify m_A' = m_A (no transformation needed since m_B wins on conflicts)
-        assert_eq!(m_a_prime.params, m_a.params, "m_A' should equal m_A");
+        // Verify m_A' should be dropped because it conflicts with m_B
+        assert!(m_a_prime.is_none());
 
         // Both clients end up with: $State + m_B (Cell A1 = "World")
         // The LWW strategy ensures the later writer (m1) overwrites earlier values

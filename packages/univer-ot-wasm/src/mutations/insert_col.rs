@@ -1,4 +1,5 @@
-use crate::types::{InsertColMutationParams, TransformError};
+use crate::mutations::types::InsertColMutationParams;
+use crate::types::TransformError;
 
 pub struct InsertColMutation;
 
@@ -18,7 +19,8 @@ impl InsertColMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InsertColMutationParams, Range, SubUnitParams};
+    use crate::mutations::types::InsertColMutationParams;
+    use crate::types::{Range, SubUnitParams};
 
     #[test]
     fn test_insert_col_mutation_valid_params() {

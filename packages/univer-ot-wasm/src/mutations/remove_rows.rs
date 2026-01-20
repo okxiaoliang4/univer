@@ -1,4 +1,5 @@
-use crate::types::{RemoveRowsMutationParams, TransformError};
+use crate::mutations::types::RemoveRowsMutationParams;
+use crate::types::TransformError;
 
 pub struct RemoveRowsMutation;
 
@@ -18,7 +19,8 @@ impl RemoveRowsMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Range, RemoveRowsMutationParams, SubUnitParams};
+    use crate::mutations::types::RemoveRowsMutationParams;
+    use crate::types::{Range, SubUnitParams};
 
     #[test]
     fn test_remove_rows_mutation_valid_params() {

@@ -18,6 +18,8 @@ mod mutations;
 mod transform;
 #[path = "../types.rs"]
 mod types;
+#[path = "../utils.rs"]
+mod utils;
 
 // Re-export server modules for binary
 #[path = "../server/mod.rs"]

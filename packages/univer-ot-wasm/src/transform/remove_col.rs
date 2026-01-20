@@ -1,8 +1,11 @@
 use crate::transform::mutation_transform::MutationTransform;
-use crate::types::{
-    InsertColMutationParams, MutationInfoInternal, ObjectMatrixPrimitiveType, Range,
-    RemoveColMutationParams, SetRangeValuesMutationParams, SubUnitParams, TransformResultInternal,
+use crate::mutations::types::{
+    InsertColMutationParams, RemoveColMutationParams, SetRangeValuesMutationParams,
 };
+use crate::types::{
+    MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
+};
+use crate::wasm_log_debug;
 use serde_json;
 
 #[derive(Default)]
@@ -13,6 +16,13 @@ fn shift_cols_for_remove(
     remove_start: u32,
     remove_end: u32,
 ) {
+    wasm_log_debug!(
+        "remove_col shift_cols_for_remove start remove_start={} remove_end={} rows={}",
+        remove_start,
+        remove_end,
+        cell_value.data.len()
+    );
+
     let remove_count = remove_end - remove_start + 1;
     let mut new_data = serde_json::Map::new();
     for (row_key, row_value) in cell_value.data.iter() {
@@ -78,8 +88,8 @@ impl MutationTransform for RemoveColTransform {
             || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
         {
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: None,
             };
         }
@@ -92,11 +102,11 @@ impl MutationTransform for RemoveColTransform {
         }
 
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: MutationInfoInternal {
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(MutationInfoInternal {
                 id: m2.id.clone(),
                 params: serde_json::to_value(m2_params).unwrap(),
-            },
+            }),
             error: None,
         }
     }
@@ -108,8 +118,8 @@ impl MutationTransform for RemoveColTransform {
     ) -> TransformResultInternal {
         // Remove col and insert row are independent
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(m2.clone()),
             error: None,
         }
     }
@@ -152,8 +162,8 @@ impl MutationTransform for RemoveColTransform {
             || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
         {
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: None,
             };
         }
@@ -169,11 +179,11 @@ impl MutationTransform for RemoveColTransform {
             new_m1_params.range.start_column += insert_count;
             new_m1_params.range.end_column += insert_count;
             TransformResultInternal {
-                m1_prime: MutationInfoInternal {
+                m1_prime: Some(MutationInfoInternal {
                     id: m1.id.clone(),
                     params: serde_json::to_value(new_m1_params).unwrap(),
-                },
-                m2_prime: m2.clone(),
+                }),
+                m2_prime: Some(m2.clone()),
                 error: None,
             }
         } else if insert_col > remove_end {
@@ -181,17 +191,17 @@ impl MutationTransform for RemoveColTransform {
             new_m2_params.range.start_column -= remove_count;
             new_m2_params.range.end_column -= remove_count;
             TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: MutationInfoInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(MutationInfoInternal {
                     id: m2.id.clone(),
                     params: serde_json::to_value(new_m2_params).unwrap(),
-                },
+                }),
                 error: None,
             }
         } else {
             TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: Some("Insert col conflicts with remove col".to_string()),
             }
         }
@@ -204,8 +214,8 @@ impl MutationTransform for RemoveColTransform {
     ) -> TransformResultInternal {
         // Remove col and remove rows are independent
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(m2.clone()),
             error: None,
         }
     }
@@ -247,8 +257,8 @@ impl MutationTransform for RemoveColTransform {
             || m1_params.sub_unit_params.sub_unit_id != m2_params.sub_unit_params.sub_unit_id
         {
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: None,
             };
         }
@@ -263,8 +273,8 @@ impl MutationTransform for RemoveColTransform {
             || (m2_start <= m1_start && m2_end >= m1_end)
         {
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: Some("Conflicting remove operations".to_string()),
             };
         }
@@ -277,11 +287,11 @@ impl MutationTransform for RemoveColTransform {
             new_m2_params.range.start_column -= m1_count;
             new_m2_params.range.end_column -= m1_count;
             return TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: MutationInfoInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(MutationInfoInternal {
                     id: m2.id.clone(),
                     params: serde_json::to_value(new_m2_params).unwrap(),
-                },
+                }),
                 error: None,
             };
         }
@@ -291,18 +301,18 @@ impl MutationTransform for RemoveColTransform {
             new_m1_params.range.start_column -= m2_count;
             new_m1_params.range.end_column -= m2_count;
             return TransformResultInternal {
-                m1_prime: MutationInfoInternal {
+                m1_prime: Some(MutationInfoInternal {
                     id: m1.id.clone(),
                     params: serde_json::to_value(new_m1_params).unwrap(),
-                },
-                m2_prime: m2.clone(),
+                }),
+                m2_prime: Some(m2.clone()),
                 error: None,
             };
         }
 
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(m2.clone()),
             error: None,
         }
     }

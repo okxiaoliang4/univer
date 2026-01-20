@@ -24,6 +24,49 @@ import {
 } from './test-utils';
 
 describe('TransformService', () => {
+    it('transforms SetRangeValues × InsertCol', () => {
+        const service = new TransformService();
+        const m1 = createSetRangeValuesMutation();
+        const m2 = createInsertColMutation();
+
+        const resultA = service.transform(m1, m2);
+        expect(resultA.error).toBeUndefined();
+        expect(resultA.m1Prime).toBeDefined();
+        const cellValue = (
+            resultA.m1Prime as unknown as {
+                params: { cellValue: Array<Record<number, { v: string }>> };
+            }
+        ).params.cellValue;
+        expect(cellValue[0]?.[0]).toBeUndefined();
+        expect(cellValue[0]?.[1].v).toBe('1');
+    });
+    it('transforms SetRangeValues × InsertRow', () => {
+        const service = new TransformService();
+        const m1 = createSetRangeValuesMutation();
+        const m2 = createInsertRowMutation();
+
+        const resultA = service.transform(m1, m2);
+        expect(resultA.error).toBeUndefined();
+        expect(resultA.m1Prime).toBeDefined();
+        const cellValue = (
+            resultA.m1Prime as unknown as {
+                params: { cellValue: Array<Record<number, { v: string }>> };
+            }
+        ).params.cellValue;
+        expect(cellValue[0]?.[0]).toBeUndefined();
+        expect(cellValue[1]?.[0].v).toBe('1');
+    });
+    it('transform list SetRangeValues × InsertRow', () => {
+        const service = new TransformService();
+        const m1 = createSetRangeValuesMutation();
+        const m2 = createInsertRowMutation();
+
+        const resultA = service.transformList([m1], [m2]);
+        expect(resultA.error).toBeUndefined();
+        expect(resultA.m1Primes).toHaveLength(1);
+        expect(resultA.m2Primes).toHaveLength(1);
+    });
+
     it('returns identity when one list is empty', () => {
         const service = new TransformService();
         const m1 = createSetRangeValuesMutation();
@@ -62,8 +105,10 @@ describe('TransformService', () => {
 
         const result = service.transform(m1, m2);
         expect(result.error).toBeUndefined();
-        expect(result.m1Prime.id).toBe(m1.id);
-        expect(result.m2Prime.id).toBe(m2.id);
+        expect(result.m1Prime).toBeDefined();
+        expect(result.m2Prime).toBeDefined();
+        expect((result.m1Prime as { id: string }).id).toBe(m1.id);
+        expect((result.m2Prime as { id: string }).id).toBe(m2.id);
         service.dispose();
     });
 });

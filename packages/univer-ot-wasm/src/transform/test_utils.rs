@@ -10,6 +10,7 @@ pub mod test_utils {
     }
 
     /// Helper function to convert MutationInfoInternal back to serde_json::Value for testing
+    #[allow(dead_code)]
     pub fn mutation_info_to_json(mi: &MutationInfoInternal) -> serde_json::Value {
         mi.params.clone()
     }

@@ -15,13 +15,16 @@
  */
 
 import type { IMutationInfo } from '@univerjs/core';
-import type { TransformListResult, TransformResult } from '@univerjs/univer-ot-wasm';
+import type { ComposeResult, TransformListResult, TransformResult } from '@univerjs/univer-ot-wasm';
 import { createIdentifier, Disposable } from '@univerjs/core';
-import { MutationInfo, TransformService as UniverOTWasmTransformService } from '@univerjs/univer-ot-wasm';
+import {
+    MutationInfo,
+    TransformService as UniverOTWasmTransformService,
+} from '@univerjs/univer-ot-wasm';
 
 export interface ITransformResult {
-    m1Prime: IMutationInfo;
-    m2Prime: IMutationInfo;
+    m1Prime?: IMutationInfo;
+    m2Prime?: IMutationInfo;
     error?: string;
 }
 
@@ -33,34 +36,107 @@ export interface ITransformListResult {
 
 export interface ITransformService {
     compose(m1: IMutationInfo, m2: IMutationInfo): IMutationInfo[];
-    transformList(m1List: IMutationInfo[], m2List: IMutationInfo[]): ITransformListResult;
+    transformList(
+        m1List: IMutationInfo[],
+        m2List: IMutationInfo[],
+    ): ITransformListResult;
     transform(m1: IMutationInfo, m2: IMutationInfo): ITransformResult;
+    composeList(mutations: IMutationInfo[]): IMutationInfo[];
 }
 
-export const ITransformService = createIdentifier<ITransformService>('univer.collaboration.transform.service');
-
-const NOOP_MUTATION_ID = '__noop__';
+export const ITransformService = createIdentifier<ITransformService>(
+    'univer.collaboration.transform.service'
+);
 
 export class TransformService extends Disposable implements ITransformService {
     private _transformService: UniverOTWasmTransformService;
 
-    constructor(
-    ) {
+    constructor() {
         super();
         this._transformService = new UniverOTWasmTransformService();
     }
 
     private _logMutation(prefix: string, m: IMutationInfo): void {
         // Using console.warn for debugging - can be changed to ILogService if needed
-        console.warn(`[TransformService] ${prefix}: id=${m.id}, params=${JSON.stringify(m.params)?.substring(0, 200)}`);
+        console.warn(
+            `[TransformService] ${prefix}: id=${m.id}, params=${JSON.stringify(m.params)?.substring(0, 200)}`
+        );
     }
 
-    compose(_m1: IMutationInfo, _m2: IMutationInfo): IMutationInfo[] {
-        // TODO: 实现compose
-        return [];
+    compose(m1: IMutationInfo, m2: IMutationInfo): IMutationInfo[] {
+        let m1Info: MutationInfo | undefined;
+        let m2Info: MutationInfo | undefined;
+        let composeResult: ComposeResult | undefined;
+        const composed: IMutationInfo[] = [];
+        const resultInfoList: MutationInfo[] = [];
+        try {
+            m1Info = new MutationInfo(m1.id, m1.params);
+            m2Info = new MutationInfo(m2.id, m2.params);
+            composeResult = this._transformService.compose(m1Info, m2Info);
+            const mutations = composeResult.mutations;
+            for (const mutation of mutations) {
+                resultInfoList.push(mutation);
+                composed.push({
+                    id: mutation.id,
+                    type: m1.type ?? m2.type,
+                    params: mutation.params,
+                });
+            }
+            return composed;
+        } finally {
+            for (const mutation of resultInfoList) {
+                mutation.free();
+            }
+            if (composeResult?.free) {
+                composeResult.free();
+            }
+            m1Info?.free();
+            m2Info?.free();
+        }
     }
 
-    transformList(m1List: IMutationInfo[], m2List: IMutationInfo[]): ITransformListResult {
+    composeList(mutations: IMutationInfo[]): IMutationInfo[] {
+        if (mutations.length <= 1) {
+            return mutations;
+        }
+
+        const input: MutationInfo[] = [];
+        const output: IMutationInfo[] = [];
+        let composeResult: ComposeResult | undefined;
+        const resultInfoList: MutationInfo[] = [];
+        try {
+            for (const mutation of mutations) {
+                input.push(new MutationInfo(mutation.id, mutation.params));
+            }
+            composeResult = this._transformService.compose_list(input);
+            const resultMutations = composeResult.mutations;
+            const typeHint = mutations[0]?.type;
+            for (const mutation of resultMutations) {
+                resultInfoList.push(mutation);
+                output.push({
+                    id: mutation.id,
+                    type: typeHint,
+                    params: mutation.params,
+                });
+            }
+            return output;
+        } finally {
+            for (const mutation of resultInfoList) {
+                mutation.free();
+            }
+            if (composeResult?.free) {
+                composeResult.free();
+            }
+            for (const mutation of input) {
+                mutation.free();
+            }
+        }
+    }
+
+    transformList(
+        m1List: IMutationInfo[],
+        m2List: IMutationInfo[]
+    ): ITransformListResult {
         const m1InfoList: MutationInfo[] = [];
         const m2InfoList: MutationInfo[] = [];
         let transformListResult: TransformListResult | undefined;
@@ -68,7 +144,6 @@ export class TransformService extends Disposable implements ITransformService {
         const resultM2InfoList: MutationInfo[] = [];
 
         try {
-            // Convert IMutationInfo[] to MutationInfo[] for wasm
             for (const m of m1List) {
                 m1InfoList.push(new MutationInfo(m.id, m.params));
             }
@@ -76,47 +151,47 @@ export class TransformService extends Disposable implements ITransformService {
                 m2InfoList.push(new MutationInfo(m.id, m.params));
             }
 
-            // Create JS arrays - MutationInfo objects can be directly used in JS arrays
-            const m1JsArray = m1InfoList;
-            const m2JsArray = m2InfoList;
+            transformListResult = this._transformService.transform_list(
+                m1InfoList,
+                m2InfoList
+            );
 
-            // Call wasm transform_list
-            transformListResult = this._transformService.transform_list(m1JsArray, m2JsArray);
+            const m1Primes: IMutationInfo[] = transformListResult.m1_prime_list.map(
+                (m, index) => {
+                    resultM1InfoList.push(m);
+                    return {
+                        id: m.id,
+                        type: m1List[index]?.type,
+                        params: m.params,
+                    };
+                }
+            );
 
-            // Extract results and convert back to IMutationInfo[]
-            // Note: getter_with_clone returns cloned Vec, so we need to keep references for cleanup
-            const m1Primes: IMutationInfo[] = transformListResult.m1_prime_list.map((m, index) => {
-                resultM1InfoList.push(m); // Keep reference for cleanup
-                return {
-                    id: m.id,
-                    type: m1List[index]?.type,
-                    params: m.params,
-                };
-            });
-
-            const m2Primes: IMutationInfo[] = transformListResult.m2_prime_list.map((m, index) => {
-                resultM2InfoList.push(m); // Keep reference for cleanup
-                return {
-                    id: m.id,
-                    type: m2List[index]?.type,
-                    params: m.params,
-                };
-            });
+            const m2Primes: IMutationInfo[] = transformListResult.m2_prime_list.map(
+                (m, index) => {
+                    resultM2InfoList.push(m);
+                    return {
+                        id: m.id,
+                        type: m2List[index]?.type,
+                        params: m.params,
+                    };
+                }
+            );
 
             const result: ITransformListResult = {
-                m1Primes: m1Primes.filter((m) => m.id !== NOOP_MUTATION_ID),
-                m2Primes: m2Primes.filter((m) => m.id !== NOOP_MUTATION_ID),
+                m1Primes,
+                m2Primes,
                 error: transformListResult.error || undefined,
             };
 
             if (result.error) {
-                console.error(`[TransformService] transformList error: ${result.error}`);
+                console.error(
+                    `[TransformService] transformList error: ${result.error}`
+                );
             }
 
             return result;
         } finally {
-            // Free all MutationInfo instances in the result arrays
-            // These are cloned from TransformListResult via getter_with_clone
             for (const m of resultM1InfoList) {
                 m.free();
             }
@@ -124,10 +199,10 @@ export class TransformService extends Disposable implements ITransformService {
                 m.free();
             }
 
-            // Free the TransformListResult (this will free the original Vec<MutationInfo> containers)
-            transformListResult?.free();
+            if (transformListResult?.free) {
+                transformListResult.free();
+            }
 
-            // Free all MutationInfo instances in the input arrays
             for (const m of m1InfoList) {
                 m.free();
             }
@@ -141,6 +216,8 @@ export class TransformService extends Disposable implements ITransformService {
         let m1Info: MutationInfo | undefined;
         let m2Info: MutationInfo | undefined;
         let transformResult: TransformResult | undefined;
+        const resultM1InfoList: MutationInfo[] = [];
+        const resultM2InfoList: MutationInfo[] = [];
         try {
             this._logMutation('transform input m1', m1);
             this._logMutation('transform input m2', m2);
@@ -149,32 +226,53 @@ export class TransformService extends Disposable implements ITransformService {
             m2Info = new MutationInfo(m2.id, m2.params);
             transformResult = this._transformService.transform(m1Info, m2Info);
 
-            // params is JsValue, Rust automatically handles memory lifecycle
-            // No need to call free() or deepClone - params is directly mapped to JS object
-            const result = {
-                m1Prime: {
-                    id: transformResult.m1_prime.id,
-                    type: m1.type,
-                    params: transformResult.m1_prime.params,
-                },
-                m2Prime: {
-                    id: transformResult.m2_prime.id,
-                    type: m2.type,
-                    params: transformResult.m2_prime.params,
-                },
-                error: transformResult.error,
+            const m1Prime = transformResult.m1_prime;
+            const m2Prime = transformResult.m2_prime;
+
+            if (m1Prime) {
+                resultM1InfoList.push(m1Prime);
+            }
+            if (m2Prime) {
+                resultM2InfoList.push(m2Prime);
+            }
+
+            const result: ITransformResult = {
+                m1Prime: m1Prime
+                    ? {
+                        id: m1Prime.id,
+                        type: m1.type,
+                        params: m1Prime.params,
+                    }
+                    : undefined,
+                m2Prime: m2Prime
+                    ? {
+                        id: m2Prime.id,
+                        type: m2.type,
+                        params: m2Prime.params,
+                    }
+                    : undefined,
+                error: transformResult.error || undefined,
             };
 
-            this._logMutation('transform output m1Prime', result.m1Prime);
-            this._logMutation('transform output m2Prime', result.m2Prime);
+            if (result.m1Prime) {
+                this._logMutation('transform output m1Prime', result.m1Prime);
+            }
+            if (result.m2Prime) {
+                this._logMutation('transform output m2Prime', result.m2Prime);
+            }
             if (result.error) {
                 console.error(`[TransformService] transform error: ${result.error}`);
             }
 
             return result;
         } finally {
+            for (const mutation of resultM1InfoList) {
+                mutation.free();
+            }
+            for (const mutation of resultM2InfoList) {
+                mutation.free();
+            }
             transformResult?.free();
-            // Free the input MutationInfo instances
             m1Info?.free();
             m2Info?.free();
         }

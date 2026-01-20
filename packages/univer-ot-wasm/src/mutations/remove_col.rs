@@ -1,4 +1,5 @@
-use crate::types::{RemoveColMutationParams, TransformError};
+use crate::mutations::types::RemoveColMutationParams;
+use crate::types::TransformError;
 
 pub struct RemoveColMutation;
 
@@ -18,7 +19,8 @@ impl RemoveColMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Range, RemoveColMutationParams, SubUnitParams};
+    use crate::mutations::types::RemoveColMutationParams;
+    use crate::types::{Range, SubUnitParams};
 
     #[test]
     fn test_remove_col_mutation_valid_params() {

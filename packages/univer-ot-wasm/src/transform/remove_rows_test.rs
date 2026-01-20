@@ -4,13 +4,16 @@ mod tests {
     use crate::transform::remove_rows::RemoveRowsTransform;
     use crate::transform::test_utils::test_utils::create_mutation_info;
     use crate::transform::TransformService;
-    use crate::transform::NOOP_MUTATION_ID;
-    use crate::types::*;
+    use crate::mutations::types::{
+        InsertColMutationParams, InsertRowMutationParams, RemoveColMutationParams,
+        RemoveRowsMutationParams, SetRangeValuesMutationParams,
+    };
+    use crate::types::{ObjectMatrixPrimitiveType, Range, SubUnitParams};
     use serde_json;
 
     #[test]
     fn test_remove_rows_transform_trait() {
-        let transform = RemoveRowsTransform::default();
+        let _transform = RemoveRowsTransform::default();
         assert_eq!(
             RemoveRowsTransform::mutation_id(),
             "sheet.mutation.remove-rows"
@@ -60,7 +63,7 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: SetRangeValuesMutationParams =
-            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m2_prime.unwrap().params.clone()).unwrap();
         assert!(transformed_params.cell_value.is_some());
         let cell_value = transformed_params.cell_value.unwrap();
         assert!(cell_value.data.contains_key("2"));
@@ -111,7 +114,7 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: RemoveRowsMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         // Remove range should shift down by 1
         assert_eq!(transformed_params.range.start_row, 4);
         assert_eq!(transformed_params.range.end_row, 6);
@@ -161,11 +164,11 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: RemoveRowsMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert_eq!(transformed_params.range.start_row, 2);
         assert_eq!(transformed_params.range.end_row, 5);
 
-        assert_eq!(result.m2_prime.id, NOOP_MUTATION_ID);
+        assert!(result.m2_prime.is_none());
     }
 
     // RemoveRows × InsertCol
@@ -211,8 +214,8 @@ mod tests {
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
         // Remove rows and insert col are independent
-        assert_eq!(result.m1_prime.id, m1.id);
-        assert_eq!(result.m2_prime.id, m2.id);
+        assert_eq!(result.m1_prime.unwrap().id, m1.id);
+        assert_eq!(result.m2_prime.unwrap().id, m2.id);
     }
 
     // RemoveRows × RemoveRows (overlap shrinks to remaining)
@@ -258,12 +261,12 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: RemoveRowsMutationParams =
-            serde_json::from_value(result.m1_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m1_prime.unwrap().params.clone()).unwrap();
         assert_eq!(transformed_params.range.start_row, 1);
         assert_eq!(transformed_params.range.end_row, 1);
 
         let transformed_params_m2: RemoveRowsMutationParams =
-            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m2_prime.unwrap().params.clone()).unwrap();
         assert_eq!(transformed_params_m2.range.start_row, 1);
         assert_eq!(transformed_params_m2.range.end_row, 1);
     }
@@ -311,7 +314,7 @@ mod tests {
         assert!(result.error.is_none());
 
         let transformed_params: RemoveRowsMutationParams =
-            serde_json::from_value(result.m2_prime.params.clone()).unwrap();
+            serde_json::from_value(result.m2_prime.unwrap().params.clone()).unwrap();
         assert_eq!(transformed_params.range.start_row, 3);
         assert_eq!(transformed_params.range.end_row, 4);
     }
@@ -487,7 +490,7 @@ mod tests {
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_none());
         // Remove rows and remove col are independent
-        assert_eq!(result.m1_prime.id, m1.id);
-        assert_eq!(result.m2_prime.id, m2.id);
+        assert_eq!(result.m1_prime.unwrap().id, m1.id);
+        assert_eq!(result.m2_prime.unwrap().id, m2.id);
     }
 }

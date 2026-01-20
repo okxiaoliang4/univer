@@ -2,6 +2,12 @@ use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::Serializer;
 use wasm_bindgen::prelude::*;
 
+#[allow(unused_imports)]
+pub use crate::mutations::types::{
+    ColumnData, InsertColMutationParams, InsertRowMutationParams, RemoveColMutationParams,
+    RemoveRowsMutationParams, RowData, SetRangeValuesMutationParams,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CellData {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -98,83 +104,8 @@ pub struct SubUnitParams {
     pub sub_unit_id: String,
 }
 
-// Specific mutation parameter types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SetRangeValuesMutationParams {
-    #[serde(flatten)]
-    pub sub_unit_params: SubUnitParams,
-
-    #[serde(rename = "cellValue", alias = "cell_value")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cell_value: Option<ObjectMatrixPrimitiveType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InsertRowMutationParams {
-    #[serde(flatten)]
-    pub sub_unit_params: SubUnitParams,
-
-    pub range: Range,
-
-    #[serde(rename = "rowInfo", alias = "row_info")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub row_info: Option<ObjectArrayPrimitiveType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InsertColMutationParams {
-    #[serde(flatten)]
-    pub sub_unit_params: SubUnitParams,
-
-    pub range: Range,
-
-    #[serde(rename = "colInfo", alias = "col_info")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub col_info: Option<ObjectArrayPrimitiveType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemoveRowsMutationParams {
-    #[serde(flatten)]
-    pub sub_unit_params: SubUnitParams,
-
-    pub range: Range,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemoveColMutationParams {
-    #[serde(flatten)]
-    pub sub_unit_params: SubUnitParams,
-
-    pub range: Range,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RowData {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub h: Option<f64>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hd: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ColumnData {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub w: Option<f64>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hd: Option<u32>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectMatrixPrimitiveType {
-    #[serde(flatten)]
-    pub data: serde_json::Map<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ObjectArrayPrimitiveType {
     #[serde(flatten)]
     pub data: serde_json::Map<String, serde_json::Value>,
 }
@@ -188,8 +119,8 @@ pub struct MutationInfoInternal {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransformResultInternal {
-    pub m1_prime: MutationInfoInternal,
-    pub m2_prime: MutationInfoInternal,
+    pub m1_prime: Option<MutationInfoInternal>,
+    pub m2_prime: Option<MutationInfoInternal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -199,9 +130,9 @@ pub struct TransformResultInternal {
 #[derive(Debug, Clone)]
 pub struct TransformResult {
     #[wasm_bindgen(getter_with_clone)]
-    pub m1_prime: MutationInfo,
+    pub m1_prime: Option<MutationInfo>,
     #[wasm_bindgen(getter_with_clone)]
-    pub m2_prime: MutationInfo,
+    pub m2_prime: Option<MutationInfo>,
     #[wasm_bindgen(getter_with_clone)]
     pub error: Option<String>,
 }
@@ -226,7 +157,11 @@ impl MutationInfo {
 #[wasm_bindgen]
 impl TransformResult {
     #[wasm_bindgen(constructor)]
-    pub fn new(m1_prime: MutationInfo, m2_prime: MutationInfo, error: Option<String>) -> Self {
+    pub fn new(
+        m1_prime: Option<MutationInfo>,
+        m2_prime: Option<MutationInfo>,
+        error: Option<String>,
+    ) -> Self {
         Self {
             m1_prime,
             m2_prime,
@@ -289,8 +224,25 @@ pub fn json_value_to_js_value(value: &serde_json::Value) -> JsValue {
 
 /// Convert JsValue to serde_json::Value
 /// Efficient conversion for wasm boundary using serde-wasm-bindgen
+/// Falls back to JSON stringify/parse to handle undefined values or non-plain objects.
 pub fn js_value_to_json_value(value: &JsValue) -> serde_json::Value {
-    serde_wasm_bindgen::from_value(value.clone()).unwrap_or(serde_json::Value::Null)
+    if value.is_null() || value.is_undefined() {
+        return serde_json::Value::Null;
+    }
+
+    match serde_wasm_bindgen::from_value(value.clone()) {
+        Ok(json) => json,
+        Err(_) => {
+            let json_string = js_sys::JSON::stringify(value)
+                .ok()
+                .and_then(|v| v.as_string());
+            if let Some(json_string) = json_string {
+                serde_json::from_str(&json_string).unwrap_or(serde_json::Value::Null)
+            } else {
+                serde_json::Value::Null
+            }
+        }
+    }
 }
 
 /// Convert any Serialize type to JsValue as plain object (not Map)
@@ -316,14 +268,14 @@ pub fn to_plain_js_value<T: Serialize>(value: &T) -> JsValue {
 impl From<TransformResultInternal> for TransformResult {
     fn from(internal: TransformResultInternal) -> Self {
         TransformResult {
-            m1_prime: MutationInfo {
-                id: internal.m1_prime.id,
-                params: json_value_to_js_value(&internal.m1_prime.params),
-            },
-            m2_prime: MutationInfo {
-                id: internal.m2_prime.id,
-                params: json_value_to_js_value(&internal.m2_prime.params),
-            },
+            m1_prime: internal.m1_prime.map(|mutation| MutationInfo {
+                id: mutation.id,
+                params: json_value_to_js_value(&mutation.params),
+            }),
+            m2_prime: internal.m2_prime.map(|mutation| MutationInfo {
+                id: mutation.id,
+                params: json_value_to_js_value(&mutation.params),
+            }),
             error: internal.error,
         }
     }

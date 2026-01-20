@@ -2,7 +2,7 @@ use crate::server::database::entities::{document_snapshot, documents, operation_
 use crate::server::services::document::DocumentService;
 use crate::server::services::snapshot::SnapshotService;
 use crate::transform::TransformServiceCore;
-use crate::types::{MutationInfoInternal, TransformResultInternal};
+use crate::types::MutationInfoInternal;
 use anyhow::{Context, Result};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
@@ -216,7 +216,7 @@ impl OTService {
         &self,
         m1: &MutationInfoInternal,
         m2: &MutationInfoInternal,
-    ) -> Result<TransformResultInternal> {
+    ) -> Result<crate::types::TransformResultInternal> {
         // Use the unified transform service (shared via Arc)
         Ok(self.transform_service.transform(m1, m2))
     }

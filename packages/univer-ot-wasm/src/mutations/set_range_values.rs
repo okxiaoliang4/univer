@@ -1,4 +1,5 @@
-use crate::types::{SetRangeValuesMutationParams, TransformError};
+use crate::mutations::types::SetRangeValuesMutationParams;
+use crate::types::TransformError;
 
 pub struct SetRangeValuesMutation;
 
@@ -22,7 +23,8 @@ impl SetRangeValuesMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{ObjectMatrixPrimitiveType, SetRangeValuesMutationParams, SubUnitParams};
+    use crate::mutations::types::SetRangeValuesMutationParams;
+    use crate::types::{ObjectMatrixPrimitiveType, SubUnitParams};
     use serde_json;
 
     #[test]

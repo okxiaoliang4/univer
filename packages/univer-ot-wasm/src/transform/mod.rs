@@ -2,6 +2,7 @@ use crate::types::{
     js_value_to_json_value, ComposeResult, MutationInfo, MutationInfoInternal, TransformListResult,
     TransformResult, TransformResultInternal,
 };
+use crate::{wasm_log_debug, wasm_log_error, wasm_log_info, wasm_log_warn};
 use js_sys::{Array, Object, Reflect};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
@@ -26,12 +27,11 @@ mod remove_col_test;
 mod remove_rows_test;
 #[cfg(test)]
 mod set_range_values_test;
-// #[cfg(test)]
-// mod list_transform_test;
+#[cfg(test)]
+mod list_transform_test;
 
 use mutation_transform::MutationTransform;
 
-pub(crate) const NOOP_MUTATION_ID: &str = "__noop__";
 
 // Core transform service that works with internal types
 pub struct TransformServiceCore {
@@ -76,8 +76,8 @@ impl<T: MutationTransform + Send + Sync + 'static> TransformDispatch for T {
                 self.transform_with_remove_col(m1, m2)
             }
             _ => TransformResultInternal {
-                m1_prime: m1.clone(),
-                m2_prime: m2.clone(),
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
                 error: None,
             },
         }
@@ -117,6 +117,12 @@ impl TransformServiceCore {
         Vec<MutationInfoInternal>,
         Option<String>,
     ) {
+        wasm_log_info!(
+            "transform_list start m1_len={} m2_len={}",
+            m1_list.len(),
+            m2_list.len()
+        );
+
         if m1_list.is_empty() {
             return (Vec::new(), m2_list.to_vec(), None);
         }
@@ -128,26 +134,58 @@ impl TransformServiceCore {
         let mut current_m1_list: Vec<MutationInfoInternal> = m1_list.to_vec();
         let mut m2_primes: Vec<MutationInfoInternal> = Vec::with_capacity(m2_list.len());
 
-        for m2 in m2_list.iter() {
-            let mut current_m2 = m2.clone();
+        for (_m2_index, m2) in m2_list.iter().enumerate() {
+            let mut current_m2: Option<MutationInfoInternal> = Some(m2.clone());
             let mut new_m1_list: Vec<MutationInfoInternal> =
                 Vec::with_capacity(current_m1_list.len());
 
-            for m1 in current_m1_list.iter() {
-                let result = self.transform(m1, &current_m2);
+            wasm_log_debug!("transform_list m2 index={} id={}", _m2_index, m2.id);
 
-                if let Some(err) = result.error {
-                    return (Vec::new(), Vec::new(), Some(err));
+            for (_m1_index, m1) in current_m1_list.iter().enumerate() {
+                match current_m2.as_ref() {
+                    Some(m2_value) => {
+                        wasm_log_debug!(
+                            "transform_list pair m1_index={} m2_index={} m1_id={} m2_id={} ",
+                            _m1_index,
+                            _m2_index,
+                            m1.id,
+                            m2_value.id
+                        );
+
+                        let result = self.transform(m1, m2_value);
+
+                        if let Some(err) = result.error {
+                            wasm_log_error!(
+                                "transform_list error m1_id={} m2_id={} err={}",
+                                m1.id,
+                                m2_value.id,
+                                err
+                            );
+                            return (Vec::new(), Vec::new(), Some(err));
+                        }
+
+                        if let Some(m1_prime) = result.m1_prime {
+                            new_m1_list.push(m1_prime);
+                        }
+                        current_m2 = result.m2_prime;
+                    }
+                    None => {
+                        new_m1_list.push(m1.clone());
+                    }
                 }
-
-                new_m1_list.push(result.m1_prime);
-                current_m2 = result.m2_prime;
             }
 
-            m2_primes.push(current_m2);
+            if let Some(m2_prime) = current_m2 {
+                m2_primes.push(m2_prime);
+            }
             current_m1_list = new_m1_list;
         }
 
+        wasm_log_info!(
+            "transform_list done m1_primes_len={} m2_primes_len={}",
+            current_m1_list.len(),
+            m2_primes.len()
+        );
         (current_m1_list, m2_primes, None)
     }
 
@@ -161,14 +199,19 @@ impl TransformServiceCore {
         m1: &MutationInfoInternal,
         m2: &MutationInfoInternal,
     ) -> TransformResultInternal {
+        wasm_log_debug!(
+            "transform m1={:?} m2={:?}",
+            m1,
+            m2
+        );
         if let Some(transform) = self.transforms.get(&m1.id) {
             return transform.dispatch(m1, m2);
         }
 
         // No algorithm found, return identity transform
         TransformResultInternal {
-            m1_prime: m1.clone(),
-            m2_prime: m2.clone(),
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(m2.clone()),
             error: None,
         }
     }
@@ -236,8 +279,23 @@ impl TransformService {
             params: js_value_to_json_value(&m2.params),
         };
 
+        wasm_log_debug!(
+            "transform wasm m1_id={} m2_id={} m1_params={} m2_params={}",
+            m1_internal.id,
+            m2_internal.id,
+            m1_internal.params,
+            m2_internal.params
+        );
+
         // Call core transform
         let result = self.core.transform(&m1_internal, &m2_internal);
+
+        wasm_log_debug!(
+            "transform wasm result m1_prime_id={:?} m2_prime_id={:?} error={:?}",
+            result.m1_prime.as_ref().map(|m| m.id.as_str()),
+            result.m2_prime.as_ref().map(|m| m.id.as_str()),
+            result.error
+        );
 
         // Convert back to wasm types
         TransformResult::from(result)
@@ -256,9 +314,11 @@ impl TransformService {
                 if let (Some(id), Some(params)) = (id, params) {
                     Some(MutationInfoInternal { id, params })
                 } else {
+                    wasm_log_warn!("transform_list drop item missing id/params");
                     None
                 }
             } else {
+                wasm_log_warn!("transform_list drop non-object item");
                 None
             }
         };
@@ -268,6 +328,7 @@ impl TransformService {
                 .filter_map(|i| js_to_internal(array.get(i)))
                 .collect()
         } else {
+            wasm_log_warn!("transform_list input is not array");
             Vec::new()
         }
     }
@@ -277,10 +338,23 @@ impl TransformService {
         let m1_internal_list = self.js_value_to_internal_list(m1_list);
         let m2_internal_list = self.js_value_to_internal_list(m2_list);
 
+        wasm_log_info!(
+            "transform_list wasm m1_len={} m2_len={}",
+            m1_internal_list.len(),
+            m2_internal_list.len()
+        );
+
         // Call core transform_list
         let (m1_prime_list, m2_prime_list, error) = self
             .core
             .transform_list(&m1_internal_list, &m2_internal_list);
+
+        wasm_log_info!(
+            "transform_list wasm result m1_primes_len={} m2_primes_len={} error={:?}",
+            m1_prime_list.len(),
+            m2_prime_list.len(),
+            error
+        );
 
         // Convert back to wasm types
         let m1_prime_wasm: Vec<MutationInfo> = m1_prime_list

@@ -1,4 +1,5 @@
-use crate::types::{InsertRowMutationParams, TransformError};
+use crate::mutations::types::InsertRowMutationParams;
+use crate::types::TransformError;
 
 pub struct InsertRowMutation;
 
@@ -18,7 +19,8 @@ impl InsertRowMutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InsertRowMutationParams, Range, SubUnitParams};
+    use crate::mutations::types::InsertRowMutationParams;
+    use crate::types::{Range, SubUnitParams};
 
     #[test]
     fn test_insert_row_mutation_valid_params() {

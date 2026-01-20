@@ -32,6 +32,10 @@ pub use mutations::{
     InsertColMutation, InsertRowMutation, RemoveColMutation, RemoveRowsMutation,
     SetRangeValuesMutation,
 };
+pub use mutations::types::{
+    ColumnData, InsertColMutationParams, InsertRowMutationParams, RemoveColMutationParams,
+    RemoveRowsMutationParams, RowData, SetRangeValuesMutationParams,
+};
 pub use transform::TransformService;
 pub use types::*;
 pub use utils::*;
