@@ -6,6 +6,8 @@ pub mod document_actor;
 pub mod ot;
 #[cfg(feature = "server")]
 pub mod snapshot;
+#[cfg(feature = "server")]
+pub mod awareness;
 pub mod storage;
 
 #[cfg(feature = "server")]
@@ -16,4 +18,6 @@ pub use document_actor::DocumentActorManager;
 pub use ot::OTService;
 #[cfg(feature = "server")]
 pub use snapshot::SnapshotService;
+#[cfg(feature = "server")]
+pub use awareness::AwarenessService;
 pub use storage::StorageService;

@@ -19,6 +19,7 @@
         "@lit/react": "^1.0.8",
         "@univerjs/action-recorder": "workspace:*",
         "@univerjs/collaboration": "workspace:*",
+        "@univerjs/collaboration-ui": "workspace:*",
         "@univerjs/core": "workspace:*",
         "@univerjs/data-validation": "workspace:*",
         "@univerjs/debugger": "workspace:*",

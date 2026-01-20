@@ -12,6 +12,8 @@ pub struct Config {
     pub s3_access_key: String,
     pub s3_secret_key: String,
     pub redis_url: String,
+    pub awareness_redis_enabled: bool,
+    pub awareness_ttl_seconds: u64,
 }
 
 impl Config {
@@ -37,6 +39,14 @@ impl Config {
             s3_secret_key: env::var("S3_SECRET_KEY")
                 .expect("S3_SECRET_KEY environment variable must be set"),
             redis_url: env::var("REDIS_URL").expect("REDIS_URL environment variable must be set"),
+            awareness_redis_enabled: env::var("AWARENESS_REDIS_ENABLED")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .expect("AWARENESS_REDIS_ENABLED must be a valid bool"),
+            awareness_ttl_seconds: env::var("AWARENESS_TTL_SECONDS")
+                .unwrap_or_else(|_| "120".to_string())
+                .parse()
+                .expect("AWARENESS_TTL_SECONDS must be a valid u64"),
         }
     }
 }

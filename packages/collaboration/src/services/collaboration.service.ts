@@ -15,7 +15,7 @@
  */
 
 import type { IMutationInfo } from '@univerjs/core';
-import type { Subscription } from 'rxjs';
+import type { Observable, Subscription } from 'rxjs';
 import type {
     IChangeset,
     IChangesetAck,
@@ -37,6 +37,7 @@ import {
     IUniverInstanceService,
     sequenceExecute,
 } from '@univerjs/core';
+import { Subject } from 'rxjs';
 import { IPendingMutationSerivce } from './offline-storage.service';
 import { ISocketService } from './socket.service';
 import { ITransformService } from './transform.service';
@@ -49,6 +50,8 @@ export interface ICollaborationService {
     fetchOps(docId: string, startRev: number): Promise<IOperationInfo[]>;
     getDocRev(docId: string): number;
     updateDocRev(docId: string, rev: number): void;
+    docJoined$: Observable<string>;
+    docLeft$: Observable<string>;
 }
 
 export const ICollaborationService = createIdentifier<ICollaborationService>(
@@ -74,6 +77,12 @@ export class CollaborationService
         string,
         { promise: Promise<void>; resolve: () => void; subscription: Subscription }
     > = new Map();
+
+    private _docJoined$ = new Subject<string>();
+    private _docLeft$ = new Subject<string>();
+
+    docJoined$ = this._docJoined$.asObservable();
+    docLeft$ = this._docLeft$.asObservable();
 
     constructor(
         @ISocketService private readonly _socketService: ISocketService,
@@ -293,6 +302,7 @@ export class CollaborationService
                 if (ack.status === 'ok') {
                     this._joinedDocs.add(docId);
                     this._logger.log(`Joined doc ${docId}, version: ${ack.version}`);
+                    this._docJoined$.next(docId);
                     resolve();
                 }
             });
@@ -386,6 +396,7 @@ export class CollaborationService
         }
 
         this._joinedDocs.delete(docId);
+        this._docLeft$.next(docId);
 
         if (
             !this._socketService.getSocket() ||
@@ -629,6 +640,9 @@ export class CollaborationService
 
     override dispose(): void {
         super.dispose();
+
+        this._docJoined$.complete();
+        this._docLeft$.complete();
 
         // Clear all debounce timers
         for (const unitId of this._debounceTimers.keys()) {

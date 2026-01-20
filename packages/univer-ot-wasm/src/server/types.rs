@@ -92,6 +92,36 @@ pub struct FetchOpsAck {
 pub struct PresenceUpdateRequest {
     #[serde(rename = "docId")]
     pub doc_id: String,
-    pub cursor: Option<serde_json::Value>,
-    pub selection: Option<serde_json::Value>,
+    #[serde(rename = "clientId")]
+    pub client_id: Option<u64>,
+    pub user: Option<PresenceUserInfo>,
+    #[serde(rename = "selectionParams")]
+    pub selection_params: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresenceUserInfo {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwarenessStateSnapshot {
+    pub states: Vec<AwarenessStateItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwarenessStateItem {
+    #[serde(rename = "clientID")]
+    pub client_id: u64,
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "selectionParams")]
+    pub selection_params: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwarenessInitAck {
+    pub status: String,
+    pub states: Vec<AwarenessStateItem>,
 }

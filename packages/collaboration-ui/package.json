@@ -1,0 +1,78 @@
+{
+    "name": "@univerjs/collaboration-ui",
+    "type": "module",
+    "version": "0.15.0",
+    "description": "Univer Collaboration UI",
+    "author": "jelf <okxiaoliang4@gmail.com>",
+    "license": "MIT",
+    "exports": {
+        ".": "./src/index.ts",
+        "./*": "./src/*",
+        "./locale/*": "./src/locale/*.ts",
+        "./facade": "./src/facade/index.ts"
+    },
+    "main": "./src/index.ts",
+    "types": "./lib/types/index.d.ts",
+    "publishConfig": {
+        "access": "public",
+        "main": "./lib/es/index.js",
+        "module": "./lib/es/index.js",
+        "exports": {
+            ".": {
+                "import": "./lib/es/index.js",
+                "require": "./lib/cjs/index.js",
+                "types": "./lib/types/index.d.ts"
+            },
+            "./*": {
+                "import": "./lib/es/*",
+                "require": "./lib/cjs/*",
+                "types": "./lib/types/index.d.ts"
+            },
+            "./locale/*": {
+                "import": "./lib/es/locale/*.js",
+                "require": "./lib/cjs/locale/*.js",
+                "types": "./lib/types/locale/*.d.ts"
+            },
+            "./facade": {
+                "import": "./lib/es/facade.js",
+                "require": "./lib/cjs/facade.js",
+                "types": "./lib/types/facade/index.d.ts"
+            },
+            "./lib/facade": {
+                "import": "./lib/es/facade.js",
+                "require": "./lib/cjs/facade.js",
+                "types": "./lib/types/facade/index.d.ts"
+            },
+            "./lib/*": "./lib/*"
+        }
+    },
+    "directories": {
+        "lib": "lib"
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "coverage": "vitest run --coverage",
+        "typecheck": "tsc --noEmit",
+        "build": "univer-cli build"
+    },
+    "peerDependencies": {
+        "react": "^16.9.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc",
+        "rxjs": ">=7.0.0"
+    },
+    "dependencies": {
+        "@univerjs/collaboration": "workspace:*",
+        "@univerjs/core": "workspace:*",
+        "@univerjs/engine-render": "workspace:*",
+        "@univerjs/sheets": "workspace:*",
+        "@univerjs/sheets-ui": "workspace:*",
+        "@univerjs/ui": "workspace:*",
+        "lodash-es": "^4.17.22"
+    },
+    "devDependencies": {
+        "@types/lodash-es": "^4.17.12"
+    }
+}

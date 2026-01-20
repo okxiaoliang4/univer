@@ -1,8 +1,9 @@
 use crate::server::services::ot::Changeset;
 use crate::server::state::AppState;
 use crate::server::types::{
-    ChangesetAck, ChangesetPushed, ChangesetRequest, FetchOpsAck, FetchOpsRequest, JoinDocAck,
-    JoinDocRequest, LeaveDocRequest, OperationInfo, PresenceUpdateRequest,
+    AwarenessInitAck, AwarenessStateItem, ChangesetAck, ChangesetPushed, ChangesetRequest,
+    FetchOpsAck, FetchOpsRequest, JoinDocAck, JoinDocRequest, LeaveDocRequest, OperationInfo,
+    PresenceUpdateRequest,
 };
 use anyhow::Result;
 use socketioxide::{
@@ -40,6 +41,34 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
                                 version: None,
                                 content: None,
                                 message: Some(e.to_string()),
+                            };
+                            if let Ok(json) = serde_json::to_value(&error_ack) {
+                                let _ = ack.send(&json);
+                            }
+                        }
+                    }
+                }
+            },
+        );
+
+        // Handle awareness_init event
+        let state = state_clone.clone();
+        socket.on(
+            "awareness_init",
+            move |socket: SocketRef, Data::<JoinDocRequest>(req), ack: AckSender| {
+                let state = state.clone();
+                async move {
+                    match handle_awareness_init(&socket, &state, req).await {
+                        Ok(ack_data) => {
+                            if let Ok(json) = serde_json::to_value(&ack_data) {
+                                let _ = ack.send(&json);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Error initializing awareness: {}", e);
+                            let error_ack = AwarenessInitAck {
+                                status: "error".to_string(),
+                                states: vec![],
                             };
                             if let Ok(json) = serde_json::to_value(&error_ack) {
                                 let _ = ack.send(&json);
@@ -122,12 +151,26 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
         );
 
         // Handle presence_update event
+        let state = state_clone.clone();
         socket.on(
             "presence_update",
-            |socket: SocketRef, Data::<PresenceUpdateRequest>(req)| async move {
-                handle_presence_update(&socket, req).await;
+            move |socket: SocketRef, Data::<PresenceUpdateRequest>(req)| {
+                let state = state.clone();
+                async move {
+                    if let Err(e) = handle_presence_update(&socket, &state, req).await {
+                        warn!("Error handling presence_update: {}", e);
+                    }
+                }
             },
         );
+
+        let state = state_clone.clone();
+        socket.on_disconnect(move |socket: SocketRef| {
+            let state = state.clone();
+            async move {
+                handle_disconnect(&socket, &state).await;
+            }
+        });
     });
 }
 
@@ -163,6 +206,24 @@ async fn handle_leave_doc(socket: &SocketRef, req: LeaveDocRequest) {
     let room = format!("doc:{}", req.doc_id);
     socket.leave(room.clone());
     info!("Socket {} left room {}", socket.id, room);
+}
+
+async fn handle_awareness_init(
+    socket: &SocketRef,
+    state: &AppState,
+    req: JoinDocRequest,
+) -> Result<AwarenessInitAck> {
+    let doc_id = req.doc_id.clone();
+    let room = format!("doc:{}", doc_id);
+    socket.join(room.clone());
+
+    let snapshot = state.awareness_service.get_state(&doc_id).await?;
+    let states = snapshot.into_values().collect::<Vec<_>>();
+
+    Ok(AwarenessInitAck {
+        status: "ok".to_string(),
+        states,
+    })
 }
 
 async fn handle_changeset(
@@ -296,12 +357,57 @@ async fn handle_fetch_ops(
     })
 }
 
-async fn handle_presence_update(socket: &SocketRef, req: PresenceUpdateRequest) {
-    let room = format!("doc:{}", req.doc_id);
-    // Broadcast presence update to room (excluding sender)
-    if let Ok(json) = serde_json::to_value(&req) {
-        if let Err(e) = socket.to(room).emit("presence_update", &json).await {
-            warn!("Error broadcasting presence_update: {}", e);
+async fn handle_presence_update(
+    socket: &SocketRef,
+    state: &AppState,
+    req: PresenceUpdateRequest,
+) -> Result<()> {
+    let doc_id = req.doc_id.clone();
+    let client_id = req
+        .client_id
+        .unwrap_or_else(|| socket.id.to_string().chars().fold(0u64, |acc, c| acc + c as u64));
+
+    let user = req.user.ok_or_else(|| anyhow::anyhow!("Missing user info"))?;
+    let selection_params = req
+        .selection_params
+        .unwrap_or_else(|| serde_json::json!({
+            "unitId": "",
+            "subUnitId": "",
+            "selections": [],
+        }));
+
+    let awareness_user = AwarenessStateItem {
+        client_id,
+        id: user.id,
+        name: user.name,
+        selection_params,
+    };
+
+    state
+        .awareness_service
+        .upsert_state(&doc_id, &socket.id.to_string(), awareness_user.clone())
+        .await?;
+
+    let room = format!("doc:{}", doc_id);
+    let json = serde_json::to_value(&awareness_user)?;
+    if let Err(e) = socket.to(room).emit("presence_update", &json).await {
+        warn!("Error broadcasting presence_update: {}", e);
+    }
+
+    Ok(())
+}
+
+async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
+    let rooms = socket.rooms().into_iter().collect::<Vec<_>>();
+    for room in rooms {
+        if let Some(doc_id) = room.strip_prefix("doc:") {
+            if let Err(e) = state
+                .awareness_service
+                .remove_by_socket(doc_id, &socket.id.to_string())
+                .await
+            {
+                warn!("Error removing client awareness: {}", e);
+            }
         }
     }
 }

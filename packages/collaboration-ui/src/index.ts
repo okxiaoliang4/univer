@@ -14,6 +14,4 @@
  * limitations under the License.
  */
 
-export { CollaborationPlugin } from './plugin';
-export { IAwarenessService } from './services/awareness.service';
-export { CollaborationService } from './services/collaboration.service';
+export { CollaborationUIPlugin } from './plugin';

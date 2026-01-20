@@ -15,6 +15,7 @@
  */
 
 import type { Plugin, PluginCtor } from '@univerjs/core';
+import { CollaborationUIPlugin } from '@univerjs/collaboration-ui';
 import { UniverDocsDrawingUIPlugin } from '@univerjs/docs-drawing-ui';
 import { UniverDocsMentionUIPlugin } from '@univerjs/docs-mention-ui';
 import { UniverSheetsConditionalFormattingUIPlugin } from '@univerjs/sheets-conditional-formatting-ui';
@@ -30,6 +31,7 @@ import { UniverThreadCommentUIPlugin } from '@univerjs/thread-comment-ui';
 
 export default function getLazyPlugins(): Array<[PluginCtor<Plugin>] | [PluginCtor<Plugin>, unknown]> {
     return [
+        [CollaborationUIPlugin],
         [UniverDocsDrawingUIPlugin],
         [UniverDocsMentionUIPlugin],
         [UniverSheetsNumfmtUIPlugin],

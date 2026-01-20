@@ -18,6 +18,7 @@ import type { ICollaborationConfig } from './controller/config.schema';
 import { IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
 import { CollaborationController } from './controller/collaboration.controller';
 import { COLLABORATION_PLUGIN_CONFIG_KEY, defaultPluginConfig } from './controller/config.schema';
+import { AwarenessService, IAwarenessService } from './services/awareness.service';
 import { CollaborationService, ICollaborationService } from './services/collaboration.service';
 import { IPendingMutationSerivce, PendingMutationSerivce } from './services/offline-storage.service';
 import { ISocketService, SocketService } from './services/socket.service';
@@ -47,10 +48,12 @@ export class CollaborationPlugin extends Plugin {
             [IPendingMutationSerivce, { useClass: PendingMutationSerivce }],
             [ICollaborationService, { useClass: CollaborationService }],
             [ISocketService, { useClass: SocketService }],
+            [IAwarenessService, { useClass: AwarenessService }],
         ]);
 
         touchDependencies(this._injector, [
             [CollaborationController],
+            [IAwarenessService],
         ]);
     }
 }

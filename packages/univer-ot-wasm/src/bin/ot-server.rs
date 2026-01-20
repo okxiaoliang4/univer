@@ -62,6 +62,8 @@ async fn main() -> anyhow::Result<()> {
         config.s3_access_key.clone(),
         config.s3_secret_key.clone(),
         config.redis_url.clone(),
+        config.awareness_redis_enabled,
+        config.awareness_ttl_seconds,
     ));
 
     // Create Socket.IO layer

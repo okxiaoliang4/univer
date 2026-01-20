@@ -1,5 +1,6 @@
 use crate::server::services::{
-    DocumentActorManager, DocumentService, OTService, SnapshotService, StorageService,
+    AwarenessService, DocumentActorManager, DocumentService, OTService, SnapshotService,
+    StorageService,
 };
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
@@ -14,6 +15,7 @@ pub struct ServerState {
     pub document_actor_manager: DocumentActorManager,
     pub snapshot_service: SnapshotService,
     pub storage_service: StorageService,
+    pub awareness_service: AwarenessService,
 }
 
 impl ServerState {
@@ -26,6 +28,8 @@ impl ServerState {
         s3_access_key: String,
         s3_secret_key: String,
         redis_url: String,
+        awareness_redis_enabled: bool,
+        awareness_ttl_seconds: u64,
     ) -> Self {
         let db_arc = Arc::new(db);
         let storage_service = StorageService::new(
@@ -35,7 +39,7 @@ impl ServerState {
             s3_bucket,
             s3_access_key,
             s3_secret_key,
-            redis_url,
+            redis_url.clone(),
         )
         .expect("Failed to initialize storage service");
         let document_service = DocumentService::new((*db_arc).clone(), storage_service.clone());
@@ -50,6 +54,12 @@ impl ServerState {
             snapshot_service.clone(),
         );
         let document_actor_manager = DocumentActorManager::new(ot_service.clone());
+        let awareness_service = AwarenessService::new(
+            redis_url,
+            awareness_redis_enabled,
+            awareness_ttl_seconds,
+        )
+        .expect("Failed to initialize awareness service");
 
         Self {
             db: db_arc,
@@ -58,6 +68,7 @@ impl ServerState {
             document_actor_manager,
             snapshot_service,
             storage_service,
+            awareness_service,
         }
     }
 }
