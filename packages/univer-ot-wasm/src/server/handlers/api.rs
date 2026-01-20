@@ -6,6 +6,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use tracing::error;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -29,7 +30,7 @@ pub struct UpdateSnapshotRequest {
 #[derive(Debug, Serialize)]
 pub struct DocumentResponse {
     pub doc_id: String,
-    pub content: JsonValue,
+    pub signed_url: String,
     pub version: i64,
 }
 
@@ -61,11 +62,14 @@ pub async fn create_document(
 ) -> Result<Json<CreateDocumentResponse>, StatusCode> {
     let doc_id = Uuid::parse_str(&req.doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    state
+    if let Err(err) = state
         .document_service
         .create_document(doc_id, req.content, None)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    {
+        error!(?err, "Failed to create document");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     Ok(Json(CreateDocumentResponse {
         doc_id: req.doc_id,
@@ -97,16 +101,28 @@ pub async fn get_document(
 ) -> Result<Json<DocumentResponse>, StatusCode> {
     let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    let (content, version) = state
+    let (storage_id, version) = state
         .document_service
         .get_document(doc_uuid)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    let storage = state
+        .storage_service
+        .get_storage_location(storage_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let signed_url = state
+        .storage_service
+        .get_signed_url(&storage)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(DocumentResponse {
         doc_id,
-        content,
+        signed_url,
         version,
     }))
 }

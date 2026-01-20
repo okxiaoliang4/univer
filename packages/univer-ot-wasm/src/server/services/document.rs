@@ -1,8 +1,8 @@
 use crate::server::database::entities::{document_snapshot, documents, operation_log};
+use crate::server::services::storage::StorageService;
 use anyhow::Result;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
 };
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -11,11 +11,15 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct DocumentService {
     db: Arc<DatabaseConnection>,
+    storage_service: StorageService,
 }
 
 impl DocumentService {
-    pub fn new(db: DatabaseConnection) -> Self {
-        Self { db: Arc::new(db) }
+    pub fn new(db: DatabaseConnection, storage_service: StorageService) -> Self {
+        Self {
+            db: Arc::new(db),
+            storage_service,
+        }
     }
 
     /// Create a new document with initial content
@@ -39,10 +43,14 @@ impl DocumentService {
         documents::Entity::insert(document).exec(&*self.db).await?;
 
         // Create initial snapshot
+        let storage_id = self
+            .storage_service
+            .store_snapshot_content(doc_id, 0, &initial_content)
+            .await?;
         let snapshot = document_snapshot::ActiveModel {
             id: sea_orm::Set(doc_id),     // id = doc_id for snapshot
             doc_id: sea_orm::Set(doc_id), // doc_id references documents.id
-            content: sea_orm::Set(JsonValue::from(initial_content)),
+            storage_id: sea_orm::Set(storage_id),
             version: sea_orm::Set(0), // Snapshot version = version at which snapshot was taken
             created_at: sea_orm::Set(now.into()),
             updated_at: sea_orm::Set(now.into()),
@@ -56,12 +64,12 @@ impl DocumentService {
     }
 
     /// Get document snapshot by doc_id
-    pub async fn get_document(&self, doc_id: Uuid) -> Result<Option<(JsonValue, i64)>> {
+    pub async fn get_document(&self, doc_id: Uuid) -> Result<Option<(Uuid, i64)>> {
         let snapshot = document_snapshot::Entity::find_by_id(doc_id)
             .one(&*self.db)
             .await?;
 
-        Ok(snapshot.map(|s| (s.content, s.version)))
+        Ok(snapshot.map(|s| (s.storage_id, s.version)))
     }
 
     /// Get operations for a document within a revision range

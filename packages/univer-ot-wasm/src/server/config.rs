@@ -6,6 +6,12 @@ pub struct Config {
     pub server_port: u16,
     pub ws_path: String,
     pub snapshot_interval: u64,
+    pub s3_endpoint: String,
+    pub s3_region: String,
+    pub s3_bucket: String,
+    pub s3_access_key: String,
+    pub s3_secret_key: String,
+    pub redis_url: String,
 }
 
 impl Config {
@@ -22,6 +28,15 @@ impl Config {
                 .unwrap_or_else(|_| "50".to_string())
                 .parse()
                 .expect("SNAPSHOT_INTERVAL must be a valid u64"),
+            s3_endpoint: env::var("S3_ENDPOINT")
+                .expect("S3_ENDPOINT environment variable must be set"),
+            s3_region: env::var("S3_REGION").expect("S3_REGION environment variable must be set"),
+            s3_bucket: env::var("S3_BUCKET").expect("S3_BUCKET environment variable must be set"),
+            s3_access_key: env::var("S3_ACCESS_KEY")
+                .expect("S3_ACCESS_KEY environment variable must be set"),
+            s3_secret_key: env::var("S3_SECRET_KEY")
+                .expect("S3_SECRET_KEY environment variable must be set"),
+            redis_url: env::var("REDIS_URL").expect("REDIS_URL environment variable must be set"),
         }
     }
 }

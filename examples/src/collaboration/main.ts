@@ -170,13 +170,17 @@ async function createNewInstance() {
     userManagerService.setCurrentUser(mockUser);
 
     const docId = '019bc0ff-395c-725c-baff-735705955782';
-    await fetch(`http://localhost:3000/api/documents/${docId}`).then((res) => res.json()).then((data) => {
-        univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
-            ...data.content,
-            id: data.doc_id,
-            rev: data.version,
-        } as IWorkbookData);
-    });
+    const doc = await fetch(`http://localhost:3000/api/documents/${docId}`)
+        .then((res) => res.json());
+
+    const docContent = await fetch(doc.signed_url)
+        .then((res) => res.json());
+
+    univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
+        ...docContent,
+        id: doc.doc_id,
+        rev: doc.version,
+    } as IWorkbookData);
 
     setTimeout(() => {
         import('./lazy').then((lazy) => {

@@ -17,7 +17,6 @@
 import type { Plugin, PluginCtor } from '@univerjs/core';
 import { UniverDocsDrawingUIPlugin } from '@univerjs/docs-drawing-ui';
 import { UniverDocsMentionUIPlugin } from '@univerjs/docs-mention-ui';
-import { UniverKeyboardUIPlugin } from '@univerjs/keyboard-ui';
 import { UniverSheetsConditionalFormattingUIPlugin } from '@univerjs/sheets-conditional-formatting-ui';
 import { UniverSheetsDataValidationUIPlugin } from '@univerjs/sheets-data-validation-ui';
 import { UniverSheetsDrawingUIPlugin } from '@univerjs/sheets-drawing-ui';
@@ -43,6 +42,5 @@ export default function getLazyPlugins(): Array<[PluginCtor<Plugin>] | [PluginCt
         [UniverSheetsConditionalFormattingUIPlugin],
         [UniverSheetsFilterUIPlugin, { useRemoteFilterValuesGenerator: false }],
         [UniverSheetsDrawingUIPlugin],
-        [UniverKeyboardUIPlugin],
     ];
 }

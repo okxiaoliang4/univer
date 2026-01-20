@@ -1,8 +1,8 @@
 use crate::server::database::entities::{document_snapshot, operation_log};
-use crate::server::services::document::OperationInfo;
+use crate::server::services::storage::StorageService;
 use anyhow::{Context, Result};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -12,13 +12,19 @@ use uuid::Uuid;
 pub struct SnapshotService {
     db: Arc<DatabaseConnection>,
     snapshot_interval: u64,
+    storage_service: StorageService,
 }
 
 impl SnapshotService {
-    pub fn new(db: DatabaseConnection, snapshot_interval: u64) -> Self {
+    pub fn new(
+        db: DatabaseConnection,
+        snapshot_interval: u64,
+        storage_service: StorageService,
+    ) -> Self {
         Self {
             db: Arc::new(db),
             snapshot_interval,
+            storage_service,
         }
     }
 
@@ -42,7 +48,10 @@ impl SnapshotService {
             .await?
             .context("Base snapshot not found")?;
 
-        let mut content = base_snapshot.content.clone();
+        let content = self
+            .storage_service
+            .fetch_snapshot_content(base_snapshot.storage_id)
+            .await?;
 
         // Get all operations between base_snapshot_version and target_version
         let operations = operation_log::Entity::find()
@@ -56,7 +65,7 @@ impl SnapshotService {
         // Note: This is a simplified implementation. In a real system, you would need
         // a full document model that can apply mutations properly (e.g., for sheets,
         // this would require applying set-range-values, insert-row, etc. mutations)
-        for op in operations {
+        for _op in operations {
             // TODO: Implement proper mutation application logic
             // For now, we'll just update the content structure to indicate mutations were applied
             // In a production system, you would:
@@ -81,6 +90,11 @@ impl SnapshotService {
     ) -> Result<()> {
         let now = chrono::Utc::now();
 
+        let storage_id = self
+            .storage_service
+            .store_snapshot_content(doc_id, version, &content)
+            .await?;
+
         let mut snapshot: document_snapshot::ActiveModel =
             document_snapshot::Entity::find_by_id(doc_id)
                 .one(&*self.db)
@@ -88,7 +102,7 @@ impl SnapshotService {
                 .ok_or_else(|| anyhow::anyhow!("Document not found: {}", doc_id))?
                 .into();
 
-        snapshot.content = sea_orm::Set(JsonValue::from(content));
+        snapshot.storage_id = sea_orm::Set(storage_id);
         snapshot.version = sea_orm::Set(version); // Snapshot checkpoint version
         snapshot.updated_at = sea_orm::Set(now.into());
 
@@ -100,5 +114,9 @@ impl SnapshotService {
     /// Get snapshot interval
     pub fn get_snapshot_interval(&self) -> u64 {
         self.snapshot_interval
+    }
+
+    pub fn storage_service(&self) -> &StorageService {
+        &self.storage_service
     }
 }

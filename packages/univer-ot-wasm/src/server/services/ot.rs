@@ -8,7 +8,6 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
 };
-use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -195,8 +194,13 @@ impl OTService {
                 .await?;
 
             // Update snapshot with new content and checkpoint version
+            let storage_id = self
+                .snapshot_service
+                .storage_service()
+                .store_snapshot_content(doc_id, new_version, &new_content)
+                .await?;
             let mut snapshot: document_snapshot::ActiveModel = base_snapshot.into();
-            snapshot.content = Set(new_content);
+            snapshot.storage_id = Set(storage_id);
             snapshot.version = Set(new_version); // Snapshot checkpoint version
             snapshot.updated_at = Set(chrono::Utc::now().into());
             snapshot.update(&txn).await?;

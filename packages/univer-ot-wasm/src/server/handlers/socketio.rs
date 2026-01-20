@@ -1,5 +1,4 @@
 use crate::server::services::ot::Changeset;
-use crate::server::services::{DocumentService, OTService};
 use crate::server::state::AppState;
 use crate::server::types::{
     ChangesetAck, ChangesetPushed, ChangesetRequest, FetchOpsAck, FetchOpsRequest, JoinDocAck,

@@ -23,6 +23,7 @@ import { io } from 'socket.io-client';
 
 export interface ISocketService {
     connected$: Observable<void>;
+    connected: boolean;
     disconnected$: Observable<void>;
     changesetPushed$: Observable<IChangesetPushed>;
     createSocket(url: string): Nullable<Socket>;

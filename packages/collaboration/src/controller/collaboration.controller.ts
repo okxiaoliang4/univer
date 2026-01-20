@@ -16,7 +16,14 @@
 
 import type { IMutationInfo } from '@univerjs/core';
 import type { ICollaborationConfig } from './config.schema';
-import { Disposable, ICommandService, IConfigService, isInternalEditorID, IUniverInstanceService, toDisposable } from '@univerjs/core';
+import {
+    Disposable,
+    ICommandService,
+    IConfigService,
+    isInternalEditorID,
+    IUniverInstanceService,
+    toDisposable,
+} from '@univerjs/core';
 import { ICollaborationService } from '../services/collaboration.service';
 import { IPendingMutationSerivce } from '../services/offline-storage.service';
 import { ISocketService } from '../services/socket.service';
@@ -41,15 +48,19 @@ export class CollaborationController extends Disposable {
     }
 
     private _initPendingMutationSerivceListener(): void {
-        this.disposeWithMe(this._pendingMutationSerivce.ready$.subscribe((ready) => {
-            // TODO: 这里监听完之后可以complete了
-            if (!ready) return;
-            this._initSocket();
-        }));
+        this.disposeWithMe(
+            this._pendingMutationSerivce.ready$.subscribe((ready) => {
+                // TODO: 这里监听完之后可以complete了
+                if (!ready) return;
+                this._initSocket();
+            })
+        );
     }
 
     private _initSocket(): void {
-        const config = this._configService.getConfig<ICollaborationConfig>(COLLABORATION_PLUGIN_CONFIG_KEY)!;
+        const config = this._configService.getConfig<ICollaborationConfig>(
+            COLLABORATION_PLUGIN_CONFIG_KEY
+        )!;
         const socket = this._socketService.createSocket(config.wsUrl);
         if (!socket) {
             throw new Error('Failed to create socket');
@@ -62,23 +73,22 @@ export class CollaborationController extends Disposable {
     }
 
     private _initCommandListener(): void {
-        this.disposeWithMe(this._commandService.onMutationExecutedForCollab((command, options) => {
-            const commandParams = command.params as { unitId?: string } | undefined;
-            const observedUnitId = commandParams?.unitId;
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId: 'pre-fix', hypothesisId: 'H6', location: 'collaboration.controller.ts:commandListener', message: 'mutation observed by collab listener', data: { mutationId: command.id, mutationType: command.type, fromCollab: Boolean(options?.fromCollab), unitId: observedUnitId, hasUnitId: Boolean(observedUnitId) }, timestamp: Date.now() }) }).catch(() => {});
-            // #endregion
-            if (options?.fromCollab) return;
-            const unitId = (command.params as { unitId: string })?.unitId;
-            if (!unitId) return;
-            const unit = this._univerInstanceService.getUnit(unitId);
-            if (!unit || isInternalEditorID(unitId)) return;
-            const baseRev = this._collaborationService.getDocRev(unitId);
-            this._collaborationService.sendChangeset({
-                unitId,
-                baseRev,
-                mutations: [command as IMutationInfo],
-            });
-        }));
+        this.disposeWithMe(
+            this._commandService.onMutationExecutedForCollab((command, options) => {
+                const commandParams = command.params as { unitId?: string } | undefined;
+                const observedUnitId = commandParams?.unitId;
+                if (options?.fromCollab) return;
+                const unitId = (command.params as { unitId: string })?.unitId;
+                if (!unitId) return;
+                const unit = this._univerInstanceService.getUnit(unitId);
+                if (!unit || isInternalEditorID(unitId)) return;
+                const baseRev = this._collaborationService.getDocRev(unitId);
+                this._collaborationService.sendChangeset({
+                    unitId,
+                    baseRev,
+                    mutations: [command as IMutationInfo],
+                });
+            })
+        );
     }
 }

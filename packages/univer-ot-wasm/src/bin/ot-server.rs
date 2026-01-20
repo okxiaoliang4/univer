@@ -8,7 +8,7 @@ use sea_orm::Database;
 use sea_orm::DatabaseConnection;
 use std::{net::SocketAddr, sync::Arc};
 use tower::ServiceBuilder;
-use tower_http::cors::{AllowHeaders, Any, CorsLayer};
+use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, Level};
 
 // Include modules that server code depends on
@@ -53,7 +53,16 @@ async fn main() -> anyhow::Result<()> {
     info!("Database migrations completed");
 
     // Create application state
-    let state = Arc::new(ServerState::new(db, config.snapshot_interval));
+    let state = Arc::new(ServerState::new(
+        db,
+        config.snapshot_interval,
+        config.s3_endpoint.clone(),
+        config.s3_region.clone(),
+        config.s3_bucket.clone(),
+        config.s3_access_key.clone(),
+        config.s3_secret_key.clone(),
+        config.redis_url.clone(),
+    ));
 
     // Create Socket.IO layer
     let (layer, io) = SocketIo::new_layer();
