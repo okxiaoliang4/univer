@@ -13,6 +13,8 @@ pub mod mutation_transform;
 pub mod remove_col;
 pub mod remove_rows;
 pub mod set_range_values;
+pub mod sheets_mutations;
+pub mod sheets_transform_utils;
 
 #[cfg(test)]
 mod test_utils;
@@ -22,16 +24,17 @@ mod insert_col_test;
 #[cfg(test)]
 mod insert_row_test;
 #[cfg(test)]
+mod list_transform_test;
+#[cfg(test)]
 mod remove_col_test;
 #[cfg(test)]
 mod remove_rows_test;
 #[cfg(test)]
 mod set_range_values_test;
 #[cfg(test)]
-mod list_transform_test;
+mod sheets_mutations_test;
 
 use mutation_transform::MutationTransform;
-
 
 // Core transform service that works with internal types
 pub struct TransformServiceCore {
@@ -104,6 +107,55 @@ impl TransformServiceCore {
         service.register_transform::<insert_col::InsertColTransform>();
         service.register_transform::<remove_rows::RemoveRowsTransform>();
         service.register_transform::<remove_col::RemoveColTransform>();
+        service.register_transform::<sheets_mutations::AddRangeProtectionTransform>();
+        service.register_transform::<sheets_mutations::AddRangeThemeTransform>();
+        service.register_transform::<sheets_mutations::AddWorksheetMergeTransform>();
+        service.register_transform::<sheets_mutations::AddWorksheetProtectionTransform>();
+        service.register_transform::<sheets_mutations::CopyWorksheetEndTransform>();
+        service.register_transform::<sheets_mutations::DeleteRangeProtectionTransform>();
+        service.register_transform::<sheets_mutations::DeleteWorksheetProtectionTransform>();
+        service.register_transform::<sheets_mutations::DeleteWorksheetRangeThemeStyleTransform>();
+        service.register_transform::<sheets_mutations::EmptyTransform>();
+        service.register_transform::<sheets_mutations::InsertSheetTransform>();
+        service.register_transform::<sheets_mutations::MoveColumnsTransform>();
+        service.register_transform::<sheets_mutations::MoveRowsTransform>();
+        service.register_transform::<sheets_mutations::MoveRangeTransform>();
+        service.register_transform::<sheets_mutations::RegisterWorksheetRangeThemeStyleTransform>();
+        service.register_transform::<sheets_mutations::RemoveRangeThemeTransform>();
+        service.register_transform::<sheets_mutations::RemoveSheetTransform>();
+        service.register_transform::<sheets_mutations::RemoveWorksheetMergeTransform>();
+        service.register_transform::<sheets_mutations::ReorderRangeTransform>();
+        service.register_transform::<sheets_mutations::SetColDataTransform>();
+        service.register_transform::<sheets_mutations::SetColHiddenTransform>();
+        service.register_transform::<sheets_mutations::SetColVisibleTransform>();
+        service.register_transform::<sheets_mutations::SetFrozenTransform>();
+        service.register_transform::<sheets_mutations::SetGridlinesColorTransform>();
+        service.register_transform::<sheets_mutations::SetNumfmtTransform>();
+        service.register_transform::<sheets_mutations::RemoveNumfmtTransform>();
+        service.register_transform::<sheets_mutations::SetRangeProtectionTransform>();
+        service.register_transform::<sheets_mutations::SetRangeThemeTransform>();
+        service.register_transform::<sheets_mutations::SetRowDataTransform>();
+        service.register_transform::<sheets_mutations::SetRowHiddenTransform>();
+        service.register_transform::<sheets_mutations::SetRowVisibleTransform>();
+        service.register_transform::<sheets_mutations::SetTabColorTransform>();
+        service.register_transform::<sheets_mutations::SetWorkbookNameTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetColWidthTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetColumnCountTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetDefaultStyleTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetHiddenTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetNameTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetOrderTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetPermissionPointsTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetProtectionTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetRangeThemeStyleTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetRightToLeftTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetRowAutoHeightTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetRowCountTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetRowHeightTransform>();
+        service.register_transform::<sheets_mutations::SetWorksheetRowIsAutoHeightTransform>();
+        service.register_transform::<sheets_mutations::ToggleGridlinesTransform>();
+        service
+            .register_transform::<sheets_mutations::UnregisterWorksheetRangeThemeStyleTransform>();
 
         service
     }
@@ -199,11 +251,7 @@ impl TransformServiceCore {
         m1: &MutationInfoInternal,
         m2: &MutationInfoInternal,
     ) -> TransformResultInternal {
-        wasm_log_debug!(
-            "transform m1={:?} m2={:?}",
-            m1,
-            m2
-        );
+        wasm_log_debug!("transform m1={:?} m2={:?}", m1, m2);
         if let Some(transform) = self.transforms.get(&m1.id) {
             return transform.dispatch(m1, m2);
         }

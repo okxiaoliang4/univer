@@ -1,7 +1,7 @@
-use crate::transform::mutation_transform::MutationTransform;
 use crate::mutations::types::{
     ColumnData, InsertColMutationParams, RemoveColMutationParams, SetRangeValuesMutationParams,
 };
+use crate::transform::mutation_transform::MutationTransform;
 use crate::types::{
     MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
 };
@@ -61,7 +61,10 @@ impl MutationTransform for InsertColTransform {
     ) -> TransformResultInternal {
         let m1_params: InsertColMutationParams = serde_json::from_value(m1.params.clone())
             .unwrap_or_else(|_| {
-                wasm_log_warn!("insert_col transform set_range_values: invalid m1 params {:?}", m1);
+                wasm_log_warn!(
+                    "insert_col transform set_range_values: invalid m1 params {:?}",
+                    m1
+                );
                 InsertColMutationParams {
                     sub_unit_params: SubUnitParams {
                         unit_id: "".to_string(),

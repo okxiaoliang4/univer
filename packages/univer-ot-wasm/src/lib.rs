@@ -28,13 +28,13 @@ mod utils;
 #[cfg(feature = "server")]
 mod server;
 
-pub use mutations::{
-    InsertColMutation, InsertRowMutation, RemoveColMutation, RemoveRowsMutation,
-    SetRangeValuesMutation,
-};
 pub use mutations::types::{
     ColumnData, InsertColMutationParams, InsertRowMutationParams, RemoveColMutationParams,
     RemoveRowsMutationParams, RowData, SetRangeValuesMutationParams,
+};
+pub use mutations::{
+    InsertColMutation, InsertRowMutation, RemoveColMutation, RemoveRowsMutation,
+    SetRangeValuesMutation,
 };
 pub use transform::TransformService;
 pub use types::*;

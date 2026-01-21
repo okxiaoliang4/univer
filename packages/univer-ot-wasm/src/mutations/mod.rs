@@ -3,6 +3,7 @@ pub mod insert_row;
 pub mod remove_col;
 pub mod remove_rows;
 pub mod set_range_values;
+pub mod sheets;
 pub mod types;
 
 pub use insert_col::InsertColMutation;

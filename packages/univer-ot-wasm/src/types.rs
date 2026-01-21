@@ -3,6 +3,13 @@ use serde_wasm_bindgen::Serializer;
 use wasm_bindgen::prelude::*;
 
 #[allow(unused_imports)]
+pub use crate::mutations::sheets::{
+    SheetMoveRangeParams, SheetMoveRangeSide, SheetMoveRowsColsParams, SheetMutationRangeParams,
+    SheetMutationRangesParams, SheetRangeThemeStyleParams, SheetReorderRangeParams,
+    SheetRowColCountsParams, SheetRowColumnDataParams, SheetSetFrozenParams,
+    SheetWorksheetMergeParams, SheetWorksheetRangeThemeStyleParams,
+};
+#[allow(unused_imports)]
 pub use crate::mutations::types::{
     ColumnData, InsertColMutationParams, InsertRowMutationParams, RemoveColMutationParams,
     RemoveRowsMutationParams, RowData, SetRangeValuesMutationParams,

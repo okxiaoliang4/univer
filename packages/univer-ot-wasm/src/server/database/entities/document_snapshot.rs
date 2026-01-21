@@ -15,7 +15,7 @@ pub struct Model {
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTimeWithTimeZone,
     #[sea_orm(column_name = "updated_at")]
-    pub updated_at: DateTimeWithTimeZone
+    pub updated_at: DateTimeWithTimeZone,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
