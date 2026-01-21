@@ -1,13 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use crate::mutations::types::{InsertColMutationParams, SetRangeValuesMutationParams};
     use crate::transform::test_utils::test_utils::create_mutation_info;
     use crate::transform::TransformService;
-    use crate::mutations::types::{
-        InsertColMutationParams, SetRangeValuesMutationParams,
-    };
-    use crate::types::{
-        ObjectMatrixPrimitiveType, Range, SubUnitParams,
-    };
+    use crate::types::{ObjectMatrixPrimitiveType, Range, SubUnitParams};
     use serde_json;
 
     fn build_insert_col() -> crate::types::MutationInfoInternal {
@@ -55,8 +51,7 @@ mod tests {
         let m1_list = vec![build_insert_col()];
         let m2_list = vec![build_set_range_values("0")];
 
-        let (m1_primes, m2_primes, error) =
-            service.transform_list_internal(&m1_list, &m2_list);
+        let (m1_primes, m2_primes, error) = service.transform_list_internal(&m1_list, &m2_list);
         assert!(error.is_none());
         assert_eq!(m1_primes.len(), 1);
         assert_eq!(m2_primes.len(), 1);
@@ -75,8 +70,7 @@ mod tests {
         let m1_list = vec![build_set_range_values("0")];
         let m2_list = vec![build_insert_col()];
 
-        let (m1_primes, m2_primes, error) =
-            service.transform_list_internal(&m1_list, &m2_list);
+        let (m1_primes, m2_primes, error) = service.transform_list_internal(&m1_list, &m2_list);
         assert!(error.is_none());
         assert_eq!(m1_primes.len(), 1);
         assert_eq!(m2_primes.len(), 1);
