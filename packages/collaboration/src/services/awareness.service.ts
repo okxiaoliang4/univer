@@ -124,9 +124,9 @@ export class AwarenessService extends Disposable implements IAwarenessService {
         );
     }
 
-    private presenceUpdateListener(payload: IAwarenessState) {
-        const targetUnitId = payload.selectionParams?.unitId || unitId;
-        if (!this._joinedUnits.has(targetUnitId)) {
+    private _presenceUpdateListener(payload: IAwarenessState) {
+        const targetUnitId = payload.selectionParams?.unitId;
+        if (!targetUnitId || !this._joinedUnits.has(targetUnitId)) {
             return;
         }
         const stateMap = this._state$.value.get(targetUnitId) ?? new Map();
@@ -149,8 +149,8 @@ export class AwarenessService extends Disposable implements IAwarenessService {
 
         const socket = this._socketService.getSocket();
         if (socket) {
-            const presenceUpdateListener = this.presenceUpdateListener.bind(this);
-            socket.off('presence_update', presenceUpdateListener);
+            const presenceUpdateListener = this._presenceUpdateListener.bind(this);
+            socket.off('presence_update', this._presenceUpdateListener.bind(this));
             socket.on('presence_update', presenceUpdateListener);
 
             socket.emit(
