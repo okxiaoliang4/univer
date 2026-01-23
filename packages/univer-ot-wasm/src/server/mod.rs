@@ -10,3 +10,5 @@ pub mod services;
 pub mod state;
 #[cfg(feature = "server")]
 pub mod types;
+#[cfg(feature = "server")]
+pub mod grpc;

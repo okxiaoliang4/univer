@@ -1,6 +1,6 @@
-use crate::server::database::entities::{document_snapshot, documents, operation_log};
+use crate::server::database::entities::{documents, operation_log};
 use crate::server::services::document::DocumentService;
-use crate::server::services::snapshot::SnapshotService;
+use crate::server::services::OpQueueService;
 use crate::transform::TransformServiceCore;
 use crate::types::MutationInfoInternal;
 use anyhow::{Context, Result};
@@ -35,21 +35,21 @@ pub struct ChangesetApplied {
 pub struct OTService {
     db: Arc<DatabaseConnection>,
     document_service: DocumentService,
-    snapshot_service: SnapshotService,
     transform_service: Arc<TransformServiceCore>,
+    op_queue_service: OpQueueService,
 }
 
 impl OTService {
     pub fn new(
         db: DatabaseConnection,
         document_service: DocumentService,
-        snapshot_service: SnapshotService,
+        op_queue_service: OpQueueService,
     ) -> Self {
         Self {
             db: Arc::new(db),
             document_service,
-            snapshot_service,
             transform_service: Arc::new(TransformServiceCore::new()),
+            op_queue_service,
         }
     }
 
@@ -160,6 +160,7 @@ impl OTService {
             };
 
             operation.insert(&txn).await?;
+            let _ = self.op_queue_service.enqueue_doc(&doc_id.to_string()).await;
             transformed_mutations.push(m1_prime);
             next_rev += 1;
         }
@@ -176,35 +177,8 @@ impl OTService {
         document.updated_at = Set(chrono::Utc::now().into());
         document.update(&txn).await?;
 
-        // Check if we should create/update snapshot checkpoint
-        // Snapshot version should be the version at which snapshot was taken, not updated per operation
-        let ops_count = (new_version - changeset.base_rev) as u64;
-        if self.snapshot_service.should_update_snapshot(ops_count) {
-            let base_snapshot = document_snapshot::Entity::find_by_id(doc_id)
-                .one(&txn)
-                .await?
-                .context("Base snapshot not found")?;
-
-            let base_snapshot_version = base_snapshot.version;
-
-            // Compute new snapshot content by applying mutations since base snapshot
-            let new_content = self
-                .snapshot_service
-                .compute_snapshot_content(doc_id, base_snapshot_version, new_version, &txn)
-                .await?;
-
-            // Update snapshot with new content and checkpoint version
-            let storage_id = self
-                .snapshot_service
-                .storage_service()
-                .store_snapshot_content(doc_id, new_version, &new_content)
-                .await?;
-            let mut snapshot: document_snapshot::ActiveModel = base_snapshot.into();
-            snapshot.storage_id = Set(storage_id);
-            snapshot.version = Set(new_version); // Snapshot checkpoint version
-            snapshot.updated_at = Set(chrono::Utc::now().into());
-            snapshot.update(&txn).await?;
-        }
+        // Enqueue snapshot job asynchronously
+        // Do not enqueue snapshot job here; only enqueue doc_id to Redis queue
 
         txn.commit().await?;
 

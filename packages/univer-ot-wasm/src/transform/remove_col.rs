@@ -2,6 +2,7 @@ use crate::mutations::types::{
     InsertColMutationParams, RemoveColMutationParams, SetRangeValuesMutationParams,
 };
 use crate::transform::mutation_transform::MutationTransform;
+use crate::transform::sheets_transform_utils::shift_col_keys_for_remove;
 use crate::types::{
     MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
 };
@@ -10,46 +11,6 @@ use serde_json;
 
 #[derive(Default)]
 pub struct RemoveColTransform;
-
-fn shift_cols_for_remove(
-    cell_value: &mut ObjectMatrixPrimitiveType,
-    remove_start: u32,
-    remove_end: u32,
-) {
-    wasm_log_debug!(
-        "remove_col shift_cols_for_remove start remove_start={} remove_end={} rows={}",
-        remove_start,
-        remove_end,
-        cell_value.data.len()
-    );
-
-    let remove_count = remove_end - remove_start + 1;
-    let mut new_data = serde_json::Map::new();
-    for (row_key, row_value) in cell_value.data.iter() {
-        if let serde_json::Value::Object(cols) = row_value {
-            let mut new_row = serde_json::Map::new();
-            for (col_key, col_value) in cols.iter() {
-                if let Ok(col_num) = col_key.parse::<u32>() {
-                    if col_num > remove_end {
-                        let new_key = (col_num - remove_count).to_string();
-                        new_row.insert(new_key, col_value.clone());
-                    } else if col_num < remove_start {
-                        new_row.insert(col_key.clone(), col_value.clone());
-                    }
-                    // Columns in [remove_start, remove_end] are removed
-                } else {
-                    new_row.insert(col_key.clone(), col_value.clone());
-                }
-            }
-            if !new_row.is_empty() {
-                new_data.insert(row_key.clone(), serde_json::Value::Object(new_row));
-            }
-        } else {
-            new_data.insert(row_key.clone(), row_value.clone());
-        }
-    }
-    cell_value.data = new_data;
-}
 
 impl MutationTransform for RemoveColTransform {
     fn mutation_id() -> &'static str {
@@ -98,7 +59,7 @@ impl MutationTransform for RemoveColTransform {
         let remove_end = m1_params.range.end_column;
 
         if let Some(ref mut cell_value) = m2_params.cell_value {
-            shift_cols_for_remove(cell_value, remove_start, remove_end);
+            shift_col_keys_for_remove(cell_value, remove_start, remove_end);
         }
 
         TransformResultInternal {

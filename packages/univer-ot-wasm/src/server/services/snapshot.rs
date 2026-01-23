@@ -42,8 +42,10 @@ impl SnapshotService {
         target_version: i64,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<JsonValue> {
-        // Get base snapshot content
-        let base_snapshot = document_snapshot::Entity::find_by_id(doc_id)
+        // Get base snapshot content - find snapshot with matching doc_id and version
+        let base_snapshot = document_snapshot::Entity::find()
+            .filter(document_snapshot::Column::DocId.eq(doc_id))
+            .filter(document_snapshot::Column::Version.eq(base_snapshot_version))
             .one(txn)
             .await?
             .context("Base snapshot not found")?;
@@ -95,18 +97,33 @@ impl SnapshotService {
             .store_snapshot_content(doc_id, version, &content)
             .await?;
 
-        let mut snapshot: document_snapshot::ActiveModel =
-            document_snapshot::Entity::find_by_id(doc_id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| anyhow::anyhow!("Document not found: {}", doc_id))?
-                .into();
+        // Find existing snapshot with matching doc_id and version, or create new one
+        let snapshot = document_snapshot::Entity::find()
+            .filter(document_snapshot::Column::DocId.eq(doc_id))
+            .filter(document_snapshot::Column::Version.eq(version))
+            .one(&*self.db)
+            .await?;
 
-        snapshot.storage_id = sea_orm::Set(storage_id);
-        snapshot.version = sea_orm::Set(version); // Snapshot checkpoint version
-        snapshot.updated_at = sea_orm::Set(now.into());
-
-        snapshot.update(&*self.db).await?;
+        if let Some(existing) = snapshot {
+            // Update existing snapshot
+            let mut snapshot: document_snapshot::ActiveModel = existing.into();
+            snapshot.storage_id = sea_orm::Set(storage_id);
+            snapshot.updated_at = sea_orm::Set(now.into());
+            snapshot.update(&*self.db).await?;
+        } else {
+            // Create new snapshot
+            let new_snapshot = document_snapshot::ActiveModel {
+                id: sea_orm::Set(uuid::Uuid::new_v4()),
+                doc_id: sea_orm::Set(doc_id),
+                storage_id: sea_orm::Set(storage_id),
+                version: sea_orm::Set(version),
+                created_at: sea_orm::Set(now.into()),
+                updated_at: sea_orm::Set(now.into()),
+            };
+            document_snapshot::Entity::insert(new_snapshot)
+                .exec(&*self.db)
+                .await?;
+        }
 
         Ok(())
     }

@@ -2,6 +2,7 @@ use crate::mutations::types::{
     InsertRowMutationParams, RemoveRowsMutationParams, SetRangeValuesMutationParams,
 };
 use crate::transform::mutation_transform::MutationTransform;
+use crate::transform::sheets_transform_utils::shift_row_keys_for_remove;
 use crate::types::{
     MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
 };
@@ -10,36 +11,6 @@ use serde_json;
 
 #[derive(Default)]
 pub struct RemoveRowsTransform;
-
-fn shift_rows_for_remove(
-    cell_value: &mut ObjectMatrixPrimitiveType,
-    remove_start: u32,
-    remove_end: u32,
-) {
-    wasm_log_debug!(
-        "remove_rows shift_rows_for_remove start remove_start={} remove_end={} rows={}",
-        remove_start,
-        remove_end,
-        cell_value.data.len()
-    );
-
-    let remove_count = remove_end - remove_start + 1;
-    let mut new_data = serde_json::Map::new();
-    for (row_key, row_value) in cell_value.data.iter() {
-        if let Ok(row_num) = row_key.parse::<u32>() {
-            if row_num > remove_end {
-                let new_key = (row_num - remove_count).to_string();
-                new_data.insert(new_key, row_value.clone());
-            } else if row_num < remove_start {
-                new_data.insert(row_key.clone(), row_value.clone());
-            }
-            // Rows in [remove_start, remove_end] are removed
-        } else {
-            new_data.insert(row_key.clone(), row_value.clone());
-        }
-    }
-    cell_value.data = new_data;
-}
 
 impl MutationTransform for RemoveRowsTransform {
     fn mutation_id() -> &'static str {
@@ -88,7 +59,7 @@ impl MutationTransform for RemoveRowsTransform {
         let remove_end = m1_params.range.end_row;
 
         if let Some(ref mut cell_value) = m2_params.cell_value {
-            shift_rows_for_remove(cell_value, remove_start, remove_end);
+            shift_row_keys_for_remove(cell_value, remove_start, remove_end);
         }
 
         TransformResultInternal {

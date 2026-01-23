@@ -3,6 +3,10 @@ use crate::mutations::types::{
     RemoveRowsMutationParams, SetRangeValuesMutationParams,
 };
 use crate::transform::mutation_transform::MutationTransform;
+use crate::transform::sheets_transform_utils::{
+    shift_col_keys_for_insert, shift_col_keys_for_remove, shift_row_keys_for_insert,
+    shift_row_keys_for_remove,
+};
 use crate::types::{
     MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
 };
@@ -11,121 +15,6 @@ use serde_json;
 
 #[derive(Default)]
 pub struct SetRangeValuesTransform;
-
-fn shift_rows_for_insert(
-    cell_value: &mut ObjectMatrixPrimitiveType,
-    insert_start: u32,
-    insert_count: u32,
-) {
-    let mut new_data = serde_json::Map::new();
-    for (row_key, row_value) in cell_value.data.iter() {
-        if let Ok(row_num) = row_key.parse::<u32>() {
-            if row_num >= insert_start {
-                let new_key = (row_num + insert_count).to_string();
-                new_data.insert(new_key, row_value.clone());
-            } else {
-                new_data.insert(row_key.clone(), row_value.clone());
-            }
-        } else {
-            new_data.insert(row_key.clone(), row_value.clone());
-        }
-    }
-    cell_value.data = new_data;
-}
-
-fn shift_rows_for_remove(
-    cell_value: &mut ObjectMatrixPrimitiveType,
-    remove_start: u32,
-    remove_end: u32,
-) {
-    let remove_count = remove_end - remove_start + 1;
-    let mut new_data = serde_json::Map::new();
-    for (row_key, row_value) in cell_value.data.iter() {
-        if let Ok(row_num) = row_key.parse::<u32>() {
-            if row_num > remove_end {
-                let new_key = (row_num - remove_count).to_string();
-                new_data.insert(new_key, row_value.clone());
-            } else if row_num < remove_start {
-                new_data.insert(row_key.clone(), row_value.clone());
-            }
-            // Rows in [remove_start, remove_end] are removed
-        } else {
-            new_data.insert(row_key.clone(), row_value.clone());
-        }
-    }
-    cell_value.data = new_data;
-}
-
-fn shift_cols_for_insert(
-    cell_value: &mut ObjectMatrixPrimitiveType,
-    insert_start: u32,
-    insert_count: u32,
-) {
-    wasm_log_debug!(
-        "set_range_values shift_cols_for_insert start insert_start={} insert_count={} rows={}",
-        insert_start,
-        insert_count,
-        cell_value.data.len()
-    );
-
-    let mut new_data = serde_json::Map::new();
-    for (row_key, row_value) in cell_value.data.iter() {
-        if let serde_json::Value::Object(cols) = row_value {
-            let mut new_row = serde_json::Map::new();
-            for (col_key, col_value) in cols.iter() {
-                if let Ok(col_num) = col_key.parse::<u32>() {
-                    if col_num >= insert_start {
-                        let new_key = (col_num + insert_count).to_string();
-                        new_row.insert(new_key, col_value.clone());
-                    } else {
-                        new_row.insert(col_key.clone(), col_value.clone());
-                    }
-                } else {
-                    new_row.insert(col_key.clone(), col_value.clone());
-                }
-            }
-            if !new_row.is_empty() {
-                new_data.insert(row_key.clone(), serde_json::Value::Object(new_row));
-            }
-        } else {
-            new_data.insert(row_key.clone(), row_value.clone());
-        }
-    }
-    cell_value.data = new_data;
-}
-
-fn shift_cols_for_remove(
-    cell_value: &mut ObjectMatrixPrimitiveType,
-    remove_start: u32,
-    remove_end: u32,
-) {
-    let remove_count = remove_end - remove_start + 1;
-    let mut new_data = serde_json::Map::new();
-    for (row_key, row_value) in cell_value.data.iter() {
-        if let serde_json::Value::Object(cols) = row_value {
-            let mut new_row = serde_json::Map::new();
-            for (col_key, col_value) in cols.iter() {
-                if let Ok(col_num) = col_key.parse::<u32>() {
-                    if col_num > remove_end {
-                        let new_key = (col_num - remove_count).to_string();
-                        new_row.insert(new_key, col_value.clone());
-                    } else if col_num < remove_start {
-                        new_row.insert(col_key.clone(), col_value.clone());
-                    }
-                    // Columns in [remove_start, remove_end] are removed
-                } else {
-                    new_row.insert(col_key.clone(), col_value.clone());
-                }
-            }
-            if !new_row.is_empty() {
-                new_data.insert(row_key.clone(), serde_json::Value::Object(new_row));
-            }
-        } else {
-            new_data.insert(row_key.clone(), row_value.clone());
-        }
-    }
-    cell_value.data = new_data;
-}
 
 impl MutationTransform for SetRangeValuesTransform {
     fn mutation_id() -> &'static str {
@@ -313,7 +202,7 @@ impl MutationTransform for SetRangeValuesTransform {
         );
 
         if let Some(ref mut cell_value) = m1_params.cell_value {
-            shift_rows_for_insert(cell_value, insert_row, insert_count);
+            shift_row_keys_for_insert(cell_value, insert_row, insert_count);
         }
 
         TransformResultInternal {
@@ -382,7 +271,7 @@ impl MutationTransform for SetRangeValuesTransform {
         );
 
         if let Some(ref mut cell_value) = m1_params.cell_value {
-            shift_cols_for_insert(cell_value, insert_col, insert_count);
+            shift_col_keys_for_insert(cell_value, insert_col, insert_count);
         }
 
         TransformResultInternal {
@@ -450,7 +339,7 @@ impl MutationTransform for SetRangeValuesTransform {
         );
 
         if let Some(ref mut cell_value) = m1_params.cell_value {
-            shift_rows_for_remove(cell_value, remove_start, remove_end);
+            shift_row_keys_for_remove(cell_value, remove_start, remove_end);
         }
 
         TransformResultInternal {
@@ -518,7 +407,7 @@ impl MutationTransform for SetRangeValuesTransform {
         );
 
         if let Some(ref mut cell_value) = m1_params.cell_value {
-            shift_cols_for_remove(cell_value, remove_start, remove_end);
+            shift_col_keys_for_remove(cell_value, remove_start, remove_end);
         }
 
         TransformResultInternal {

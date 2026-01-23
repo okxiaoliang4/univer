@@ -2,6 +2,7 @@ use crate::mutations::types::{
     InsertRowMutationParams, RemoveRowsMutationParams, RowData, SetRangeValuesMutationParams,
 };
 use crate::transform::mutation_transform::MutationTransform;
+use crate::transform::sheets_transform_utils::shift_row_keys_for_insert;
 use crate::types::{
     MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
 };
@@ -10,34 +11,6 @@ use serde_json;
 
 #[derive(Default)]
 pub struct InsertRowTransform;
-
-fn shift_rows_for_insert(
-    cell_value: &mut ObjectMatrixPrimitiveType,
-    insert_start: u32,
-    insert_count: u32,
-) {
-    wasm_log_debug!(
-        "insert_row shift_rows_for_insert start insert_start={} insert_count={} rows={}",
-        insert_start,
-        insert_count,
-        cell_value.data.len()
-    );
-
-    let mut new_data = serde_json::Map::new();
-    for (row_key, row_value) in cell_value.data.iter() {
-        if let Ok(row_num) = row_key.parse::<u32>() {
-            if row_num >= insert_start {
-                let new_key = (row_num + insert_count).to_string();
-                new_data.insert(new_key, row_value.clone());
-            } else {
-                new_data.insert(row_key.clone(), row_value.clone());
-            }
-        } else {
-            new_data.insert(row_key.clone(), row_value.clone());
-        }
-    }
-    cell_value.data = new_data;
-}
 
 impl MutationTransform for InsertRowTransform {
     fn mutation_id() -> &'static str {
@@ -87,7 +60,7 @@ impl MutationTransform for InsertRowTransform {
         let insert_count = m1_params.range.end_row - m1_params.range.start_row + 1;
 
         if let Some(ref mut cell_value) = m2_params.cell_value {
-            shift_rows_for_insert(cell_value, insert_row, insert_count);
+            shift_row_keys_for_insert(cell_value, insert_row, insert_count);
         }
 
         TransformResultInternal {

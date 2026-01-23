@@ -166,8 +166,10 @@ export class CollaborationService
      * 6. When Ack arrives, clear pending
      * Final state: $State + m_B + m_A' (guaranteed to equal $State + m_A + m_B' by OT properties)
      */
+    // eslint-disable-next-line max-lines-per-function
     private _initChangesetPushedListener(): void {
         this.disposeWithMe(
+            // eslint-disable-next-line max-lines-per-function
             this._socketService.changesetPushed$.subscribe(async (changeset) => {
                 const unitId = changeset.docId;
                 const unit = this._univerInstanceService.getUnit(unitId);

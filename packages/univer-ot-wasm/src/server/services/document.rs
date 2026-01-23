@@ -65,7 +65,9 @@ impl DocumentService {
 
     /// Get document snapshot by doc_id
     pub async fn get_document(&self, doc_id: Uuid) -> Result<Option<(Uuid, i64)>> {
-        let snapshot = document_snapshot::Entity::find_by_id(doc_id)
+        let snapshot = document_snapshot::Entity::find()
+            .filter(document_snapshot::Column::DocId.eq(doc_id))
+            .order_by_desc(document_snapshot::Column::Version)
             .one(&*self.db)
             .await?;
 

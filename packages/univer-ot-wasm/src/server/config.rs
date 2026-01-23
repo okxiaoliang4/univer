@@ -14,6 +14,9 @@ pub struct Config {
     pub redis_url: String,
     pub awareness_redis_enabled: bool,
     pub awareness_ttl_seconds: u64,
+    pub etcd_endpoints: Vec<String>,
+    pub etcd_lease_ttl_seconds: u64,
+    pub grpc_server_port: u16,
 }
 
 impl Config {
@@ -47,6 +50,20 @@ impl Config {
                 .unwrap_or_else(|_| "120".to_string())
                 .parse()
                 .expect("AWARENESS_TTL_SECONDS must be a valid u64"),
+            etcd_endpoints: env::var("ETCD_ENDPOINTS")
+                .unwrap_or_else(|_| "http://127.0.0.1:2379".to_string())
+                .split(',')
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect(),
+            etcd_lease_ttl_seconds: env::var("ETCD_LEASE_TTL_SECONDS")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .expect("ETCD_LEASE_TTL_SECONDS must be a valid u64"),
+            grpc_server_port: env::var("GRPC_SERVER_PORT")
+                .unwrap_or_else(|_| "50051".to_string())
+                .parse()
+                .expect("GRPC_SERVER_PORT must be a valid u16"),
         }
     }
 }

@@ -31,6 +31,7 @@ use server::{
     state::ServerState,
 };
 use socketioxide::SocketIo;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -52,6 +53,9 @@ async fn main() -> anyhow::Result<()> {
     Migrator::up(&db, None).await?;
     info!("Database migrations completed");
 
+    // Create Socket.IO layer
+    let (layer, io) = SocketIo::new_layer();
+
     // Create application state
     let state = Arc::new(ServerState::new(
         db,
@@ -64,10 +68,25 @@ async fn main() -> anyhow::Result<()> {
         config.redis_url.clone(),
         config.awareness_redis_enabled,
         config.awareness_ttl_seconds,
-    ));
+        config.etcd_endpoints.clone(),
+        io.clone(),
+    )
+    .await);
 
-    // Create Socket.IO layer
-    let (layer, io) = SocketIo::new_layer();
+    let etcd_service = state.etcd_service.clone();
+    let instance_id = Uuid::new_v4();
+    let local_ip = local_ip_address::local_ip()
+        .map(|ip| ip.to_string())
+        .unwrap_or_else(|_| "127.0.0.1".to_string());
+    let endpoint = format!("{}:{}", local_ip, config.grpc_server_port);
+    let registration = etcd_service
+        .register_with_lease(
+            "ot-collaboration",
+            instance_id,
+            endpoint,
+            config.etcd_lease_ttl_seconds,
+        )
+        .await?;
 
     // Setup Socket.IO event handlers
     socketio::setup_socketio(&io, state.clone());
@@ -105,12 +124,36 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_state(state.clone());
 
-    // Start server
+    // Start HTTP server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
-    info!("Server listening on {}", addr);
+    info!("HTTP server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+
+    // Start gRPC server
+    let grpc_addr = SocketAddr::from(([0, 0, 0, 0], config.grpc_server_port));
+    let grpc_state = state.clone();
+    let grpc_server = tokio::spawn(async move {
+        info!("gRPC server listening on {}", grpc_addr);
+        tonic::transport::Server::builder()
+            .add_service(server::grpc::grpc_server(grpc_state))
+            .serve(grpc_addr)
+            .await
+            .map_err(|err| anyhow::anyhow!(err))
+    });
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal(registration, grpc_server))
+        .await?;
 
     Ok(())
+}
+
+async fn shutdown_signal(
+    registration: server::services::etcd::EtcdRegistration,
+    grpc_server: tokio::task::JoinHandle<anyhow::Result<()>>,
+) {
+    let _ = tokio::signal::ctrl_c().await;
+    registration.revoke().await;
+    grpc_server.abort();
 }

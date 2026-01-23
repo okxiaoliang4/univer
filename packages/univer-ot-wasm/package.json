@@ -31,6 +31,7 @@
         "build:node": "wasm-pack build --target nodejs --out-dir pkg",
         "build:web": "wasm-pack build --target web --out-dir pkg",
         "build:native": "cargo build --release",
+        "build:proto": "cargo build --features server",
         "test": "cargo test",
         "test:web": "wasm-pack test --headless --firefox",
         "dev": "wasm-pack build --target bundler --out-dir pkg --dev",

@@ -124,6 +124,24 @@ export class AwarenessService extends Disposable implements IAwarenessService {
         );
     }
 
+    private presenceUpdateListener(payload: IAwarenessState) {
+        const targetUnitId = payload.selectionParams?.unitId || unitId;
+        if (!this._joinedUnits.has(targetUnitId)) {
+            return;
+        }
+        const stateMap = this._state$.value.get(targetUnitId) ?? new Map();
+        stateMap.forEach((existing, existingClientId) => {
+            if (existing.id === payload.id && existingClientId !== payload.clientID) {
+                stateMap.delete(existingClientId);
+                this._remove$.next({ unitId: targetUnitId, clientId: existingClientId });
+            }
+        });
+        stateMap.set(payload.clientID, payload);
+        this._state$.value.set(targetUnitId, stateMap);
+        this._state$.next(this._state$.value);
+        this._update$.next({ unitId: targetUnitId, clientId: payload.clientID });
+    }
+
     private _initAwareness(unitId: string) {
         const clientId = this._clientId$.value.get(unitId) ?? this._createClientId();
         this._clientId$.value.set(unitId, clientId);
@@ -131,23 +149,9 @@ export class AwarenessService extends Disposable implements IAwarenessService {
 
         const socket = this._socketService.getSocket();
         if (socket) {
-            socket.on('presence_update', (payload: IAwarenessState) => {
-                const targetUnitId = payload.selectionParams?.unitId || unitId;
-                if (!this._joinedUnits.has(targetUnitId)) {
-                    return;
-                }
-                const stateMap = this._state$.value.get(targetUnitId) ?? new Map();
-                stateMap.forEach((existing, existingClientId) => {
-                    if (existing.id === payload.id && existingClientId !== payload.clientID) {
-                        stateMap.delete(existingClientId);
-                        this._remove$.next({ unitId: targetUnitId, clientId: existingClientId });
-                    }
-                });
-                stateMap.set(payload.clientID, payload);
-                this._state$.value.set(targetUnitId, stateMap);
-                this._state$.next(this._state$.value);
-                this._update$.next({ unitId: targetUnitId, clientId: payload.clientID });
-            });
+            const presenceUpdateListener = this.presenceUpdateListener.bind(this);
+            socket.off('presence_update', presenceUpdateListener);
+            socket.on('presence_update', presenceUpdateListener);
 
             socket.emit(
                 'awareness_init',

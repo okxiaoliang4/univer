@@ -8,6 +8,10 @@ pub mod ot;
 pub mod snapshot;
 #[cfg(feature = "server")]
 pub mod awareness;
+#[cfg(feature = "server")]
+pub mod etcd;
+#[cfg(feature = "server")]
+pub mod op_queue;
 pub mod storage;
 
 #[cfg(feature = "server")]
@@ -20,4 +24,8 @@ pub use ot::OTService;
 pub use snapshot::SnapshotService;
 #[cfg(feature = "server")]
 pub use awareness::AwarenessService;
+#[cfg(feature = "server")]
+pub use etcd::EtcdService;
+#[cfg(feature = "server")]
+pub use op_queue::OpQueueService;
 pub use storage::StorageService;

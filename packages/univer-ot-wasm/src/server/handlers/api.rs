@@ -108,17 +108,22 @@ pub async fn get_document(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
+      tracing::info!(?storage_id, ?version, "get_document response");
+
     let storage = state
         .storage_service
         .get_storage_location(storage_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    tracing::info!(?storage, "get_storage_location response");
 
     let signed_url = state
         .storage_service
         .get_signed_url(&storage)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tracing::info!(?signed_url, "get_signed_url response");
 
     Ok(Json(DocumentResponse {
         doc_id,
