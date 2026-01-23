@@ -1,9 +1,7 @@
 use crate::server::database::entities::{document_snapshot, operation_log};
 use crate::server::services::storage::StorageService;
 use anyhow::{Context, Result};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use uuid::Uuid;

@@ -358,7 +358,6 @@ impl TransformService {
                 let params = Reflect::get(obj, &JsValue::from_str("params"))
                     .ok()
                     .map(|v| js_value_to_json_value(&v));
-
                 if let (Some(id), Some(params)) = (id, params) {
                     Some(MutationInfoInternal { id, params })
                 } else {

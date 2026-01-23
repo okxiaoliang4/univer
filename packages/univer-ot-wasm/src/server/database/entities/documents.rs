@@ -35,5 +35,4 @@ impl Related<super::document_snapshot::Entity> for Entity {
     }
 }
 
-
 impl ActiveModelBehavior for ActiveModel {}

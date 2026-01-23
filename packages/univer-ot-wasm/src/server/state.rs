@@ -3,8 +3,8 @@ use crate::server::services::{
     OpQueueService, SnapshotService, StorageService,
 };
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 use socketioxide::SocketIo;
+use std::sync::Arc;
 
 pub type AppState = Arc<ServerState>;
 

@@ -11,7 +11,6 @@ const DOC_ACTOR_QUEUE_CAPACITY: usize = 128;
 
 struct ApplyChangesetTask {
     changeset: Changeset,
-    client_msg_id: String,
     respond_to: oneshot::Sender<Result<ChangesetApplied>>,
 }
 
@@ -33,12 +32,10 @@ impl DocumentActorManager {
         &self,
         doc_id: Uuid,
         changeset: Changeset,
-        client_msg_id: String,
     ) -> Result<ChangesetApplied> {
         let (respond_to, response_rx) = oneshot::channel();
         let task = ApplyChangesetTask {
             changeset,
-            client_msg_id,
             respond_to,
         };
 
@@ -94,9 +91,7 @@ impl DocumentActorManager {
         tokio::spawn(async move {
             debug!("Document actor started: doc_id={}", doc_id);
             while let Some(task) = receiver.recv().await {
-                let result = ot_service
-                    .apply_changeset(doc_id, task.changeset, task.client_msg_id)
-                    .await;
+                let result = ot_service.apply_changeset(doc_id, task.changeset).await;
                 let _ = task.respond_to.send(result);
             }
             debug!("Document actor stopped: doc_id={}", doc_id);

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import type { IMutationInfo } from '@univerjs/core';
+import type { IMutationWithOpId } from '../services/collaboration.types';
 import type { ICollaborationConfig } from './config.schema';
 import {
     Disposable,
+    generateRandomId,
     ICommandService,
     IConfigService,
     isInternalEditorID,
@@ -75,8 +76,6 @@ export class CollaborationController extends Disposable {
     private _initCommandListener(): void {
         this.disposeWithMe(
             this._commandService.onMutationExecutedForCollab((command, options) => {
-                const commandParams = command.params as { unitId?: string } | undefined;
-                const observedUnitId = commandParams?.unitId;
                 if (options?.fromCollab) return;
                 const unitId = (command.params as { unitId: string })?.unitId;
                 if (!unitId) return;
@@ -86,7 +85,13 @@ export class CollaborationController extends Disposable {
                 this._collaborationService.sendChangeset({
                     unitId,
                     baseRev,
-                    mutations: [command as IMutationInfo],
+                    mutations: [
+                        {
+                            id: command.id,
+                            params: command.params,
+                            opId: generateRandomId(32),
+                        } as IMutationWithOpId,
+                    ],
                 });
             })
         );

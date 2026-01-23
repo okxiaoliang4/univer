@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import type { IMutationInfo, Nullable } from '@univerjs/core';
+import type { Nullable } from '@univerjs/core';
 import type { Observable } from 'rxjs';
 import type {
     ICollaborationConfig,
 } from '../controller/config.schema';
+import type { IMutationWithOpId } from './collaboration.types';
 import { createIdentifier, Disposable, IConfigService } from '@univerjs/core';
 import localforage from 'localforage';
 import { BehaviorSubject } from 'rxjs';
@@ -26,7 +27,7 @@ import { COLLABORATION_PLUGIN_CONFIG_KEY } from '../controller/config.schema';
 
 export interface IPendingMutations {
     unitId: string;
-    mutations: IMutationInfo[];
+    mutations: IMutationWithOpId[];
     baseRev: number;
     userId: string;
 }
@@ -34,10 +35,12 @@ export interface IPendingMutations {
 export interface IPendingMutationSerivce {
     ready$: Observable<boolean>;
     isReady(): boolean;
-    add(unitId: string, mutations: IMutationInfo[], baseRev: number): Promise<IPendingMutations>;
+    add(unitId: string, mutations: IMutationWithOpId[], baseRev: number): Promise<IPendingMutations>;
     has(unitId: string): boolean;
-    update(unitId: string, mutations: IMutationInfo[], baseRev: number): Promise<IPendingMutations>;
-    get(unitId: string): IMutationInfo[] | null;
+    update(unitId: string, mutations: IMutationWithOpId[], baseRev: number): Promise<IPendingMutations>;
+    get(unitId: string): IMutationWithOpId[];
+    getBaseRev(unitId: string): Promise<number>;
+    removeByOpIds(unitId: string, opIds: string[]): Promise<IPendingMutations>;
     clear(unitId: string): Promise<void>;
 }
 
@@ -52,7 +55,7 @@ export class PendingMutationSerivce extends Disposable implements IPendingMutati
     readonly ready$ = this._readySubject.asObservable();
     private _storage: Nullable<LocalForage> = null;
     private _userId: string;
-    private _pendingMutations: Map<string, IMutationInfo[]> = new Map();
+    private _pendingMutations: Map<string, IMutationWithOpId[]> = new Map();
 
     constructor(
         @IConfigService private readonly _configService: IConfigService
@@ -95,7 +98,7 @@ export class PendingMutationSerivce extends Disposable implements IPendingMutati
         return this._pendingMutations.has(unitId);
     }
 
-    async add(unitId: string, mutations: IMutationInfo[], baseRev: number): Promise<IPendingMutations> {
+    async add(unitId: string, mutations: IMutationWithOpId[], baseRev: number): Promise<IPendingMutations> {
         const existing = this._pendingMutations.get(unitId);
         const accumulated = existing ? [...existing, ...mutations] : mutations;
         this._pendingMutations.set(unitId, accumulated);
@@ -114,11 +117,18 @@ export class PendingMutationSerivce extends Disposable implements IPendingMutati
         };
     }
 
-    get(unitId: string): IMutationInfo[] | null {
-        return this._pendingMutations.get(unitId) ?? null;
+    get(unitId: string): IMutationWithOpId[] {
+        return this._pendingMutations.get(unitId) ?? [];
     }
 
-    async update(unitId: string, mutations: IMutationInfo[], baseRev: number): Promise<IPendingMutations> {
+    async getBaseRev(unitId: string): Promise<number> {
+        const stored = await this._storage?.getItem<IPendingMutations>(
+            this._getKey(unitId)
+        );
+        return stored?.baseRev ?? 0;
+    }
+
+    async update(unitId: string, mutations: IMutationWithOpId[], baseRev: number): Promise<IPendingMutations> {
         this._pendingMutations.set(unitId, mutations);
         await this._storage?.setItem<IPendingMutations>(this._getKey(unitId), {
             unitId,
@@ -130,6 +140,37 @@ export class PendingMutationSerivce extends Disposable implements IPendingMutati
             unitId,
             mutations,
             baseRev,
+            userId: this._userId,
+        };
+    }
+
+    async removeByOpIds(unitId: string, opIds: string[]): Promise<IPendingMutations> {
+        const current = this._pendingMutations.get(unitId) ?? [];
+        const stored = await this._storage?.getItem<IPendingMutations>(
+            this._getKey(unitId)
+        );
+        const currentBaseRev = stored?.baseRev ?? 0;
+        if (opIds.length === 0) {
+            return {
+                unitId,
+                mutations: current,
+                baseRev: currentBaseRev,
+                userId: this._userId,
+            };
+        }
+        const toRemove = new Set(opIds);
+        const remaining = current.filter((mutation) => !toRemove.has(mutation.opId));
+        this._pendingMutations.set(unitId, remaining);
+        await this._storage?.setItem<IPendingMutations>(this._getKey(unitId), {
+            unitId,
+            mutations: remaining,
+            baseRev: currentBaseRev,
+            userId: this._userId,
+        });
+        return {
+            unitId,
+            mutations: remaining,
+            baseRev: currentBaseRev,
             userId: this._userId,
         };
     }

@@ -1142,8 +1142,8 @@ mod tests {
                 "refMap": {"a": {"pattern": "0"}}
             }),
         );
-        let result = RemoveNumfmtTransform::default()
-            .transform_with_set_numfmt(&remove_numfmt, &set_numfmt);
+        let result =
+            RemoveNumfmtTransform::default().transform_with_set_numfmt(&remove_numfmt, &set_numfmt);
         assert!(result.m2_prime.is_none());
     }
 

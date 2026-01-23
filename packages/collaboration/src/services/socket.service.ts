@@ -51,9 +51,9 @@ export interface IJoinDocAck {
 
 export interface IChangesetRequest {
     baseRev: number;
-    clientMsgId: string;
     mutations: IMutationInfo[];
     docId: string;
+    clientId?: string;
 }
 
 export interface IChangesetAck {

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import type { IMutationInfo } from '@univerjs/core';
 import type { Observable, Subscription } from 'rxjs';
+import type { IMutationWithOpId } from './collaboration.types';
 import type {
     IChangeset,
     IChangesetAck,
@@ -65,12 +65,13 @@ export class CollaborationService
 
     // 每个 unitId 的 debounce 定时器
     private _debounceTimers: Map<string, NodeJS.Timeout> = new Map();
+    private _inFlightFlushes: Set<string> = new Set();
 
     // 批次大小限制
     private readonly _batchSizeLimit = 20;
 
     // Debounce 延迟时间（毫秒）
-    private readonly _debounceDelay = 200;
+    private readonly _debounceDelay = 0;
 
     private _collabUnits: Set<string> = new Set();
     private _pendingJoins: Map<
@@ -87,7 +88,7 @@ export class CollaborationService
     constructor(
         @ISocketService private readonly _socketService: ISocketService,
         @ILogService private readonly _logger: ILogService,
-        @IPendingMutationSerivce private readonly _pendingMutationSerivce: IPendingMutationSerivce,
+        @IPendingMutationSerivce private readonly _pendingMutationService: IPendingMutationSerivce,
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
         @ICommandService private readonly _commandService: ICommandService,
         @ITransformService private readonly _transformService: ITransformService,
@@ -194,7 +195,7 @@ export class CollaborationService
                 } else {
                     // Normal case: no version gap
                     const pendingMutations =
-                        await this._pendingMutationSerivce.get(unitId);
+                        await this._pendingMutationService.get(unitId);
 
                     this._logger.log(
                         `changeset_pushed: unit=${unitId}, localRev=${localRev}, serverRev=${serverRev}, pendingLen=${pendingMutations?.length ?? 0}`
@@ -207,7 +208,7 @@ export class CollaborationService
                         // 3. Update pending queue with transformed versions (m1Primes)
                         // This ensures: $State + m1 + m2' = $State + m2 + m1' (OT consistency)
                         const result = this._transformService.transformList(
-                            pendingMutations,
+                            pendingMutations ?? [],
                             remoteMutations
                         );
                         if (result.error) {
@@ -236,9 +237,13 @@ export class CollaborationService
 
                             // Update pending queue with transformed versions (m1')
                             // This "coordinate realignment" ensures future operations are correctly positioned
-                            await this._pendingMutationSerivce.update(
+                            const nextPending: IMutationWithOpId[] = result.m1Primes.map((mutation) => ({
+                                ...mutation,
+                                opId: generateRandomId(32),
+                            }));
+                            await this._pendingMutationService.update(
                                 unitId,
-                                result.m1Primes,
+                                nextPending,
                                 serverRev
                             );
                         }
@@ -319,7 +324,11 @@ export class CollaborationService
         try {
             // 1. 获取本地离线期间产生且尚未被服务器 Ack 的操作 (m1_list)
             // 注意：你需要从你的客户端状态管理器中取出 pending 队列或 buffer 队列
-            const pendingMutations = this._pendingMutationSerivce.get(unitId) ?? [];
+            const pendingMutations = this._pendingMutationService.get(unitId) ?? [];
+            const pendingWithOpId: IMutationWithOpId[] = pendingMutations.map((mutation) => ({
+                ...mutation,
+                opId: mutation.opId || generateRandomId(32),
+            }));
             // 2. 获取服务器上从 localRev 开始的所有后续操作 (m2_list)
             const missedOps = await this.fetchOps(unitId, localRev);
 
@@ -331,7 +340,7 @@ export class CollaborationService
                 // 3. 执行 OT 转换
                 // m1: 本地离线, m2: 服务器历史
                 const result = await this._transformService.transformList(
-                    pendingMutations,
+                    pendingWithOpId,
                     [...missedOps.flatMap((op) => op.mutations)]
                 );
 
@@ -361,12 +370,16 @@ export class CollaborationService
 
                 // 6. 处理 m1Primes (你的离线操作经过偏移后的新样子)
                 if (result.m1Primes.length > 0) {
-                    this._pendingMutationSerivce.update(
+                    const nextPending: IMutationWithOpId[] = result.m1Primes.map((mutation) => ({
+                        ...mutation,
+                        opId: generateRandomId(32),
+                    }));
+                    this._pendingMutationService.update(
                         unitId,
-                        result.m1Primes,
+                        nextPending,
                         serverLatestRev
                     );
-                    await this._flushChangeset(unitId, result.m1Primes);
+                    await this._flushChangeset(unitId);
                 }
 
                 this._logger.log(
@@ -415,48 +428,35 @@ export class CollaborationService
         const composedMutations = this._transformService.composeList(
             changeset.mutations
         );
-        await this._pendingMutationSerivce.add(
+        const mutationsWithOpId: IMutationWithOpId[] = composedMutations.map((mutation) => ({
+            ...mutation,
+            opId: generateRandomId(32),
+        }));
+        const changesetWithOpId: IChangeset = {
+            ...changeset,
+            mutations: composedMutations,
+        };
+        await this._pendingMutationService.add(
             changeset.unitId,
-            composedMutations,
+            mutationsWithOpId,
             changeset.baseRev
         );
-        this._logger.log(`Sending changeset: ${JSON.stringify(changeset)}`);
-        const mutationIdCounts = changeset.mutations.reduce<Record<string, number>>(
-            (acc, mutation) => {
-                acc[mutation.id] = (acc[mutation.id] ?? 0) + 1;
-                return acc;
-            },
-            {}
+        const pendingAfterAdd = this._pendingMutationService.get(changeset.unitId) ?? [];
+        this._logger.debug(
+            `sendChangeset: unit=${changeset.unitId}, baseRev=${changeset.baseRev}, ` +
+                `added=${composedMutations.length}, pendingLen=${pendingAfterAdd.length}, ` +
+                `socketDisconnected=${Boolean(this._socketService.getSocket()?.disconnected)}`
         );
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/602f28cd-f78b-4388-a3f1-b1ee0e32b82f', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: 'debug-session',
-                runId: 'pre-fix',
-                hypothesisId: 'H8',
-                location: 'collaboration.service.ts:sendChangeset:entry',
-                message: 'sendChangeset entry',
-                data: {
-                    unitId: changeset.unitId,
-                    baseRev: changeset.baseRev,
-                    mutationCount: changeset.mutations.length,
-                    mutationIdCounts,
-                    socketDisconnected: Boolean(
-                        this._socketService.getSocket()?.disconnected
-                    ),
-                },
-                timestamp: Date.now(),
-            }),
-        }).catch(() => {});
-        // #endregion
         if (
             !this._socketService.getSocket() ||
             this._socketService.getSocket()?.disconnected
         ) {
+            this._logger.debug(
+                `sendChangeset: skip emit (socket disconnected), unit=${changeset.unitId}`
+            );
             return;
         }
+        this._logger.log(`Sending changeset: ${JSON.stringify(changesetWithOpId)}`);
 
         // Extract unitId from mutations (unitId is used as docId)
         const unitId = changeset.unitId;
@@ -474,11 +474,14 @@ export class CollaborationService
         }
 
         // Initialize queue if not exists
-        if (!this._pendingMutationSerivce.has(unitId)) {
-            this._pendingMutationSerivce.update(unitId, [], changeset.baseRev);
+        if (!this._pendingMutationService.has(unitId)) {
+            this._pendingMutationService.update(unitId, [], changeset.baseRev);
         }
 
-        const queue = this._pendingMutationSerivce.get(unitId) ?? [];
+        const queue = this._pendingMutationService.get(unitId) ?? [];
+        this._logger.debug(
+            `sendChangeset: queueLen=${queue.length}, batchLimit=${this._batchSizeLimit}, unit=${unitId}`
+        );
 
         // Check if reached batch size limit
         if (queue.length >= this._batchSizeLimit) {
@@ -499,6 +502,7 @@ export class CollaborationService
         if (timer) {
             clearTimeout(timer);
             this._debounceTimers.delete(unitId);
+            this._logger.debug(`debounce: cleared timer for unit=${unitId}`);
         }
     }
 
@@ -511,10 +515,14 @@ export class CollaborationService
 
         // Set new timer
         const timer = setTimeout(async () => {
+            this._logger.debug(`debounce: trigger flush for unit=${unitId}`);
             await this._flushChangeset(unitId);
         }, this._debounceDelay);
 
         this._debounceTimers.set(unitId, timer);
+        this._logger.debug(
+            `debounce: set timer for unit=${unitId}, delay=${this._debounceDelay}`
+        );
     }
 
     /**
@@ -522,40 +530,65 @@ export class CollaborationService
      */
     private async _flushChangeset(
         unitId: string,
-        mutations?: IMutationInfo[]
+        mutations?: IMutationWithOpId[]
     ): Promise<void> {
         // Clear debounce timer
         this._clearDebounceTimer(unitId);
 
+        if (this._inFlightFlushes.has(unitId)) {
+            this._logger.debug(`flush: skip (in-flight), unit=${unitId}`);
+            return;
+        }
+
         const pendingMutations =
-            mutations ?? this._pendingMutationSerivce.get(unitId);
+            mutations ?? this._pendingMutationService.get(unitId);
 
         // If no pending mutations, return
         if (!pendingMutations || pendingMutations.length === 0) {
+            this._logger.debug(
+                `flush: skip (no pending mutations), unit=${unitId}`
+            );
             return;
         }
 
         const currentBaseRev = this.getDocRev(unitId);
 
+        if (mutations) {
+            await this._pendingMutationService.update(unitId, pendingMutations, currentBaseRev);
+        }
+        const opIds = pendingMutations.map((mutation) => mutation.opId);
+
         this._logger.log(
             `flush: unit=${unitId}, baseRev=${currentBaseRev}, sendLen=${pendingMutations.length}`
         );
+        this._logger.debug(
+            `flush: socketDisconnected=${Boolean(this._socketService.getSocket()?.disconnected)}, unit=${unitId}`
+        );
+        this._logger.debug(`flush: opIds=${opIds.join(',')}, unit=${unitId}`);
 
         // Build request
-        const clientMsgId = `${this._socketService.getSocket()?.id}-${Date.now()}-${generateRandomId()}`;
         const request: IChangesetRequest = {
             baseRev: currentBaseRev,
-            clientMsgId,
             mutations: pendingMutations,
             docId: unitId,
+            clientId: this._socketService.getSocket()?.id,
         };
+
+        this._logger.debug(
+            `flush: request unit=${unitId}, mutations=${pendingMutations.length}`
+        );
 
         // Send to server
         return new Promise<void>((resolve, reject) => {
+            this._inFlightFlushes.add(unitId);
             this._socketService.emit(
                 'changeset',
                 request,
                 async (ack: IChangesetAck) => {
+                    this._logger.debug(
+                        `flush: ack status=${ack.status}, serverRev=${ack.serverRev ?? 'null'}, ` +
+                            `unit=${unitId}`
+                    );
                     if (ack.status === 'ok' && ack.serverRev !== undefined) {
                         this.updateDocRev(unitId, ack.serverRev);
 
@@ -568,7 +601,7 @@ export class CollaborationService
                             // Optional: Verify consistency between client and server transform
                             // If there's a discrepancy, we should trust the server's result
                             const currentPending =
-                                await this._pendingMutationSerivce.get(unitId);
+                                await this._pendingMutationService.get(unitId);
                             if (currentPending && currentPending.length > 0) {
                                 this._logger.warn(
                                     `Client still has ${currentPending.length} pending mutations after Ack. ` +
@@ -578,8 +611,8 @@ export class CollaborationService
 
                             // The server's transformed mutations are now the source of truth
                             // Clear pending since server has processed our operations
-                            await this._pendingMutationSerivce.clear(unitId);
-                            this._logger.log(`flush ack cleared: unit=${unitId}`);
+                            await this._pendingMutationService.removeByOpIds(unitId, opIds);
+                            this._logger.log(`flush ack removed: unit=${unitId}, opIds=${opIds.length}`);
 
                             // Note: We don't re-apply ack.mutations here because:
                             // 1. The operations were already applied locally when sent
@@ -589,13 +622,17 @@ export class CollaborationService
                             this._logger.log(
                                 `Changeset applied, new version: ${ack.serverRev}, mutations count: ${pendingMutations.length}`
                             );
-                            await this._pendingMutationSerivce.clear(unitId);
-                            this._logger.log(`flush ack cleared: unit=${unitId}`);
+                            await this._pendingMutationService.removeByOpIds(unitId, opIds);
+                            this._logger.log(`flush ack removed: unit=${unitId}, opIds=${opIds.length}`);
                         }
 
+                        this._inFlightFlushes.delete(unitId);
+                        await this._flushChangeset(unitId);
                         resolve();
                     } else {
                         // TODO: Handle version mismatch - may need to fetch_ops and resync
+                        this._inFlightFlushes.delete(unitId);
+                        await this._flushChangeset(unitId);
                         reject(new Error(`Changeset failed: ${ack.message}`));
                     }
                 }

@@ -16,8 +16,10 @@ pub struct Model {
     pub mutation_id: String,
     #[sea_orm(column_type = "JsonBinary")]
     pub params: Json,
-    #[sea_orm(column_name = "client_msg_id")]
-    pub client_msg_id: String,
+    #[sea_orm(column_name = "client_id")]
+    pub client_id: String,
+    #[sea_orm(column_name = "op_id")]
+    pub op_id: String,
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTimeWithTimeZone,
 }

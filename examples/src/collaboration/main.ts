@@ -150,7 +150,7 @@ async function createNewInstance() {
         [UniverNetworkPlugin],
         [UniverSheetsNotePlugin],
         [CollaborationPlugin, {
-            wsUrl: 'ws://localhost:3000/ws',
+            wsUrl: 'ws://localhost:8800/ws',
             userId,
         }],
     ]);
@@ -170,7 +170,7 @@ async function createNewInstance() {
     userManagerService.setCurrentUser(mockUser);
 
     const docId = '019bc0ff-395c-725c-baff-735705955782';
-    const doc = await fetch(`http://localhost:3000/api/documents/${docId}`)
+    const doc = await fetch(`http://localhost:8800/api/documents/${docId}`)
         .then((res) => res.json());
 
     const docContent = await fetch(doc.signed_url)

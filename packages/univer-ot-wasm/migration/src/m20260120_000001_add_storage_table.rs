@@ -11,12 +11,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Storages::Table)
                     .if_not_exists()
-                    .col(
-                        ColumnDef::new(Storages::Id)
-                            .uuid()
-                            .not_null()
-                            .primary_key(),
-                    )
+                    .col(ColumnDef::new(Storages::Id).uuid().not_null().primary_key())
                     .col(ColumnDef::new(Storages::Endpoint).string().not_null())
                     .col(ColumnDef::new(Storages::Region).string().not_null())
                     .col(ColumnDef::new(Storages::Bucket).string().not_null())
@@ -54,7 +49,11 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(DocumentSnapshots::Table)
-                    .add_column(ColumnDef::new(DocumentSnapshots::StorageId).uuid().not_null())
+                    .add_column(
+                        ColumnDef::new(DocumentSnapshots::StorageId)
+                            .uuid()
+                            .not_null(),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -176,7 +175,11 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(DocumentSnapshots::Table)
-                    .add_column(ColumnDef::new(DocumentSnapshots::Content).json_binary().not_null())
+                    .add_column(
+                        ColumnDef::new(DocumentSnapshots::Content)
+                            .json_binary()
+                            .not_null(),
+                    )
                     .drop_column(DocumentSnapshots::StorageId)
                     .to_owned(),
             )

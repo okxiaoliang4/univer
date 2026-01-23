@@ -125,6 +125,20 @@ pub struct MutationInfoInternal {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MutationInfoWithOpId {
+    pub id: String,
+    pub params: serde_json::Value,
+    #[serde(rename = "opId")]
+    pub op_id: String,
+}
+
+impl MutationInfoInternal {
+    pub fn with_op_id(self, _op_id: Option<String>) -> Self {
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransformResultInternal {
     pub m1_prime: Option<MutationInfoInternal>,
     pub m2_prime: Option<MutationInfoInternal>,
@@ -156,7 +170,7 @@ pub struct MutationInfo {
 #[wasm_bindgen]
 impl MutationInfo {
     #[wasm_bindgen(constructor)]
-    pub fn new(id: String, params: JsValue) -> Self {
+    pub fn new(id: String, params: JsValue, _op_id: Option<String>) -> Self {
         Self { id, params }
     }
 }

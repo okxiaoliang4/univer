@@ -5,6 +5,7 @@ use crate::server::types::{
     FetchOpsAck, FetchOpsRequest, JoinDocAck, JoinDocRequest, LeaveDocRequest, OperationInfo,
     PresenceUpdateRequest,
 };
+use crate::types::MutationInfoWithOpId;
 use anyhow::Result;
 use socketioxide::{
     extract::{AckSender, Data, SocketRef},
@@ -241,17 +242,22 @@ async fn handle_changeset(
         Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
 
     // Convert ChangesetRequest to Changeset for OTService
+    let mutations: Vec<MutationInfoWithOpId> = req.mutations;
+
     let changeset = Changeset {
         base_rev: req.base_rev,
         user_id: socket.id.to_string(), // TODO: 后面换成auth token中的userId
-        mutations: req.mutations.clone(),
-        client_id: format!("socket:{}", socket.id), // Use socket ID as client ID
+        mutations,
+        client_id: req
+            .client_id
+            .clone()
+            .unwrap_or_else(|| format!("socket:{}", socket.id)),
     };
 
     // Apply changeset via OTService
     let result = state
         .document_actor_manager
-        .apply_changeset(doc_id, changeset, req.client_msg_id)
+        .apply_changeset(doc_id, changeset)
         .await?;
 
     info!(
@@ -363,18 +369,24 @@ async fn handle_presence_update(
     req: PresenceUpdateRequest,
 ) -> Result<()> {
     let doc_id = req.doc_id.clone();
-    let client_id = req
-        .client_id
-        .unwrap_or_else(|| socket.id.to_string().chars().fold(0u64, |acc, c| acc + c as u64));
+    let client_id = req.client_id.unwrap_or_else(|| {
+        socket
+            .id
+            .to_string()
+            .chars()
+            .fold(0u64, |acc, c| acc + c as u64)
+    });
 
-    let user = req.user.ok_or_else(|| anyhow::anyhow!("Missing user info"))?;
-    let selection_params = req
-        .selection_params
-        .unwrap_or_else(|| serde_json::json!({
+    let user = req
+        .user
+        .ok_or_else(|| anyhow::anyhow!("Missing user info"))?;
+    let selection_params = req.selection_params.unwrap_or_else(|| {
+        serde_json::json!({
             "unitId": "",
             "subUnitId": "",
             "selections": [],
-        }));
+        })
+    });
 
     let awareness_user = AwarenessStateItem {
         client_id,

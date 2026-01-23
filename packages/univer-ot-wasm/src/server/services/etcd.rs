@@ -48,7 +48,11 @@ impl EtcdService {
         let key = format!("{}/{}", service_name, instance_id);
 
         client
-            .put(key, endpoint, Some(etcd_client::PutOptions::new().with_lease(lease_id)))
+            .put(
+                key,
+                endpoint,
+                Some(etcd_client::PutOptions::new().with_lease(lease_id)),
+            )
             .await
             .context("Failed to register service key in etcd")?;
 
@@ -102,10 +106,7 @@ impl EtcdRegistration {
     }
 }
 
-fn spawn_keepalive_task(
-    keeper: Arc<Mutex<LeaseKeeper>>,
-    lease_ttl_seconds: u64,
-) -> JoinHandle<()> {
+fn spawn_keepalive_task(keeper: Arc<Mutex<LeaseKeeper>>, lease_ttl_seconds: u64) -> JoinHandle<()> {
     let interval_seconds = (lease_ttl_seconds / 3).max(1);
     tokio::spawn(async move {
         let mut ticker = interval(Duration::from_secs(interval_seconds));

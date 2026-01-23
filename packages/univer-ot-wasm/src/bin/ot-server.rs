@@ -57,21 +57,23 @@ async fn main() -> anyhow::Result<()> {
     let (layer, io) = SocketIo::new_layer();
 
     // Create application state
-    let state = Arc::new(ServerState::new(
-        db,
-        config.snapshot_interval,
-        config.s3_endpoint.clone(),
-        config.s3_region.clone(),
-        config.s3_bucket.clone(),
-        config.s3_access_key.clone(),
-        config.s3_secret_key.clone(),
-        config.redis_url.clone(),
-        config.awareness_redis_enabled,
-        config.awareness_ttl_seconds,
-        config.etcd_endpoints.clone(),
-        io.clone(),
-    )
-    .await);
+    let state = Arc::new(
+        ServerState::new(
+            db,
+            config.snapshot_interval,
+            config.s3_endpoint.clone(),
+            config.s3_region.clone(),
+            config.s3_bucket.clone(),
+            config.s3_access_key.clone(),
+            config.s3_secret_key.clone(),
+            config.redis_url.clone(),
+            config.awareness_redis_enabled,
+            config.awareness_ttl_seconds,
+            config.etcd_endpoints.clone(),
+            io.clone(),
+        )
+        .await,
+    );
 
     let etcd_service = state.etcd_service.clone();
     let instance_id = Uuid::new_v4();

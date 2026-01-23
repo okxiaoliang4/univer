@@ -1,4 +1,4 @@
-use crate::types::MutationInfoInternal;
+use crate::types::{MutationInfoInternal, MutationInfoWithOpId};
 use serde::{Deserialize, Serialize};
 
 /// Request structure for changeset event
@@ -9,9 +9,9 @@ pub struct ChangesetRequest {
     pub doc_id: String,
     #[serde(rename = "baseRev")]
     pub base_rev: i64,
-    #[serde(rename = "clientMsgId")]
-    pub client_msg_id: String,
-    pub mutations: Vec<MutationInfoInternal>,
+    #[serde(rename = "clientId")]
+    pub client_id: Option<String>,
+    pub mutations: Vec<MutationInfoWithOpId>,
 }
 
 /// Ack response for changeset event

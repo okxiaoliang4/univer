@@ -2,7 +2,7 @@ use crate::server::database::entities::{documents, operation_log};
 use crate::server::services::document::DocumentService;
 use crate::server::services::OpQueueService;
 use crate::transform::TransformServiceCore;
-use crate::types::MutationInfoInternal;
+use crate::types::{MutationInfoInternal, MutationInfoWithOpId};
 use anyhow::{Context, Result};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
@@ -17,7 +17,7 @@ pub struct Changeset {
     pub base_rev: i64,
     #[serde(rename = "userId")]
     pub user_id: String,
-    pub mutations: Vec<MutationInfoInternal>,
+    pub mutations: Vec<MutationInfoWithOpId>,
     #[serde(rename = "clientId")]
     pub client_id: String,
 }
@@ -59,7 +59,6 @@ impl OTService {
         &self,
         doc_id: Uuid,
         changeset: Changeset,
-        client_msg_id: String,
     ) -> Result<ChangesetApplied> {
         let txn = (*self.db).begin().await?;
 
@@ -71,6 +70,39 @@ impl OTService {
             .map(|d| d.current_version)
             .context("Document not found")?;
 
+        // Deduplicate by (doc_id, client_id, op_id) per mutation (idempotent behavior)
+        if let Some(first_mutation) = changeset.mutations.first() {
+            let existing_op = operation_log::Entity::find()
+                .filter(operation_log::Column::DocId.eq(doc_id))
+                .filter(operation_log::Column::ClientId.eq(&changeset.client_id))
+                .filter(operation_log::Column::OpId.eq(&first_mutation.op_id))
+                .one(&txn)
+                .await?;
+            if let Some(existing_op) = existing_op {
+                let existing_rev = existing_op.rev;
+                let changeset_size = changeset.mutations.len() as i64;
+                let existing_mutations = self
+                    .document_service
+                    .get_operations(
+                        doc_id,
+                        existing_rev,
+                        Some(existing_rev + changeset_size - 1),
+                    )
+                    .await?;
+                return Ok(ChangesetApplied {
+                    server_rev: existing_rev + changeset_size - 1,
+                    mutations: existing_mutations
+                        .into_iter()
+                        .map(|op| MutationInfoInternal {
+                            id: op.mutation_id,
+                            params: op.params,
+                        })
+                        .collect(),
+                    user_id: changeset.user_id,
+                });
+            }
+        }
+
         // Validate base_rev is not greater than current version (shouldn't happen)
         if changeset.base_rev > current_version {
             return Err(anyhow::anyhow!(
@@ -78,41 +110,6 @@ impl OTService {
                 changeset.base_rev,
                 current_version
             ));
-        }
-
-        // Check for duplicate client_msg_id (idempotency) - check once for the entire changeset
-        // Use the first mutation's client_msg_id to check if the entire changeset was already processed
-        let first_mutation_client_msg_id = format!("{}-0", client_msg_id);
-        let existing_op = operation_log::Entity::find()
-            .filter(operation_log::Column::DocId.eq(doc_id))
-            .filter(operation_log::Column::ClientMsgId.eq(&first_mutation_client_msg_id))
-            .one(&txn)
-            .await?;
-
-        if let Some(existing_op) = existing_op {
-            // Return existing result if duplicate
-            // Find all mutations for this changeset (they should be consecutive revisions)
-            let existing_rev = existing_op.rev;
-            let changeset_size = changeset.mutations.len() as i64;
-            let existing_mutations = self
-                .document_service
-                .get_operations(
-                    doc_id,
-                    existing_rev,
-                    Some(existing_rev + changeset_size - 1),
-                )
-                .await?;
-            return Ok(ChangesetApplied {
-                server_rev: existing_rev + changeset_size - 1,
-                mutations: existing_mutations
-                    .into_iter()
-                    .map(|op| MutationInfoInternal {
-                        id: op.mutation_id,
-                        params: op.params,
-                    })
-                    .collect(),
-                user_id: changeset.user_id,
-            });
         }
 
         // Get operations that happened after base_rev (for OT transformation)
@@ -132,9 +129,18 @@ impl OTService {
             .collect();
 
         // Transform all mutations against concurrent operations using transform_list
+        let m1_internal: Vec<MutationInfoInternal> = changeset
+            .mutations
+            .iter()
+            .map(|mutation| MutationInfoInternal {
+                id: mutation.id.clone(),
+                params: mutation.params.clone(),
+            })
+            .collect();
+
         let (m1_primes, _, error) = self
             .transform_service
-            .transform_list(&changeset.mutations, &concurrent_mutations);
+            .transform_list(&m1_internal, &concurrent_mutations);
 
         if let Some(err) = error {
             return Err(anyhow::anyhow!("Transform error: {}", err));
@@ -146,15 +152,19 @@ impl OTService {
         let now = chrono::Utc::now();
 
         for (index, m1_prime) in m1_primes.into_iter().enumerate() {
-            // Generate unique client_msg_id for each mutation: {base_client_msg_id}-{index}
-            let unique_client_msg_id = format!("{}-{}", client_msg_id, index);
+            let op_id = changeset
+                .mutations
+                .get(index)
+                .map(|mutation| mutation.op_id.clone())
+                .unwrap_or_default();
             let operation = operation_log::ActiveModel {
                 doc_id: Set(doc_id),
                 rev: Set(next_rev),
                 user_id: Set(changeset.user_id.clone()),
                 mutation_id: Set(m1_prime.id.clone()),
                 params: Set(m1_prime.params.clone()),
-                client_msg_id: Set(unique_client_msg_id),
+                client_id: Set(changeset.client_id.clone()),
+                op_id: Set(op_id),
                 created_at: Set(now.into()),
                 ..Default::default()
             };

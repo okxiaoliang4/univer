@@ -3,6 +3,8 @@ pub mod config;
 #[cfg(feature = "server")]
 pub mod database;
 #[cfg(feature = "server")]
+pub mod grpc;
+#[cfg(feature = "server")]
 pub mod handlers;
 #[cfg(feature = "server")]
 pub mod services;
@@ -10,5 +12,3 @@ pub mod services;
 pub mod state;
 #[cfg(feature = "server")]
 pub mod types;
-#[cfg(feature = "server")]
-pub mod grpc;

@@ -68,8 +68,14 @@ impl MutationTransform for RemoveNumfmtTransform {
             };
         }
         let m2_params: serde_json::Value = m2.params.clone();
-        let m2_unit = m2_params.get("unitId").and_then(|v| v.as_str()).unwrap_or("");
-        let m2_sub_unit = m2_params.get("subUnitId").and_then(|v| v.as_str()).unwrap_or("");
+        let m2_unit = m2_params
+            .get("unitId")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let m2_sub_unit = m2_params
+            .get("subUnitId")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         let m2_sub_unit_params = crate::types::SubUnitParams {
             unit_id: m2_unit.to_string(),
             sub_unit_id: m2_sub_unit.to_string(),
@@ -96,13 +102,15 @@ impl MutationTransform for RemoveNumfmtTransform {
             for value in values.values() {
                 if let Some(ranges) = value.get("ranges").and_then(|v| v.as_array()) {
                     for set_range in ranges {
-                        let set_range: crate::types::Range = serde_json::from_value(set_range.clone())
-                            .unwrap_or(crate::types::Range {
-                                start_row: 0,
-                                start_column: 0,
-                                end_row: 0,
-                                end_column: 0,
-                            });
+                        let set_range: crate::types::Range = serde_json::from_value(
+                            set_range.clone(),
+                        )
+                        .unwrap_or(crate::types::Range {
+                            start_row: 0,
+                            start_column: 0,
+                            end_row: 0,
+                            end_column: 0,
+                        });
                         if ranges_intersect(range, &set_range) {
                             has_intersection = true;
                             break;

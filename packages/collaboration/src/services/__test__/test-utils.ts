@@ -28,6 +28,7 @@ import type {
     UnitType,
 } from '@univerjs/core';
 import type { Socket } from 'socket.io-client';
+import type { IMutationWithOpId } from '../collaboration.types';
 import type { IPendingMutations, IPendingMutationSerivce } from '../offline-storage.service';
 import type { IChangesetAck, IChangesetPushed, IFetchOpsAck, IJoinDocAck, ISocketService } from '../socket.service';
 import { CommandType, UniverInstanceType } from '@univerjs/core';
@@ -49,6 +50,7 @@ export class MockSocketService implements ISocketService {
     private _disconnected$ = new Subject<void>();
     private _changesetPushed$ = new Subject<IChangesetPushed>();
     connected$ = this._connected$.asObservable();
+    connected = false;
     disconnected$ = this._disconnected$.asObservable();
     changesetPushed$ = this._changesetPushed$.asObservable();
 
@@ -77,6 +79,7 @@ export class MockSocketService implements ISocketService {
     }
 
     setSocketState(connected: boolean): void {
+        this.connected = connected;
         if (!this._socket) {
             this._socket = {
                 id: 'socket-1',
@@ -93,10 +96,12 @@ export class MockSocketService implements ISocketService {
     }
 
     emitConnected(): void {
+        this.connected = true;
         this._connected$.next();
     }
 
     emitDisconnected(): void {
+        this.connected = false;
         this._disconnected$.next();
     }
 
@@ -129,20 +134,74 @@ export class MockSocketService implements ISocketService {
 
 export class MockOfflineStorageService implements IPendingMutationSerivce {
     private _store = new Map<string, IPendingMutations>();
+    private _ready$ = new BehaviorSubject<boolean>(true);
     clearCalls: string[] = [];
     saveCalls: string[] = [];
+    removeCalls: Array<{ unitId: string; opIds: string[] }> = [];
 
-    async savePendingMutations(unitId: string, mutations: IMutationInfo[], baseRev: number, userId: string): Promise<void> {
+    readonly ready$ = this._ready$.asObservable();
+
+    isReady(): boolean {
+        return this._ready$.value;
+    }
+
+    has(unitId: string): boolean {
+        return this._store.has(unitId);
+    }
+
+    get(unitId: string): IMutationWithOpId[] | null {
+        return this._store.get(unitId)?.mutations ?? null;
+    }
+
+    async add(unitId: string, mutations: IMutationWithOpId[], baseRev: number): Promise<IPendingMutations> {
         const existing = this._store.get(unitId);
         const accumulated = existing ? [...existing.mutations, ...mutations] : mutations;
-        this._store.set(unitId, {
+        const next = {
             unitId,
             mutations: accumulated,
             baseRev: existing?.baseRev ?? baseRev,
-            userId,
-            timestamp: Date.now(),
-        });
+            userId: existing?.userId ?? 'test-user',
+        };
+        this._store.set(unitId, next);
         this.saveCalls.push(unitId);
+        return next;
+    }
+
+    async update(unitId: string, mutations: IMutationWithOpId[], baseRev: number): Promise<IPendingMutations> {
+        const existing = this._store.get(unitId);
+        const next = {
+            unitId,
+            mutations,
+            baseRev,
+            userId: existing?.userId ?? 'test-user',
+        };
+        this._store.set(unitId, next);
+        this.saveCalls.push(unitId);
+        return next;
+    }
+
+    async getBaseRev(unitId: string): Promise<number> {
+        return this._store.get(unitId)?.baseRev ?? 0;
+    }
+
+    async removeByOpIds(unitId: string, opIds: string[]): Promise<IPendingMutations> {
+        const current = this._store.get(unitId);
+        const toRemove = new Set(opIds);
+        const remaining = current?.mutations.filter((mutation) => !toRemove.has(mutation.opId)) ?? [];
+        const next = {
+            unitId,
+            mutations: remaining,
+            baseRev: current?.baseRev ?? 0,
+            userId: current?.userId ?? 'test-user',
+        };
+        this._store.set(unitId, next);
+        this.removeCalls.push({ unitId, opIds });
+        return next;
+    }
+
+    async clear(unitId: string): Promise<void> {
+        this._store.delete(unitId);
+        this.clearCalls.push(unitId);
     }
 
     async loadPendingMutations(unitId: string): Promise<IPendingMutations | null> {
@@ -153,9 +212,20 @@ export class MockOfflineStorageService implements IPendingMutationSerivce {
         return [...this._store.values()];
     }
 
+    async savePendingMutations(unitId: string, mutations: IMutationWithOpId[], baseRev: number, userId: string): Promise<void> {
+        const existing = this._store.get(unitId);
+        const accumulated = existing ? [...existing.mutations, ...mutations] : mutations;
+        this._store.set(unitId, {
+            unitId,
+            mutations: accumulated,
+            baseRev: existing?.baseRev ?? baseRev,
+            userId,
+        });
+        this.saveCalls.push(unitId);
+    }
+
     async clearPendingMutations(unitId: string): Promise<void> {
-        this._store.delete(unitId);
-        this.clearCalls.push(unitId);
+        await this.clear(unitId);
     }
 
     async clearAllPendingMutations(): Promise<void> {
@@ -248,7 +318,9 @@ export class MockCommandService implements ICommandService {
     executed: Array<{ id: string; params?: object; options?: IExecutionOptions }> = [];
 
     emitMutationExecutedForCollab(commandInfo: Readonly<ICommandInfo>, options?: IExecutionOptions): void {
-        this._collabListeners.forEach((listener) => listener(commandInfo, options));
+        this._collabListeners.forEach((listener) => {
+            listener(commandInfo, options);
+        });
     }
 
     hasCommand(commandId: string): boolean {

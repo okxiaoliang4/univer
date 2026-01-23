@@ -72,7 +72,10 @@ impl AwarenessService {
         }
 
         {
-            let mut guard = self.socket_map.write().expect("awareness socket lock poisoned");
+            let mut guard = self
+                .socket_map
+                .write()
+                .expect("awareness socket lock poisoned");
             guard
                 .entry(doc_id.to_string())
                 .or_default()
@@ -95,7 +98,10 @@ impl AwarenessService {
 
     pub async fn remove_by_socket(&self, doc_id: &str, socket_id: &str) -> Result<()> {
         let client_id = {
-            let mut guard = self.socket_map.write().expect("awareness socket lock poisoned");
+            let mut guard = self
+                .socket_map
+                .write()
+                .expect("awareness socket lock poisoned");
             guard
                 .get_mut(doc_id)
                 .and_then(|doc_map| doc_map.remove(socket_id))

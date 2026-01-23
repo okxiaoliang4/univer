@@ -9,12 +9,12 @@ service OTRpcService {
 message MutationInfo {
   string id = 1;
   string params = 2; // JSON string
+  string op_id = 3;
 }
 
 message BroadcastOpRequest {
   string doc_id = 1;
   int64 base_rev = 2;
-  string client_msg_id = 3;
   string user_id = 4;
   string client_id = 5;
   repeated MutationInfo mutations = 6;

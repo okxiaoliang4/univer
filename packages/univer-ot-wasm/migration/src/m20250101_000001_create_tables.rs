@@ -72,11 +72,6 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(OperationLogs::ClientMsgId)
-                            .string()
-                            .not_null(),
-                    )
-                    .col(
                         ColumnDef::new(OperationLogs::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
@@ -101,18 +96,6 @@ impl MigrationTrait for Migration {
                     .table(OperationLogs::Table)
                     .col(OperationLogs::DocId)
                     .col(OperationLogs::Rev)
-                    .unique()
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_index(
-                Index::create()
-                    .name("idx_operation_logs_doc_id_client_msg_id")
-                    .table(OperationLogs::Table)
-                    .col(OperationLogs::DocId)
-                    .col(OperationLogs::ClientMsgId)
                     .unique()
                     .to_owned(),
             )
@@ -161,6 +144,5 @@ enum OperationLogs {
     UserId,
     MutationId,
     Params,
-    ClientMsgId,
     CreatedAt,
 }

@@ -1,5 +1,6 @@
-use crate::types::MutationInfoInternal;
 use crate::server::state::AppState;
+use crate::types::MutationInfoInternal;
+use crate::types::MutationInfoWithOpId;
 use serde_json::Value as JsonValue;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -29,8 +30,8 @@ impl OtRpcService for OtGrpcService {
         request: Request<BroadcastOpRequest>,
     ) -> Result<Response<BroadcastOpResponse>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
+        let doc_id =
+            Uuid::parse_str(&req.doc_id).map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
 
         let mutations = req
             .mutations
@@ -38,9 +39,10 @@ impl OtRpcService for OtGrpcService {
             .map(|mutation| {
                 let params = serde_json::from_str::<JsonValue>(&mutation.params)
                     .map_err(|_| Status::invalid_argument("Invalid mutation params"))?;
-                Ok(MutationInfoInternal {
+                Ok(MutationInfoWithOpId {
                     id: mutation.id,
                     params,
+                    op_id: mutation.op_id,
                 })
             })
             .collect::<Result<Vec<_>, Status>>()?;
@@ -55,7 +57,7 @@ impl OtRpcService for OtGrpcService {
         let applied = self
             .state
             .document_actor_manager
-            .apply_changeset(doc_id, changeset, req.client_msg_id.clone())
+            .apply_changeset(doc_id, changeset)
             .await
             .map_err(|err| Status::internal(err.to_string()))?;
 
@@ -68,7 +70,12 @@ impl OtRpcService for OtGrpcService {
         };
 
         if let Ok(json) = serde_json::to_value(&pushed) {
-            let _ = self.state.socket_io.to(room).emit("changeset_pushed", &json).await;
+            let _ = self
+                .state
+                .socket_io
+                .to(room)
+                .emit("changeset_pushed", &json)
+                .await;
         }
 
         Ok(Response::new(BroadcastOpResponse {

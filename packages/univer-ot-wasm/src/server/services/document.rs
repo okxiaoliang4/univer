@@ -99,7 +99,8 @@ impl DocumentService {
                 user_id: op.user_id,
                 mutation_id: op.mutation_id,
                 params: op.params,
-                client_msg_id: op.client_msg_id,
+                client_id: op.client_id,
+                op_id: op.op_id,
                 created_at: op.created_at.into(),
             })
             .collect())
@@ -144,6 +145,7 @@ pub struct OperationInfo {
     pub user_id: String,
     pub mutation_id: String,
     pub params: JsonValue,
-    pub client_msg_id: String,
+    pub client_id: String,
+    pub op_id: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }

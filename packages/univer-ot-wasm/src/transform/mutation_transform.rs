@@ -4,6 +4,14 @@ use crate::types::{MutationInfoInternal, TransformResultInternal};
 macro_rules! sheet_mutation_transform_list {
     ($macro:ident) => {
         $macro!(
+            transform_with_set_range_values,
+            "sheet.mutation.set-range-values"
+        );
+        $macro!(transform_with_insert_row, "sheet.mutation.insert-row");
+        $macro!(transform_with_insert_col, "sheet.mutation.insert-col");
+        $macro!(transform_with_remove_rows, "sheet.mutation.remove-rows");
+        $macro!(transform_with_remove_col, "sheet.mutation.remove-col");
+        $macro!(
             transform_with_add_range_protection,
             "sheet.mutation.add-range-protection"
         );
@@ -181,41 +189,6 @@ macro_rules! identity_transform_method {
 pub trait MutationTransform: Default {
     /// Get the mutation ID string for this mutation type
     fn mutation_id() -> &'static str;
-
-    /// Transform this mutation type against set-range-values mutation
-    fn transform_with_set_range_values(
-        &self,
-        m1: &MutationInfoInternal,
-        m2: &MutationInfoInternal,
-    ) -> TransformResultInternal;
-
-    /// Transform this mutation type against insert-row mutation
-    fn transform_with_insert_row(
-        &self,
-        m1: &MutationInfoInternal,
-        m2: &MutationInfoInternal,
-    ) -> TransformResultInternal;
-
-    /// Transform this mutation type against insert-col mutation
-    fn transform_with_insert_col(
-        &self,
-        m1: &MutationInfoInternal,
-        m2: &MutationInfoInternal,
-    ) -> TransformResultInternal;
-
-    /// Transform this mutation type against remove-rows mutation
-    fn transform_with_remove_rows(
-        &self,
-        m1: &MutationInfoInternal,
-        m2: &MutationInfoInternal,
-    ) -> TransformResultInternal;
-
-    /// Transform this mutation type against remove-col mutation
-    fn transform_with_remove_col(
-        &self,
-        m1: &MutationInfoInternal,
-        m2: &MutationInfoInternal,
-    ) -> TransformResultInternal;
 
     /// Compose two mutations of the same type
     fn compose(
