@@ -2,23 +2,25 @@
 mod tests {
     use crate::transform::mutation_transform::MutationTransform;
     use crate::transform::sheets_mutations::{
-        AddRangeProtectionTransform, AddRangeThemeTransform, AddWorksheetMergeTransform,
-        AddWorksheetProtectionTransform, CopyWorksheetEndTransform, DeleteRangeProtectionTransform,
-        DeleteWorksheetProtectionTransform, DeleteWorksheetRangeThemeStyleTransform,
-        EmptyTransform, InsertSheetTransform, MoveColumnsTransform, MoveRangeTransform,
-        MoveRowsTransform, RegisterWorksheetRangeThemeStyleTransform, RemoveNumfmtTransform,
-        RemoveRangeThemeTransform, RemoveSheetTransform, RemoveWorksheetMergeTransform,
-        ReorderRangeTransform, SetColHiddenTransform, SetColVisibleTransform, SetFrozenTransform,
-        SetGridlinesColorTransform, SetNumfmtTransform, SetRangeProtectionTransform,
-        SetRangeThemeTransform, SetRowHiddenTransform, SetRowVisibleTransform,
-        SetTabColorTransform, SetWorkbookNameTransform, SetWorksheetColWidthTransform,
-        SetWorksheetColumnCountTransform, SetWorksheetDefaultStyleTransform,
-        SetWorksheetHiddenTransform, SetWorksheetNameTransform, SetWorksheetOrderTransform,
-        SetWorksheetPermissionPointsTransform, SetWorksheetProtectionTransform,
-        SetWorksheetRangeThemeStyleTransform, SetWorksheetRightToLeftTransform,
-        SetWorksheetRowAutoHeightTransform, SetWorksheetRowCountTransform,
-        SetWorksheetRowHeightTransform, SetWorksheetRowIsAutoHeightTransform,
-        ToggleGridlinesTransform, UnregisterWorksheetRangeThemeStyleTransform,
+        AddDataValidationTransform, AddRangeProtectionTransform, AddRangeThemeTransform,
+        AddWorksheetMergeTransform, AddWorksheetProtectionTransform, CopyWorksheetEndTransform,
+        DeleteRangeProtectionTransform, DeleteWorksheetProtectionTransform,
+        DeleteWorksheetRangeThemeStyleTransform, EmptyTransform, InsertSheetTransform,
+        MoveColumnsTransform, MoveRangeTransform, MoveRowsTransform,
+        RegisterWorksheetRangeThemeStyleTransform, RemoveDataValidationTransform,
+        RemoveNumfmtTransform, RemoveRangeThemeTransform, RemoveSheetTransform,
+        RemoveWorksheetMergeTransform, ReorderRangeTransform, SetColHiddenTransform,
+        SetColVisibleTransform, SetFrozenTransform, SetGridlinesColorTransform, SetNumfmtTransform,
+        SetRangeProtectionTransform, SetRangeThemeTransform, SetRowHiddenTransform,
+        SetRowVisibleTransform, SetTabColorTransform, SetWorkbookNameTransform,
+        SetWorksheetColWidthTransform, SetWorksheetColumnCountTransform,
+        SetWorksheetDefaultStyleTransform, SetWorksheetHiddenTransform, SetWorksheetNameTransform,
+        SetWorksheetOrderTransform, SetWorksheetPermissionPointsTransform,
+        SetWorksheetProtectionTransform, SetWorksheetRangeThemeStyleTransform,
+        SetWorksheetRightToLeftTransform, SetWorksheetRowAutoHeightTransform,
+        SetWorksheetRowCountTransform, SetWorksheetRowHeightTransform,
+        SetWorksheetRowIsAutoHeightTransform, ToggleGridlinesTransform,
+        UnregisterWorksheetRangeThemeStyleTransform, UpdateDataValidationTransform,
     };
     use crate::transform::test_utils::test_utils::create_mutation_info;
     use serde_json;
@@ -2037,5 +2039,177 @@ mod tests {
         let result = DeleteWorksheetProtectionTransform::default()
             .transform_with_set_worksheet_protection(&delete_protection, &set_protection);
         assert!(result.m2_prime.is_none());
+    }
+
+    #[test]
+    fn test_add_data_validation_shifts_on_insert_row() {
+        let transform = AddDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.addRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "rule": {
+                    "uid": "rule-1",
+                    "ranges": [{"startRow": 1, "startColumn": 0, "endRow": 1, "endColumn": 0}]
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-row".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_insert_row(&m1, &m2);
+        let params = result.m1_prime.unwrap().params;
+        let rule = params.get("rule").unwrap().as_object().unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startRow").unwrap().as_u64().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_add_data_validation_shifts_on_insert_col() {
+        let transform = AddDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.addRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "rule": {
+                    "uid": "rule-1",
+                    "ranges": [{"startRow": 0, "startColumn": 1, "endRow": 0, "endColumn": 1}]
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_insert_col(&m1, &m2);
+        let params = result.m1_prime.unwrap().params;
+        let rule = params.get("rule").unwrap().as_object().unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startColumn").unwrap().as_u64().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_add_data_validation_shifts_on_remove_rows() {
+        let transform = AddDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.addRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "rule": {
+                    "uid": "rule-1",
+                    "ranges": [{"startRow": 2, "startColumn": 0, "endRow": 2, "endColumn": 0}]
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_remove_rows(&m1, &m2);
+        let params = result.m1_prime.unwrap().params;
+        let rule = params.get("rule").unwrap().as_object().unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startRow").unwrap().as_u64().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_add_data_validation_removed_on_overlap() {
+        let transform = AddDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.addRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "rule": {
+                    "uid": "rule-1",
+                    "ranges": [{"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}]
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_remove_rows(&m1, &m2);
+        assert!(result.m1_prime.is_none());
+    }
+
+    #[test]
+    fn test_update_data_validation_shifts_on_insert_row() {
+        let transform = UpdateDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.updateRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "ruleId": "rule-1",
+                "payload": {
+                    "type": "RANGE",
+                    "payload": [{"startRow": 1, "startColumn": 0, "endRow": 1, "endColumn": 0}]
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-row".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_insert_row(&m1, &m2);
+        let params = result.m1_prime.unwrap().params;
+        let payload = params.get("payload").unwrap().as_object().unwrap();
+        let ranges = payload.get("payload").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startRow").unwrap().as_u64().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_remove_data_validation_identity() {
+        let transform = RemoveDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.removeRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "ruleId": "rule-1"
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.insert-row".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_insert_row(&m1, &m2);
+        // RemoveDataValidation should be identity - no changes needed
+        assert!(result.m1_prime.is_some());
+        assert!(result.m2_prime.is_some());
     }
 }
