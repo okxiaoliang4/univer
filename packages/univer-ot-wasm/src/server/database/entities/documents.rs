@@ -7,6 +7,12 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub name: String,
+    #[sea_orm(column_name = "creator_id")]
+    pub creator_id: String,
+    #[sea_orm(column_name = "doc_type")]
+    pub doc_type: i16,
+    #[sea_orm(column_name = "create_type")]
+    pub create_type: i16,
     #[sea_orm(column_name = "current_version")]
     pub current_version: i64,
     #[sea_orm(column_name = "created_at")]

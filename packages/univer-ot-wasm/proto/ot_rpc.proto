@@ -25,3 +25,229 @@ message BroadcastOpResponse {
   int64 server_rev = 2;
   string error = 3;
 }
+
+message DocSnapshot {
+  string id = 1;
+  // 文档id
+  string doc_id = 2;
+  // 用户id -> 编辑时间(秒)
+  map<string, int32> users = 3;
+  // 文档名称
+  string name = 4;
+  // 文档大小
+  int64 size = 5;
+  // 文档存储id
+  string storage_id = 6;
+  // 创建时间
+  int32 created_at = 7;
+  // 更新时间
+  int32 updated_at = 8;
+  // 从哪个snapshot恢复的
+  optional string restore_from_id = 9;
+  // 恢复的snapshot实体
+  optional DocSnapshot restore_from = 10;
+}
+
+enum DocType {
+  // 未指定
+  DOC_TYPE_UNSPECIFIED = 0;
+  // Word
+  DOC_TYPE_WORD = 1;
+  // PDF
+  DOC_TYPE_PDF = 2;
+  // PPT
+  DOC_TYPE_PPT = 3;
+  // Excel
+  DOC_TYPE_EXCEL = 4;
+}
+
+enum CreateType {
+  // 未指定
+  CREATE_TYPE_UNSPECIFIED = 0;
+  // 新建
+  CREATE_TYPE_NEW = 1;
+  // 从文件导入
+  CREATE_TYPE_FROM_FILE = 2;
+}
+
+message NewDocumentRequest {
+  // 文档id
+  string doc_id = 1;
+  // 创建者id
+  string creator_id = 2;
+  // 文档名称
+  string name = 3;
+  // 文档二进制数据 如果bytes获取失败，则用url获取,内容为snapshot json数据
+  optional bytes updates = 4;
+  // 文档类型
+  DocType doc_type = 5;
+  // 创建类型
+  CreateType create_type = 6;
+  // 文档 url 如果bytes获取失败，则用url获取
+  optional string url = 7;
+  // tracing
+  optional string request_id = 8;
+}
+
+message NewDocumentResponse {}
+
+message CloneDocumentRequest {
+  // 文档id
+  string doc_id = 1;
+  // 创建者id
+  string creator_id = 2;
+  // 可选，如果为空，则使用最新的 snapshot 进行创建
+  optional string snapshot_id = 3;
+  // 可选，如果为空，则使用原始文档的类型
+  optional DocType doc_type = 4;
+  // tracing
+  optional string request_id = 5;
+}
+
+message CloneDocumentResponse {
+  // 文档id
+  string doc_id = 1;
+  // 文档大小
+  int64 size = 2;
+}
+
+message DeleteDocumentRequest {
+  // 文档id
+  string doc_id = 1;
+  // 是否软删除
+  optional bool is_soft = 2;
+  // tracing
+  optional string request_id = 3;
+}
+
+message DeleteDocumentResponse {}
+
+message RestoreDocumentRequest {
+  // 文档id
+  string doc_id = 1;
+  // 用户id
+  string user_id = 2;
+  // 文档 snapshot id，后续可以直接指定rev版本
+  string snapshot_id = 3;
+  // tracing
+  optional string request_id = 4;
+}
+
+message RestoreDocumentResponse {}
+
+message GetDocSnapshotListRequest {
+  // 文档id
+  string doc_id = 1;
+  // 可选，默认10
+  optional int32 limit = 2;
+  // 可选，默认空
+  optional string cursor = 3;
+  // 可选，默认true
+  optional bool desc = 4;
+  // tracing
+  optional string request_id = 5;
+}
+
+message GetDocSnapshotListResponse {
+  // 文档id
+  string doc_id = 1;
+  // 文档 snapshot 列表
+  repeated DocSnapshot snapshots = 2;
+  // 可选，下一页的 cursor
+  optional string next_cursor = 3;
+}
+
+message UpdateDocSnapshotNameRequest {
+  // 文档id
+  string doc_id = 1;
+  // 文档 snapshot id
+  string snapshot_id = 2;
+  // 文档 snapshot 名称
+  string name = 3;
+  // tracing
+  optional string request_id = 4;
+}
+
+message UpdateDocSnapshotNameResponse {}
+
+message GetDocSnapshotRequest {
+  // 文档id
+  string doc_id = 1;
+  // 可选，文档 snapshot id
+  optional string snapshot_id = 2;
+  // tracing
+  optional string request_id = 3;
+}
+
+message GetDocLatestsnapshotsRequest {
+  // 文档id列表
+  repeated string doc_ids = 1;
+  // tracing
+  optional string request_id = 2;
+}
+
+message GetDocLatestsnapshotsResponse {
+  // 文档id -> 文档 snapshot
+  map<string, DocSnapshot> snapshots = 1;
+}
+
+message SignObjectURLRequest {
+  // 文档存储id列表
+  repeated string storage_ids = 1;
+  // tracing
+  optional string request_id = 2;
+}
+
+message SignObjectURLResponse {
+  // 文档存储id -> 签名后的 url
+  map<string, string> urls = 1;
+}
+
+message GetDocIdFromStorageIdRequest {
+  // tracing
+  optional string request_id = 1;
+  // 文档存储 id
+  string storage_id = 2;
+}
+
+message GetDocIdFromStorageIdResponse {
+  // 文档 id
+  string doc_id = 1;
+}
+
+service Editable {
+  // 新建文档
+  rpc NewDocument(NewDocumentRequest) returns (NewDocumentResponse) {}
+
+  // 克隆文档
+  rpc CloneDocument(CloneDocumentRequest) returns (CloneDocumentResponse) {}
+
+  // 删除文档
+  rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse) {}
+
+  // 恢复文档
+  rpc RestoreDocument(RestoreDocumentRequest)
+      returns (RestoreDocumentResponse) {}
+
+  // 获取文档 snapshot 列表
+  rpc GetDocSnapshotList(GetDocSnapshotListRequest)
+      returns (GetDocSnapshotListResponse) {}
+
+  // 更新文档 snapshot 名称
+  rpc UpdateDocSnapshotName(UpdateDocSnapshotNameRequest)
+      returns (UpdateDocSnapshotNameResponse) {}
+
+  // 获取文档 snapshot
+  rpc GetDocumentsnapshot(GetDocSnapshotRequest) returns (DocSnapshot) {}
+
+  // 获取文档最新 snapshot
+  rpc GetDocLatestsnapshots(GetDocLatestsnapshotsRequest)
+      returns (GetDocLatestsnapshotsResponse) {}
+
+  // 签名文档存储 id 的 url
+  rpc SignObjectURL(SignObjectURLRequest) returns (SignObjectURLResponse) {}
+
+  // 根据文档存储 id 获取文档 id
+  rpc GetDocIdFromStorageId(GetDocIdFromStorageIdRequest)
+      returns (GetDocIdFromStorageIdResponse) {}
+}

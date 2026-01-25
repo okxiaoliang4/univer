@@ -90,7 +90,7 @@ impl SnapshotService {
     ) -> Result<()> {
         let now = chrono::Utc::now();
 
-        let storage_id = self
+        let stored = self
             .storage_service
             .store_snapshot_content(doc_id, version, &content)
             .await?;
@@ -105,7 +105,8 @@ impl SnapshotService {
         if let Some(existing) = snapshot {
             // Update existing snapshot
             let mut snapshot: document_snapshot::ActiveModel = existing.into();
-            snapshot.storage_id = sea_orm::Set(storage_id);
+            snapshot.storage_id = sea_orm::Set(stored.storage_id);
+            snapshot.size = sea_orm::Set(Some(stored.size));
             snapshot.updated_at = sea_orm::Set(now.into());
             snapshot.update(&*self.db).await?;
         } else {
@@ -113,7 +114,11 @@ impl SnapshotService {
             let new_snapshot = document_snapshot::ActiveModel {
                 id: sea_orm::Set(uuid::Uuid::new_v4()),
                 doc_id: sea_orm::Set(doc_id),
-                storage_id: sea_orm::Set(storage_id),
+                storage_id: sea_orm::Set(stored.storage_id),
+                name: sea_orm::Set(None),
+                size: sea_orm::Set(Some(stored.size)),
+                users: sea_orm::Set(None),
+                restore_from_id: sea_orm::Set(None),
                 version: sea_orm::Set(version),
                 created_at: sea_orm::Set(now.into()),
                 updated_at: sea_orm::Set(now.into()),

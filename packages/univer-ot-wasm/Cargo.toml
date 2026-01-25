@@ -56,9 +56,14 @@ redis = { version = "0.25", features = [ "tokio-comp" ], optional = true }
 md5 = { version = "0.7", optional = true }
 etcd-client = { version = "0.14", optional = true }
 tonic = { version = "0.11", optional = true }
+tonic-reflection = { version = "0.11", optional = true }
 prost = { version = "0.12", optional = true }
 tokio-stream = { version = "0.1", optional = true }
 local-ip-address = { version = "0.6", optional = true }
+reqwest = { version = "0.12", features = [
+    "json",
+    "rustls-tls"
+], optional = true }
 
 [dependencies.wee_alloc]
 version = "0.4.5"
@@ -102,9 +107,11 @@ server = [
     "md5",
     "etcd-client",
     "tonic",
+    "tonic-reflection",
     "prost",
     "tokio-stream",
     "local-ip-address",
+    "reqwest",
 ]
 
 [build-dependencies]

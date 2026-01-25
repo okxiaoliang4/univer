@@ -12,7 +12,12 @@ use uuid::Uuid;
 #[derive(Debug, Deserialize)]
 pub struct CreateDocumentRequest {
     pub doc_id: String,
+    pub creator_id: String,
+    pub name: String,
+    pub doc_type: i16,
+    pub create_type: i16,
     pub content: JsonValue,
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -25,6 +30,44 @@ pub struct CreateDocumentResponse {
 pub struct UpdateSnapshotRequest {
     pub content: JsonValue,
     pub version: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RestoreDocumentRequest {
+    pub snapshot_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetDocSnapshotListQuery {
+    pub limit: Option<i32>,
+    pub cursor: Option<i64>,
+    pub desc: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSnapshotNameRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotListResponse {
+    pub doc_id: String,
+    pub snapshots: Vec<SnapshotResponse>,
+    pub next_cursor: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotResponse {
+    pub id: String,
+    pub doc_id: String,
+    pub name: Option<String>,
+    pub size: Option<i64>,
+    pub storage_id: String,
+    pub users: serde_json::Value,
+    pub version: i64,
+    pub created_at: String,
+    pub updated_at: String,
+    pub restore_from_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -63,11 +106,33 @@ pub async fn create_document(
 ) -> Result<Json<CreateDocumentResponse>, StatusCode> {
     let doc_id = Uuid::parse_str(&req.doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    if let Err(err) = state
-        .document_service
-        .create_document(doc_id, req.content, None)
-        .await
-    {
+    let result = if let Some(url) = req.url {
+        state
+            .document_service
+            .create_document_from_url(
+                doc_id,
+                req.creator_id,
+                req.name,
+                req.doc_type,
+                req.create_type,
+                url,
+            )
+            .await
+    } else {
+        state
+            .document_service
+            .create_document(
+                doc_id,
+                req.creator_id,
+                req.name,
+                req.doc_type,
+                req.create_type,
+                req.content,
+            )
+            .await
+    };
+
+    if let Err(err) = result {
         error!(?err, "Failed to create document");
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
@@ -89,6 +154,69 @@ pub async fn update_snapshot(
     state
         .snapshot_service
         .update_snapshot(doc_uuid, req.content, req.version)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
+/// POST /api/documents/:doc_id/restore - Restore document snapshot
+pub async fn restore_document(
+    State(state): State<AppState>,
+    Path(doc_id): Path<String>,
+    Json(req): Json<RestoreDocumentRequest>,
+) -> Result<Json<SnapshotResponse>, StatusCode> {
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let snapshot_id = Uuid::parse_str(&req.snapshot_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let snapshot = state
+        .document_service
+        .restore_document(doc_uuid, snapshot_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(to_snapshot_response(snapshot)))
+}
+
+/// GET /api/documents/:doc_id/snapshots - List snapshots
+pub async fn get_snapshot_list(
+    State(state): State<AppState>,
+    Path(doc_id): Path<String>,
+    Query(query): Query<GetDocSnapshotListQuery>,
+) -> Result<Json<SnapshotListResponse>, StatusCode> {
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let (snapshots, next_cursor) = state
+        .document_service
+        .list_snapshots(
+            doc_uuid,
+            query.limit.unwrap_or(10),
+            query.cursor,
+            query.desc.unwrap_or(true),
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let items = snapshots.into_iter().map(to_snapshot_response).collect();
+
+    Ok(Json(SnapshotListResponse {
+        doc_id,
+        snapshots: items,
+        next_cursor,
+    }))
+}
+
+/// PATCH /api/documents/:doc_id/snapshots/:snapshot_id - Update snapshot name
+pub async fn update_snapshot_name(
+    State(state): State<AppState>,
+    Path((doc_id, snapshot_id)): Path<(String, String)>,
+    Json(req): Json<UpdateSnapshotNameRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let snapshot_uuid = Uuid::parse_str(&snapshot_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    state
+        .document_service
+        .update_snapshot_name(doc_uuid, snapshot_uuid, req.name)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -169,4 +297,19 @@ pub async fn get_operations(
 /// GET /health - Health check
 pub async fn health_check() -> &'static str {
     "OK"
+}
+
+fn to_snapshot_response(snapshot: crate::server::services::document::DocumentSnapshotInfo) -> SnapshotResponse {
+    SnapshotResponse {
+        id: snapshot.id.to_string(),
+        doc_id: snapshot.doc_id.to_string(),
+        name: snapshot.name,
+        size: snapshot.size,
+        storage_id: snapshot.storage_id.to_string(),
+        users: serde_json::to_value(snapshot.users).unwrap_or_default(),
+        version: snapshot.version,
+        created_at: snapshot.created_at.to_rfc3339(),
+        updated_at: snapshot.updated_at.to_rfc3339(),
+        restore_from_id: snapshot.restore_from_id.map(|id| id.to_string()),
+    }
 }

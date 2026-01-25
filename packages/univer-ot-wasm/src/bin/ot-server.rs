@@ -98,9 +98,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(api::health_check))
         .route("/api/documents", post(api::create_document))
         .route("/api/documents/{doc_id}", get(api::get_document))
+        .route("/api/documents/{doc_id}/restore", post(api::restore_document))
+        .route("/api/documents/{doc_id}/snapshots", get(api::get_snapshot_list))
         .route(
             "/api/documents/{doc_id}/snapshot",
             post(api::update_snapshot),
+        )
+        .route(
+            "/api/documents/{doc_id}/snapshots/{snapshot_id}",
+            post(api::update_snapshot_name),
         )
         .route(
             "/api/documents/{doc_id}/operations",
@@ -135,10 +141,12 @@ async fn main() -> anyhow::Result<()> {
     // Start gRPC server
     let grpc_addr = SocketAddr::from(([0, 0, 0, 0], config.grpc_server_port));
     let grpc_state = state.clone();
-    let grpc_server = tokio::spawn(async move {
-        info!("gRPC server listening on {}", grpc_addr);
-        tonic::transport::Server::builder()
-            .add_service(server::grpc::grpc_server(grpc_state))
+        let grpc_server = tokio::spawn(async move {
+            info!("gRPC server listening on {}", grpc_addr);
+            tonic::transport::Server::builder()
+            .add_service(server::grpc::grpc_server(grpc_state.clone()))
+            .add_service(server::grpc::editable_server(grpc_state))
+            .add_service(server::grpc::reflection_server())
             .serve(grpc_addr)
             .await
             .map_err(|err| anyhow::anyhow!(err))

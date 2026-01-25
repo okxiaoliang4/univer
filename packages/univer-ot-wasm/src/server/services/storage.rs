@@ -25,6 +25,12 @@ pub struct StorageService {
     bucket: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct StoredSnapshot {
+    pub storage_id: Uuid,
+    pub size: i64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StorageLocation {
     pub endpoint: String,
@@ -114,7 +120,7 @@ impl StorageService {
         doc_id: Uuid,
         version: i64,
         content: &JsonValue,
-    ) -> Result<Uuid> {
+    ) -> Result<StoredSnapshot> {
         let bytes = serde_json::to_vec(content)?;
         let size = bytes.len() as i64;
         let hash = format!("{:x}", md5::compute(&bytes));
@@ -162,7 +168,7 @@ impl StorageService {
 
         record.insert(&*self.db).await?;
 
-        Ok(storage_id)
+        Ok(StoredSnapshot { storage_id, size })
     }
 
     pub async fn fetch_snapshot_content(&self, storage_id: Uuid) -> Result<JsonValue> {
