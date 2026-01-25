@@ -164,6 +164,18 @@ macro_rules! sheet_mutation_transform_list {
             transform_with_unregister_worksheet_range_theme_style,
             "sheet.mutation.unregister-worksheet-range-theme-style"
         );
+        $macro!(
+            transform_with_add_data_validation,
+            "data-validation.mutation.addRule"
+        );
+        $macro!(
+            transform_with_remove_data_validation,
+            "data-validation.mutation.removeRule"
+        );
+        $macro!(
+            transform_with_update_data_validation,
+            "data-validation.mutation.updateRule"
+        );
     };
 }
 

@@ -2212,4 +2212,92 @@ mod tests {
         assert!(result.m1_prime.is_some());
         assert!(result.m2_prime.is_some());
     }
+
+    #[test]
+    fn test_update_data_validation_shifts_on_remove_rows() {
+        let transform = UpdateDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.updateRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "ruleId": "rule-1",
+                "payload": {
+                    "type": "RANGE",
+                    "payload": [{"startRow": 2, "startColumn": 0, "endRow": 2, "endColumn": 0}]
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_remove_rows(&m1, &m2);
+        let params = result.m1_prime.unwrap().params;
+        let payload = params.get("payload").unwrap().as_object().unwrap();
+        let ranges = payload.get("payload").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startRow").unwrap().as_u64().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_update_data_validation_removed_on_overlap() {
+        let transform = UpdateDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.updateRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "ruleId": "rule-1",
+                "payload": {
+                    "type": "RANGE",
+                    "payload": [{"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}]
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_remove_rows(&m1, &m2);
+        // Range is fully removed, mutation should be cancelled
+        assert!(result.m1_prime.is_none());
+    }
+
+    #[test]
+    fn test_update_data_validation_non_range_preserved() {
+        let transform = UpdateDataValidationTransform::default();
+        let m1 = create_mutation_info(
+            "data-validation.mutation.updateRule".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "ruleId": "rule-1",
+                "payload": {
+                    "type": "SETTING",
+                    "payload": {"prompt": "Enter value"}
+                }
+            }),
+        );
+        let m2 = create_mutation_info(
+            "sheet.mutation.remove-rows".to_string(),
+            serde_json::json!({
+                "unitId": "unit",
+                "subUnitId": "sheet",
+                "range": {"startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0}
+            }),
+        );
+        let result = transform.transform_with_remove_rows(&m1, &m2);
+        // Non-RANGE type should be preserved
+        assert!(result.m1_prime.is_some());
+        assert!(result.m2_prime.is_some());
+    }
 }
