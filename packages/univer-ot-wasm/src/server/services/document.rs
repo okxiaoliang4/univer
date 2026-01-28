@@ -166,7 +166,7 @@ impl DocumentService {
 
     /// Get document snapshot by doc_id
     pub async fn get_document(&self, doc_id: Uuid) -> Result<Option<(Uuid, i64)>> {
-        debug!("Getting document: doc_id={}", doc_id);
+        info!("get_document called with ORDER BY version DESC: doc_id={}", doc_id);
 
         let snapshot = match document_snapshot::Entity::find()
             .filter(document_snapshot::Column::DocId.eq(doc_id))
@@ -174,7 +174,11 @@ impl DocumentService {
             .one(&*self.db)
             .await
         {
-            Ok(s) => s,
+            Ok(s) => {
+                info!("Query result: doc_id={}, found={}, version={:?}",
+                    doc_id, s.is_some(), s.as_ref().map(|sn| sn.version));
+                s
+            }
             Err(e) => {
                 error!("Failed to query document snapshot: doc_id={}, error={}", doc_id, e);
                 return Err(e.into());
@@ -370,17 +374,26 @@ impl DocumentService {
         desc: bool,
     ) -> Result<(Vec<DocumentSnapshotInfo>, Option<i64>)> {
         let limit = if limit <= 0 { 10 } else { limit } as u64;
-        debug!("Listing snapshots: doc_id={}, limit={}, cursor={:?}, desc={}",
+        info!("list_snapshots called: doc_id={}, limit={}, cursor={:?}, desc={}",
             doc_id, limit, cursor, desc);
+        debug!("Filter will be: doc_id={}, cursor_filter={}, order={}",
+            doc_id,
+            if let Some(c) = cursor { if desc { format!("version < {}", c) } else { format!("version > {}", c) } } else { "none".to_string() },
+            if desc { "DESC" } else { "ASC" }
+        );
 
         let mut query = document_snapshot::Entity::find()
             .filter(document_snapshot::Column::DocId.eq(doc_id));
 
+        // Only apply cursor filter if cursor > 0 (all versions are positive)
+        // When cursor is 0 or negative, it means we're starting from the beginning
         if let Some(cursor) = cursor {
-            if desc {
-                query = query.filter(document_snapshot::Column::Version.lt(cursor));
-            } else {
-                query = query.filter(document_snapshot::Column::Version.gt(cursor));
+            if cursor > 0 {
+                if desc {
+                    query = query.filter(document_snapshot::Column::Version.lt(cursor));
+                } else {
+                    query = query.filter(document_snapshot::Column::Version.gt(cursor));
+                }
             }
         }
 
@@ -391,7 +404,11 @@ impl DocumentService {
         };
 
         let snapshots: Vec<document_snapshot::Model> = match query.limit(limit).all(&*self.db).await {
-            Ok(s) => s,
+            Ok(s) => {
+                info!("Query executed successfully: doc_id={}, results_count={}, desc={}",
+                    doc_id, s.len(), desc);
+                s
+            }
             Err(e) => {
                 error!("Failed to query snapshots: doc_id={}, error={}", doc_id, e);
                 return Err(e.into());
@@ -664,14 +681,18 @@ impl DocumentService {
                 }
             }
         } else {
-            debug!("Getting latest snapshot: doc_id={}", doc_id);
+            info!("Getting latest snapshot with ORDER BY version DESC: doc_id={}", doc_id);
             match document_snapshot::Entity::find()
                 .filter(document_snapshot::Column::DocId.eq(doc_id))
                 .order_by_desc(document_snapshot::Column::Version)
                 .one(&*self.db)
                 .await
             {
-                Ok(snapshot) => Ok(snapshot),
+                Ok(snapshot) => {
+                    info!("Latest snapshot query result: doc_id={}, found={}, version={:?}",
+                        doc_id, snapshot.is_some(), snapshot.as_ref().map(|s| s.version));
+                    Ok(snapshot)
+                }
                 Err(e) => {
                     error!("Failed to query latest snapshot: doc_id={}, error={}", doc_id, e);
                     Err(e.into())

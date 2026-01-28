@@ -382,8 +382,8 @@ impl Editable for EditableGrpcService {
         let limit = req.limit.unwrap_or(10);
         let desc = req.desc.unwrap_or(true);
         let cursor_str = req.cursor.clone();
-        info!("get_doc_snapshot_list request: doc_id={}, limit={}, cursor={:?}, desc={}",
-            req.doc_id, limit, cursor_str, desc);
+        info!("get_doc_snapshot_list request: doc_id={}, limit={}, cursor={:?}, desc={}, desc_raw={:?}",
+            req.doc_id, limit, cursor_str, desc, req.desc);
 
         let doc_id = match Uuid::parse_str(&req.doc_id) {
             Ok(id) => id,
@@ -392,8 +392,11 @@ impl Editable for EditableGrpcService {
                 return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
             }
         };
+        // Filter out empty strings and parse cursor as i64
+        // Empty string is treated as None (first page request)
         let cursor = match req
             .cursor
+            .filter(|s| !s.is_empty())
             .map(|value| value.parse::<i64>())
             .transpose()
         {
