@@ -1,8 +1,8 @@
 use crate::server::state::AppState;
-use crate::types::MutationInfoInternal;
 use crate::types::MutationInfoWithOpId;
 use serde_json::Value as JsonValue;
 use tonic::{Request, Response, Status};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 pub mod ot_rpc {
@@ -42,15 +42,29 @@ impl OtRpcService for OtGrpcService {
         request: Request<BroadcastOpRequest>,
     ) -> Result<Response<BroadcastOpResponse>, Status> {
         let req = request.into_inner();
-        let doc_id =
-            Uuid::parse_str(&req.doc_id).map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
+        info!("broadcast_op request: doc_id={}, base_rev={}, user_id={}, mutations_count={}",
+            req.doc_id, req.base_rev, req.user_id, req.mutations.len());
+
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in broadcast_op: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
 
         let mutations = req
             .mutations
             .into_iter()
-            .map(|mutation| {
-                let params = serde_json::from_str::<JsonValue>(&mutation.params)
-                    .map_err(|_| Status::invalid_argument("Invalid mutation params"))?;
+            .enumerate()
+            .map(|(idx, mutation)| {
+                let params = match serde_json::from_str::<JsonValue>(&mutation.params) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        error!("Invalid mutation params at index {}: {}", idx, e);
+                        return Err(Status::invalid_argument(format!("Invalid mutation params at index {}: {}", idx, e)));
+                    }
+                };
                 Ok(MutationInfoWithOpId {
                     id: mutation.id,
                     params,
@@ -66,14 +80,25 @@ impl OtRpcService for OtGrpcService {
             client_id: req.client_id.clone(),
         };
 
-        let applied = self
+        let applied = match self
             .state
             .document_actor_manager
             .apply_changeset(doc_id, changeset)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
+        {
+            Ok(result) => {
+                info!("broadcast_op applied successfully: doc_id={}, server_rev={}",
+                    doc_id, result.server_rev);
+                result
+            }
+            Err(err) => {
+                error!("Failed to apply changeset for doc_id={}: {}", doc_id, err);
+                return Err(Status::internal(format!("Failed to apply changeset: {}", err)));
+            }
+        };
 
         let room = format!("doc:{}", req.doc_id);
+        let room_clone = room.clone();
         let pushed = crate::server::types::ChangesetPushed {
             doc_id: req.doc_id.clone(),
             server_rev: applied.server_rev,
@@ -81,15 +106,27 @@ impl OtRpcService for OtGrpcService {
             mutations: applied.mutations.clone(),
         };
 
-        if let Ok(json) = serde_json::to_value(&pushed) {
-            let _ = self
-                .state
-                .socket_io
-                .to(room)
-                .emit("changeset_pushed", &json)
-                .await;
+        match serde_json::to_value(&pushed) {
+            Ok(json) => {
+                if let Err(e) = self
+                    .state
+                    .socket_io
+                    .to(room)
+                    .emit("changeset_pushed", &json)
+                    .await
+                {
+                    warn!("Failed to emit changeset_pushed to room {}: {}", room_clone, e);
+                } else {
+                    info!("Emitted changeset_pushed to room {}", room_clone);
+                }
+            }
+            Err(e) => {
+                error!("Failed to serialize changeset_pushed for room {}: {}", room_clone, e);
+            }
         }
 
+        info!("broadcast_op completed successfully: doc_id={}, server_rev={}",
+            doc_id, applied.server_rev);
         Ok(Response::new(BroadcastOpResponse {
             success: true,
             server_rev: applied.server_rev,
@@ -120,12 +157,26 @@ impl Editable for EditableGrpcService {
         request: Request<NewDocumentRequest>,
     ) -> Result<Response<NewDocumentResponse>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
+        info!("new_document request: doc_id={}, name={}, doc_type={}, creator_id={}",
+            req.doc_id, req.name, req.doc_type, req.creator_id);
+
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in new_document: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
         if let Some(bytes) = req.updates {
-            let content = serde_json::from_slice::<JsonValue>(&bytes)
-                .map_err(|_| Status::invalid_argument("Invalid updates payload"))?;
-            self.state
+            info!("Creating document from updates payload: doc_id={}, size={}", doc_id, bytes.len());
+            let content = match serde_json::from_slice::<JsonValue>(&bytes) {
+                Ok(c) => c,
+                Err(e) => {
+                    error!("Invalid updates payload for doc_id={}: {}", doc_id, e);
+                    return Err(Status::invalid_argument(format!("Invalid updates payload: {}", e)));
+                }
+            };
+            match self.state
                 .document_service
                 .create_document(
                     doc_id,
@@ -136,9 +187,16 @@ impl Editable for EditableGrpcService {
                     content,
                 )
                 .await
-                .map_err(|err| Status::internal(err.to_string()))?;
+            {
+                Ok(_) => info!("Document created successfully from updates: doc_id={}", doc_id),
+                Err(err) => {
+                    error!("Failed to create document from updates: doc_id={}, error={}", doc_id, err);
+                    return Err(Status::internal(format!("Failed to create document: {}", err)));
+                }
+            }
         } else if let Some(url) = req.url {
-            self.state
+            info!("Creating document from URL: doc_id={}, url={}", doc_id, url);
+            match self.state
                 .document_service
                 .create_document_from_url(
                     doc_id,
@@ -149,9 +207,16 @@ impl Editable for EditableGrpcService {
                     url,
                 )
                 .await
-                .map_err(|err| Status::internal(err.to_string()))?;
+            {
+                Ok(_) => info!("Document created successfully from URL: doc_id={}", doc_id),
+                Err(err) => {
+                    error!("Failed to create document from URL: doc_id={}, error={}", doc_id, err);
+                    return Err(Status::internal(format!("Failed to create document: {}", err)));
+                }
+            }
         } else {
-            self.state
+            info!("Creating empty document: doc_id={}", doc_id);
+            match self.state
                 .document_service
                 .create_document(
                     doc_id,
@@ -162,7 +227,13 @@ impl Editable for EditableGrpcService {
                     JsonValue::Object(Default::default()),
                 )
                 .await
-                .map_err(|err| Status::internal(err.to_string()))?;
+            {
+                Ok(_) => info!("Empty document created successfully: doc_id={}", doc_id),
+                Err(err) => {
+                    error!("Failed to create empty document: doc_id={}, error={}", doc_id, err);
+                    return Err(Status::internal(format!("Failed to create document: {}", err)));
+                }
+            }
         }
 
         Ok(Response::new(NewDocumentResponse {}))
@@ -173,21 +244,46 @@ impl Editable for EditableGrpcService {
         request: Request<CloneDocumentRequest>,
     ) -> Result<Response<CloneDocumentResponse>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
-        let snapshot_id = req
+        let snapshot_id_str = req.snapshot_id.clone();
+        info!("clone_document request: doc_id={}, creator_id={}, snapshot_id={:?}",
+            req.doc_id, req.creator_id, snapshot_id_str);
+
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in clone_document: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
+        let snapshot_id = match req
             .snapshot_id
             .map(|value| Uuid::parse_str(&value))
             .transpose()
-            .map_err(|_| Status::invalid_argument("Invalid snapshot_id"))?;
+        {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid snapshot_id in clone_document: {:?} - {}", snapshot_id_str, e);
+                return Err(Status::invalid_argument(format!("Invalid snapshot_id")));
+            }
+        };
         let doc_type = req.doc_type.map(|value| value as i16);
 
-        let (new_doc_id, size) = self
+        let (new_doc_id, size) = match self
             .state
             .document_service
             .clone_document(doc_id, req.creator_id, snapshot_id, doc_type)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
+        {
+            Ok(result) => {
+                info!("Document cloned successfully: source_doc_id={}, new_doc_id={}, size={}",
+                    doc_id, result.0, result.1);
+                result
+            }
+            Err(err) => {
+                error!("Failed to clone document: doc_id={}, error={}", doc_id, err);
+                return Err(Status::internal(format!("Failed to clone document: {}", err)));
+            }
+        };
 
         Ok(Response::new(CloneDocumentResponse {
             doc_id: new_doc_id.to_string(),
@@ -200,14 +296,31 @@ impl Editable for EditableGrpcService {
         request: Request<DeleteDocumentRequest>,
     ) -> Result<Response<DeleteDocumentResponse>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
-        self.state
+        let is_soft = req.is_soft.unwrap_or(false);
+        info!("delete_document request: doc_id={}, is_soft={}", req.doc_id, is_soft);
+
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in delete_document: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
+
+        match self.state
             .document_service
-            .delete_document(doc_id, req.is_soft.unwrap_or(false))
+            .delete_document(doc_id, is_soft)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
-        Ok(Response::new(DeleteDocumentResponse {}))
+        {
+            Ok(_) => {
+                info!("Document deleted successfully: doc_id={}, is_soft={}", doc_id, is_soft);
+                Ok(Response::new(DeleteDocumentResponse {}))
+            }
+            Err(err) => {
+                error!("Failed to delete document: doc_id={}, error={}", doc_id, err);
+                Err(Status::internal(format!("Failed to delete document: {}", err)))
+            }
+        }
     }
 
     async fn restore_document(
@@ -215,18 +328,38 @@ impl Editable for EditableGrpcService {
         request: Request<RestoreDocumentRequest>,
     ) -> Result<Response<RestoreDocumentResponse>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
-        let snapshot_id = Uuid::parse_str(&req.snapshot_id)
-            .map_err(|_| Status::invalid_argument("Invalid snapshot_id"))?;
+        info!("restore_document request: doc_id={}, snapshot_id={}", req.doc_id, req.snapshot_id);
 
-        self.state
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in restore_document: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
+        let snapshot_id = match Uuid::parse_str(&req.snapshot_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid snapshot_id in restore_document: {} - {}", req.snapshot_id, e);
+                return Err(Status::invalid_argument(format!("Invalid snapshot_id: {}", req.snapshot_id)));
+            }
+        };
+
+        match self.state
             .document_service
             .restore_document(doc_id, snapshot_id)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
-
-        Ok(Response::new(RestoreDocumentResponse {}))
+        {
+            Ok(_) => {
+                info!("Document restored successfully: doc_id={}, snapshot_id={}", doc_id, snapshot_id);
+                Ok(Response::new(RestoreDocumentResponse {}))
+            }
+            Err(err) => {
+                error!("Failed to restore document: doc_id={}, snapshot_id={}, error={}",
+                    doc_id, snapshot_id, err);
+                Err(Status::internal(format!("Failed to restore document: {}", err)))
+            }
+        }
     }
 
     async fn get_doc_snapshot_list(
@@ -234,24 +367,46 @@ impl Editable for EditableGrpcService {
         request: Request<GetDocSnapshotListRequest>,
     ) -> Result<Response<GetDocSnapshotListResponse>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
-        let cursor = req
+        let limit = req.limit.unwrap_or(10);
+        let desc = req.desc.unwrap_or(true);
+        let cursor_str = req.cursor.clone();
+        info!("get_doc_snapshot_list request: doc_id={}, limit={}, cursor={:?}, desc={}",
+            req.doc_id, limit, cursor_str, desc);
+
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in get_doc_snapshot_list: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
+        let cursor = match req
             .cursor
             .map(|value| value.parse::<i64>())
             .transpose()
-            .map_err(|_| Status::invalid_argument("Invalid cursor"))?;
+        {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Invalid cursor in get_doc_snapshot_list: {:?} - {}", cursor_str, e);
+                return Err(Status::invalid_argument(format!("Invalid cursor")));
+            }
+        };
 
-        let (snapshots, next_cursor) = self.state
+        let (snapshots, next_cursor) = match self.state
             .document_service
-            .list_snapshots(
-                doc_id,
-                req.limit.unwrap_or(10),
-                cursor,
-                req.desc.unwrap_or(true),
-            )
+            .list_snapshots(doc_id, limit, cursor, desc)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
+        {
+            Ok(result) => {
+                info!("Retrieved snapshot list: doc_id={}, count={}, has_next={}",
+                    doc_id, result.0.len(), result.1.is_some());
+                result
+            }
+            Err(err) => {
+                error!("Failed to list snapshots: doc_id={}, error={}", doc_id, err);
+                return Err(Status::internal(format!("Failed to list snapshots: {}", err)));
+            }
+        };
 
         let snapshots = snapshots
             .into_iter()
@@ -270,16 +425,40 @@ impl Editable for EditableGrpcService {
         request: Request<UpdateDocSnapshotNameRequest>,
     ) -> Result<Response<UpdateDocSnapshotNameResponse>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
-        let snapshot_id = Uuid::parse_str(&req.snapshot_id)
-            .map_err(|_| Status::invalid_argument("Invalid snapshot_id"))?;
-        self.state
+        info!("update_doc_snapshot_name request: doc_id={}, snapshot_id={}, name={}",
+            req.doc_id, req.snapshot_id, req.name);
+
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in update_doc_snapshot_name: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
+        let snapshot_id = match Uuid::parse_str(&req.snapshot_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid snapshot_id in update_doc_snapshot_name: {} - {}", req.snapshot_id, e);
+                return Err(Status::invalid_argument(format!("Invalid snapshot_id: {}", req.snapshot_id)));
+            }
+        };
+
+        match self.state
             .document_service
-            .update_snapshot_name(doc_id, snapshot_id, req.name)
+            .update_snapshot_name(doc_id, snapshot_id, req.name.clone())
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
-        Ok(Response::new(UpdateDocSnapshotNameResponse {}))
+        {
+            Ok(_) => {
+                info!("Snapshot name updated successfully: doc_id={}, snapshot_id={}, name={}",
+                    doc_id, snapshot_id, req.name);
+                Ok(Response::new(UpdateDocSnapshotNameResponse {}))
+            }
+            Err(err) => {
+                error!("Failed to update snapshot name: doc_id={}, snapshot_id={}, error={}",
+                    doc_id, snapshot_id, err);
+                Err(Status::internal(format!("Failed to update snapshot name: {}", err)))
+            }
+        }
     }
 
     async fn get_documentsnapshot(
@@ -287,20 +466,47 @@ impl Editable for EditableGrpcService {
         request: Request<GetDocSnapshotRequest>,
     ) -> Result<Response<DocSnapshot>, Status> {
         let req = request.into_inner();
-        let doc_id = Uuid::parse_str(&req.doc_id)
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
-        let snapshot_id = req
+        let snapshot_id_str = req.snapshot_id.clone();
+        info!("get_documentsnapshot request: doc_id={}, snapshot_id={:?}", req.doc_id, snapshot_id_str);
+
+        let doc_id = match Uuid::parse_str(&req.doc_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid doc_id in get_documentsnapshot: {} - {}", req.doc_id, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id: {}", req.doc_id)));
+            }
+        };
+        let snapshot_id = match req
             .snapshot_id
             .map(|value| Uuid::parse_str(&value))
             .transpose()
-            .map_err(|_| Status::invalid_argument("Invalid snapshot_id"))?;
+        {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid snapshot_id in get_documentsnapshot: {:?} - {}", snapshot_id_str, e);
+                return Err(Status::invalid_argument(format!("Invalid snapshot_id")));
+            }
+        };
 
-        let snapshot = self.state
+        let snapshot = match self.state
             .document_service
             .get_doc_snapshot(doc_id, snapshot_id)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?
-            .ok_or(Status::not_found("Snapshot not found"))?;
+        {
+            Ok(Some(snapshot)) => {
+                info!("Retrieved snapshot: doc_id={}, snapshot_id={:?}", doc_id, snapshot_id);
+                snapshot
+            }
+            Ok(None) => {
+                warn!("Snapshot not found: doc_id={}, snapshot_id={:?}", doc_id, snapshot_id);
+                return Err(Status::not_found("Snapshot not found"));
+            }
+            Err(err) => {
+                error!("Failed to get snapshot: doc_id={}, snapshot_id={:?}, error={}",
+                    doc_id, snapshot_id, err);
+                return Err(Status::internal(format!("Failed to get snapshot: {}", err)));
+            }
+        };
 
         Ok(Response::new(to_doc_snapshot(snapshot)))
     }
@@ -310,18 +516,37 @@ impl Editable for EditableGrpcService {
         request: Request<GetDocLatestsnapshotsRequest>,
     ) -> Result<Response<GetDocLatestsnapshotsResponse>, Status> {
         let req = request.into_inner();
-        let doc_ids = req
+        info!("get_doc_latestsnapshots request: doc_ids_count={}", req.doc_ids.len());
+
+        let doc_ids = match req
             .doc_ids
             .iter()
             .map(|id| Uuid::parse_str(id))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| Status::invalid_argument("Invalid doc_id"))?;
-        let snapshots = self
+        {
+            Ok(ids) => ids,
+            Err(e) => {
+                error!("Invalid doc_id in get_doc_latestsnapshots: {:?} - {}", req.doc_ids, e);
+                return Err(Status::invalid_argument(format!("Invalid doc_id")));
+            }
+        };
+
+        let snapshots = match self
             .state
             .document_service
-            .get_latest_snapshots(doc_ids)
+            .get_latest_snapshots(doc_ids.clone())
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
+        {
+            Ok(result) => {
+                info!("Retrieved latest snapshots: requested_count={}, returned_count={}",
+                    doc_ids.len(), result.len());
+                result
+            }
+            Err(err) => {
+                error!("Failed to get latest snapshots: doc_ids={:?}, error={}", doc_ids, err);
+                return Err(Status::internal(format!("Failed to get latest snapshots: {}", err)));
+            }
+        };
 
         let snapshot_map = snapshots
             .into_iter()
@@ -336,19 +561,37 @@ impl Editable for EditableGrpcService {
         request: Request<SignObjectUrlRequest>,
     ) -> Result<Response<SignObjectUrlResponse>, Status> {
         let req = request.into_inner();
-        let storage_ids = req
+        info!("sign_object_url request: storage_ids_count={}", req.storage_ids.len());
+
+        let storage_ids = match req
             .storage_ids
             .iter()
             .map(|id| Uuid::parse_str(id))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| Status::invalid_argument("Invalid storage_id"))?;
+        {
+            Ok(ids) => ids,
+            Err(e) => {
+                error!("Invalid storage_id in sign_object_url: {:?} - {}", req.storage_ids, e);
+                return Err(Status::invalid_argument(format!("Invalid storage_id")));
+            }
+        };
 
-        let urls = self
+        let urls = match self
             .state
             .document_service
-            .sign_object_urls(storage_ids)
+            .sign_object_urls(storage_ids.clone())
             .await
-            .map_err(|err| Status::internal(err.to_string()))?;
+        {
+            Ok(result) => {
+                info!("Signed object URLs: requested_count={}, returned_count={}",
+                    storage_ids.len(), result.len());
+                result
+            }
+            Err(err) => {
+                error!("Failed to sign object URLs: storage_ids={:?}, error={}", storage_ids, err);
+                return Err(Status::internal(format!("Failed to sign object URLs: {}", err)));
+            }
+        };
         let url_map = urls
             .into_iter()
             .map(|(id, url)| (id.to_string(), url))
@@ -361,15 +604,36 @@ impl Editable for EditableGrpcService {
         request: Request<GetDocIdFromStorageIdRequest>,
     ) -> Result<Response<GetDocIdFromStorageIdResponse>, Status> {
         let req = request.into_inner();
-        let storage_id = Uuid::parse_str(&req.storage_id)
-            .map_err(|_| Status::invalid_argument("Invalid storage_id"))?;
-        let doc_id = self
+        info!("get_doc_id_from_storage_id request: storage_id={}", req.storage_id);
+
+        let storage_id = match Uuid::parse_str(&req.storage_id) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Invalid storage_id in get_doc_id_from_storage_id: {} - {}", req.storage_id, e);
+                return Err(Status::invalid_argument(format!("Invalid storage_id: {}", req.storage_id)));
+            }
+        };
+
+        let doc_id = match self
             .state
             .document_service
             .get_doc_id_by_storage_id(storage_id)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?
-            .ok_or(Status::not_found("Document not found"))?;
+        {
+            Ok(Some(id)) => {
+                info!("Found doc_id for storage_id: storage_id={}, doc_id={}", storage_id, id);
+                id
+            }
+            Ok(None) => {
+                warn!("Document not found for storage_id: {}", storage_id);
+                return Err(Status::not_found("Document not found"));
+            }
+            Err(err) => {
+                error!("Failed to get doc_id from storage_id: storage_id={}, error={}", storage_id, err);
+                return Err(Status::internal(format!("Failed to get doc_id: {}", err)));
+            }
+        };
+
         Ok(Response::new(GetDocIdFromStorageIdResponse {
             doc_id: doc_id.to_string(),
         }))
@@ -382,10 +646,19 @@ pub fn editable_server(state: AppState) -> EditableServer<EditableGrpcService> {
 
 pub fn reflection_server(
 ) -> tonic_reflection::server::ServerReflectionServer<impl tonic_reflection::server::ServerReflection> {
-    tonic_reflection::server::Builder::configure()
+    match tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(OT_RPC_DESCRIPTOR_SET)
         .build()
-        .expect("Failed to build gRPC reflection service")
+    {
+        Ok(server) => {
+            info!("gRPC reflection server built successfully");
+            server
+        }
+        Err(e) => {
+            error!("Failed to build gRPC reflection service: {}", e);
+            panic!("Failed to build gRPC reflection service: {}", e);
+        }
+    }
 }
 
 fn to_doc_snapshot(snapshot: crate::server::services::document::DocumentSnapshotInfo) -> DocSnapshot {
