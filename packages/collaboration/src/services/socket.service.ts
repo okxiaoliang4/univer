@@ -27,7 +27,7 @@ export interface ISocketService {
     connected: boolean;
     disconnected$: Observable<void>;
     changesetPushed$: Observable<IChangesetPushed>;
-    createSocket(url: string, config: ICollaborationConfig): Nullable<Socket>;
+    createSocket(config: ICollaborationConfig): Nullable<Socket>;
     getSocket(): Nullable<Socket>;
     emit(event: string, ...args: any[]): void;
 }
@@ -110,7 +110,8 @@ export class SocketService extends Disposable implements ISocketService {
         super();
     }
 
-    createSocket(url: string, config: ICollaborationConfig): Nullable<Socket> {
+    createSocket(config: ICollaborationConfig): Nullable<Socket> {
+        const url = config.wsUrl;
         this._socket = io(url, {
             transports: ['websocket'],
             // Explicitly specify root namespace

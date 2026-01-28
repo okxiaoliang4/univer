@@ -62,7 +62,7 @@ export class CollaborationController extends Disposable {
         const config = this._configService.getConfig<ICollaborationConfig>(
             COLLABORATION_PLUGIN_CONFIG_KEY
         )!;
-        const socket = this._socketService.createSocket(config.wsUrl);
+        const socket = this._socketService.createSocket(config);
         if (!socket) {
             throw new Error('Failed to create socket');
         }
