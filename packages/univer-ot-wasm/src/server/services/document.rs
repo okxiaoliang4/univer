@@ -1,9 +1,9 @@
 use crate::server::database::entities::{document_snapshot, documents, operation_log};
 use crate::server::services::storage::{StoredSnapshot, StorageService};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    QuerySelect, TransactionTrait,
 };
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
@@ -26,6 +26,7 @@ impl DocumentService {
     }
 
     /// Create a new document with initial content
+    /// Uses a transaction to ensure atomicity: if snapshot creation fails, document creation is rolled back
     pub async fn create_document(
         &self,
         doc_id: Uuid,
@@ -38,12 +39,16 @@ impl DocumentService {
         info!("Creating document: doc_id={}, name={}, doc_type={}, creator_id={}",
             doc_id, name, doc_type, creator_id);
 
+        // Start transaction to ensure atomicity
+        let txn = (*self.db).begin().await
+            .context("Failed to start transaction for document creation")?;
+
         let now = chrono::Utc::now();
         let users = json!({
             creator_id.clone(): now.timestamp() as i32,
         });
 
-        // Create document entry in documents table
+        // Create document entry in documents table (within transaction)
         let document = documents::ActiveModel {
             id: sea_orm::Set(doc_id),
             name: sea_orm::Set(name.clone()),
@@ -55,13 +60,17 @@ impl DocumentService {
             updated_at: sea_orm::Set(now.into()),
         };
 
-        if let Err(e) = documents::Entity::insert(document).exec(&*self.db).await {
+        if let Err(e) = documents::Entity::insert(document).exec(&txn).await {
             error!("Failed to insert document: doc_id={}, error={}", doc_id, e);
+            let _ = txn.rollback().await;
             return Err(e.into());
         }
         debug!("Document inserted into database: doc_id={}", doc_id);
 
         // Create initial snapshot
+        // Note: Storage operations are outside the transaction, but if snapshot insert fails,
+        // the transaction will rollback and we'll have orphaned storage data.
+        // In production, consider adding cleanup logic or making storage operations transactional.
         debug!("Storing initial snapshot content: doc_id={}", doc_id);
         let StoredSnapshot { storage_id, size } = match self
             .storage_service
@@ -75,6 +84,7 @@ impl DocumentService {
             }
             Err(e) => {
                 error!("Failed to store snapshot content: doc_id={}, error={}", doc_id, e);
+                let _ = txn.rollback().await;
                 return Err(e);
             }
         };
@@ -93,10 +103,17 @@ impl DocumentService {
         };
 
         if let Err(e) = document_snapshot::Entity::insert(snapshot)
-            .exec(&*self.db)
+            .exec(&txn)
             .await
         {
             error!("Failed to insert snapshot: doc_id={}, error={}", doc_id, e);
+            let _ = txn.rollback().await;
+            return Err(e.into());
+        }
+
+        // Commit transaction
+        if let Err(e) = txn.commit().await {
+            error!("Failed to commit transaction: doc_id={}, error={}", doc_id, e);
             return Err(e.into());
         }
 
@@ -524,6 +541,8 @@ impl DocumentService {
         }
     }
 
+    /// Restore a document from a snapshot
+    /// Uses a transaction to ensure atomicity: if document update fails, snapshot creation is rolled back
     pub async fn restore_document(
         &self,
         doc_id: Uuid,
@@ -531,34 +550,42 @@ impl DocumentService {
     ) -> Result<DocumentSnapshotInfo> {
         info!("Restoring document: doc_id={}, snapshot_id={}", doc_id, snapshot_id);
 
+        // Start transaction to ensure atomicity
+        let txn = (*self.db).begin().await
+            .context("Failed to start transaction for document restore")?;
+
         let document = match documents::Entity::find_by_id(doc_id)
-            .one(&*self.db)
+            .one(&txn)
             .await
         {
             Ok(Some(doc)) => doc,
             Ok(None) => {
                 error!("Document not found: doc_id={}", doc_id);
+                let _ = txn.rollback().await;
                 return Err(anyhow::anyhow!("Document not found: {}", doc_id));
             }
             Err(e) => {
                 error!("Failed to query document: doc_id={}, error={}", doc_id, e);
+                let _ = txn.rollback().await;
                 return Err(e.into());
             }
         };
 
         let target_snapshot = match document_snapshot::Entity::find_by_id(snapshot_id)
             .filter(document_snapshot::Column::DocId.eq(doc_id))
-            .one(&*self.db)
+            .one(&txn)
             .await
         {
             Ok(Some(snapshot)) => snapshot,
             Ok(None) => {
                 error!("Snapshot not found: doc_id={}, snapshot_id={}", doc_id, snapshot_id);
+                let _ = txn.rollback().await;
                 return Err(anyhow::anyhow!("Snapshot not found: {}", snapshot_id));
             }
             Err(e) => {
                 error!("Failed to query snapshot: doc_id={}, snapshot_id={}, error={}",
                     doc_id, snapshot_id, e);
+                let _ = txn.rollback().await;
                 return Err(e.into());
             }
         };
@@ -581,13 +608,14 @@ impl DocumentService {
             updated_at: sea_orm::Set(now.into()),
         };
 
-        let restored_model = match restored_snapshot.insert(&*self.db).await {
+        let restored_model = match restored_snapshot.insert(&txn).await {
             Ok(model) => {
                 info!("Restored snapshot inserted: doc_id={}, new_version={}", doc_id, new_version);
                 model
             }
             Err(e) => {
                 error!("Failed to insert restored snapshot: doc_id={}, error={}", doc_id, e);
+                let _ = txn.rollback().await;
                 return Err(e.into());
             }
         };
@@ -596,17 +624,25 @@ impl DocumentService {
         document.current_version = sea_orm::Set(new_version);
         document.updated_at = sea_orm::Set(now.into());
 
-        match document.update(&*self.db).await {
+        match document.update(&txn).await {
             Ok(_) => {
-                info!("Document restored successfully: doc_id={}, snapshot_id={}, new_version={}",
-                    doc_id, snapshot_id, new_version);
+                info!("Document version updated: doc_id={}, new_version={}", doc_id, new_version);
             }
             Err(e) => {
                 error!("Failed to update document version: doc_id={}, error={}", doc_id, e);
+                let _ = txn.rollback().await;
                 return Err(e.into());
             }
         }
 
+        // Commit transaction
+        if let Err(e) = txn.commit().await {
+            error!("Failed to commit transaction: doc_id={}, error={}", doc_id, e);
+            return Err(e.into());
+        }
+
+        info!("Document restored successfully: doc_id={}, snapshot_id={}, new_version={}",
+            doc_id, snapshot_id, new_version);
         Ok(DocumentSnapshotInfo::from_model(restored_model, None))
     }
 
