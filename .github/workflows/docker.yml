@@ -19,7 +19,6 @@ permissions:
 jobs:
     build-ot-server:
         runs-on: ubuntu-latest
-        if: github.repository == 'dream-num/univer'
 
         steps:
             - name: Checkout
