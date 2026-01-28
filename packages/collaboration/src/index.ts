@@ -16,4 +16,4 @@
 
 export { CollaborationPlugin } from './plugin';
 export { IAwarenessService } from './services/awareness.service';
-export { CollaborationService } from './services/collaboration.service';
+export { CollaborationService, ICollaborationService } from './services/collaboration.service';

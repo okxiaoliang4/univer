@@ -37,12 +37,16 @@ import {
     IUniverInstanceService,
     sequenceExecute,
 } from '@univerjs/core';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { IPendingMutationSerivce } from './offline-storage.service';
 import { ISocketService } from './socket.service';
 import { ITransformService } from './transform.service';
 
 export interface ICollaborationService {
+    ready$: Observable<string>;
+    connectStatus$: Observable<'connected' | 'disconnected' | 'connecting'>;
+    saved$: Record<string, BehaviorSubject<boolean>>;
+    getSavedStatus(unitId: string): BehaviorSubject<boolean>;
     sendChangeset(changeset: IChangeset): void;
     joinDoc(docId: string): void;
     leaveDoc(docId: string): void;
@@ -85,6 +89,18 @@ export class CollaborationService
     docJoined$ = this._docJoined$.asObservable();
     docLeft$ = this._docLeft$.asObservable();
 
+    // ready$ 代表哪个 doc 已经 joinDoc 了
+    private _ready$ = new Subject<string>();
+    ready$ = this._ready$.asObservable();
+
+    // connectStatus$ 代表网络状态
+    private _connectStatus$ = new BehaviorSubject<'connected' | 'disconnected' | 'connecting'>('disconnected');
+    connectStatus$ = this._connectStatus$.asObservable();
+
+    // saved$ 代表每个 doc 的保存状态，true 表示已保存，false 表示有未保存的操作
+    private _savedSubjects: Record<string, BehaviorSubject<boolean>> = {};
+    saved$ = this._savedSubjects;
+
     constructor(
         @ISocketService private readonly _socketService: ISocketService,
         @ILogService private readonly _logger: ILogService,
@@ -108,8 +124,21 @@ export class CollaborationService
      * Initialize socket connection/disconnection listeners
      */
     private _initSocketListeners(): void {
+        // Update initial connection status based on current socket state
+        this._updateConnectStatus();
+
+        // Listen for socket connection status changes
+        const socket = this._socketService.getSocket();
+        if (socket) {
+            // Listen for connecting event (fires when socket starts connecting)
+            socket.on('connecting', () => {
+                this._connectStatus$.next('connecting');
+            });
+        }
+
         this.disposeWithMe(
             this._socketService.connected$.subscribe(() => {
+                this._connectStatus$.next('connected');
                 this._collabUnits.forEach(async (unitId) => {
                     await this.joinDoc(unitId);
                 });
@@ -119,6 +148,7 @@ export class CollaborationService
         // Clear joined docs on disconnect so we rejoin on reconnect
         this.disposeWithMe(
             this._socketService.disconnected$.subscribe(() => {
+                this._connectStatus$.next('disconnected');
                 this._logger.log(
                     'Socket disconnected, clearing joined docs for rejoin on reconnect'
                 );
@@ -128,6 +158,51 @@ export class CollaborationService
                 });
             })
         );
+    }
+
+    /**
+     * Update connection status based on current socket state
+     */
+    private _updateConnectStatus(): void {
+        const socket = this._socketService.getSocket();
+        if (!socket) {
+            this._connectStatus$.next('disconnected');
+            return;
+        }
+
+        if (socket.connected) {
+            this._connectStatus$.next('connected');
+        } else if (socket.disconnected) {
+            this._connectStatus$.next('disconnected');
+        } else {
+            // Socket exists but not connected yet (connecting state)
+            // This happens when socket is created but connection is in progress
+            this._connectStatus$.next('connecting');
+        }
+    }
+
+    /**
+     * Get saved status BehaviorSubject for a specific unitId
+     * Creates a new BehaviorSubject if it doesn't exist
+     */
+    getSavedStatus(unitId: string): BehaviorSubject<boolean> {
+        if (!this._savedSubjects[unitId]) {
+            // 初始化时检查是否有 pending mutations
+            const pendingMutations = this._pendingMutationService.get(unitId);
+            const initialStatus = !pendingMutations || pendingMutations.length === 0;
+            this._savedSubjects[unitId] = new BehaviorSubject<boolean>(initialStatus);
+        }
+        return this._savedSubjects[unitId];
+    }
+
+    /**
+     * Update saved status for a specific docId
+     */
+    private _updateSavedStatus(docId: string): void {
+        const pendingMutations = this._pendingMutationService.get(docId);
+        const isSaved = !pendingMutations || pendingMutations.length === 0;
+        const subject = this.getSavedStatus(docId);
+        subject.next(isSaved);
     }
 
     private _initInstanceListener(): void {
@@ -300,6 +375,8 @@ export class CollaborationService
     private async _joinDocNow(docId: string): Promise<void> {
         if (this._joinedDocs.has(docId)) {
             this._logger.log(`Already joined doc: ${docId}`);
+            // 如果已经加入，也发出 ready$ 事件
+            this._ready$.next(docId);
             return;
         }
 
@@ -310,6 +387,10 @@ export class CollaborationService
                     this._joinedDocs.add(docId);
                     this._logger.log(`Joined doc ${docId}, version: ${ack.version}`);
                     this._docJoined$.next(docId);
+                    // 发出 ready$ 事件，表示该 doc 已经成功 joinDoc
+                    this._ready$.next(docId);
+                    // 初始化保存状态
+                    this._updateSavedStatus(docId);
                     resolve();
                 }
             });
@@ -379,7 +460,12 @@ export class CollaborationService
                         nextPending,
                         serverLatestRev
                     );
+                    // 更新保存状态：有未保存的操作
+                    this._updateSavedStatus(unitId);
                     await this._flushChangeset(unitId);
+                } else {
+                    // 如果没有 pending mutations，更新为已保存
+                    this._updateSavedStatus(unitId);
                 }
 
                 this._logger.log(
@@ -387,7 +473,12 @@ export class CollaborationService
                 );
             } else if (pendingMutations.length > 0) {
                 // 如果服务器没新东西，但本地有离线操作，直接补发即可
+                // 更新保存状态：有未保存的操作
+                this._updateSavedStatus(unitId);
                 await this.flush(unitId);
+            } else {
+                // 如果没有 pending mutations，更新为已保存
+                this._updateSavedStatus(unitId);
             }
         } catch (error) {
             this._logger.error(`Failed to fetch ops for ${unitId}:`, error);
@@ -412,6 +503,12 @@ export class CollaborationService
 
         this._joinedDocs.delete(docId);
         this._docLeft$.next(docId);
+
+        // 清除该文档的保存状态 BehaviorSubject
+        if (this._savedSubjects[docId]) {
+            this._savedSubjects[docId].complete();
+            delete this._savedSubjects[docId];
+        }
 
         if (
             !this._socketService.getSocket() ||
@@ -442,6 +539,8 @@ export class CollaborationService
             changeset.baseRev
         );
         const pendingAfterAdd = this._pendingMutationService.get(changeset.unitId) ?? [];
+        // 更新保存状态：有未保存的操作
+        this._updateSavedStatus(changeset.unitId);
         this._logger.debug(
             `sendChangeset: unit=${changeset.unitId}, baseRev=${changeset.baseRev}, ` +
                 `added=${composedMutations.length}, pendingLen=${pendingAfterAdd.length}, ` +
@@ -613,6 +712,8 @@ export class CollaborationService
                             // Clear pending since server has processed our operations
                             await this._pendingMutationService.removeByOpIds(unitId, opIds);
                             this._logger.log(`flush ack removed: unit=${unitId}, opIds=${opIds.length}`);
+                            // 更新保存状态
+                            this._updateSavedStatus(unitId);
 
                             // Note: We don't re-apply ack.mutations here because:
                             // 1. The operations were already applied locally when sent
@@ -624,6 +725,8 @@ export class CollaborationService
                             );
                             await this._pendingMutationService.removeByOpIds(unitId, opIds);
                             this._logger.log(`flush ack removed: unit=${unitId}, opIds=${opIds.length}`);
+                            // 更新保存状态
+                            this._updateSavedStatus(unitId);
                         }
 
                         this._inFlightFlushes.delete(unitId);
@@ -682,6 +785,14 @@ export class CollaborationService
 
         this._docJoined$.complete();
         this._docLeft$.complete();
+        this._ready$.complete();
+        this._connectStatus$.complete();
+
+        // Complete and clear all saved status BehaviorSubjects
+        for (const unitId in this._savedSubjects) {
+            this._savedSubjects[unitId].complete();
+        }
+        this._savedSubjects = {};
 
         // Clear all debounce timers
         for (const unitId of this._debounceTimers.keys()) {

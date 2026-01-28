@@ -15,7 +15,7 @@
  */
 
 import type { ICollaborationConfig } from './controller/config.schema';
-import { AuthzIoLocalService, IAuthzIoService, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
+import { AuthzIoLocalService, IAuthzIoService, IConfigService, Inject, Injector, IUndoRedoService, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
 import { CollaborationController } from './controller/collaboration.controller';
 import { COLLABORATION_PLUGIN_CONFIG_KEY, defaultPluginConfig } from './controller/config.schema';
 import { AwarenessService, IAwarenessService } from './services/awareness.service';
@@ -23,6 +23,7 @@ import { CollaborationService, ICollaborationService } from './services/collabor
 import { IPendingMutationSerivce, PendingMutationSerivce } from './services/offline-storage.service';
 import { ISocketService, SocketService } from './services/socket.service';
 import { ITransformService, TransformService } from './services/transform.service';
+import { CollaborationUndoRedoService } from './services/undo-redo.service';
 
 export class CollaborationPlugin extends Plugin {
     static override pluginName = 'COLLABORATION_PLUGIN';
@@ -49,6 +50,7 @@ export class CollaborationPlugin extends Plugin {
             [ICollaborationService, { useClass: CollaborationService }],
             [ISocketService, { useClass: SocketService }],
             [IAuthzIoService, { useClass: AuthzIoLocalService }],
+            [IUndoRedoService, { useClass: CollaborationUndoRedoService }],
             [IAwarenessService, { useClass: AwarenessService }],
         ]);
 

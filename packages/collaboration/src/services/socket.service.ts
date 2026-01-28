@@ -97,6 +97,7 @@ export class SocketService extends Disposable implements ISocketService {
     private _socket?: Nullable<Socket>;
     private _connected$: Subject<void> = new Subject();
     connected$ = this._connected$.asObservable();
+    connected = false;
     private _disconnected$: Subject<void> = new Subject();
     disconnected$ = this._disconnected$.asObservable();
     private _changesetPushed$: Subject<IChangesetPushed> = new Subject();
@@ -119,11 +120,13 @@ export class SocketService extends Disposable implements ISocketService {
 
         this._socket.on('connect', () => {
             this._logger.log('Socket.IO connected');
+            this.connected = true;
             this._connected$.next();
         });
 
         this._socket.on('disconnect', () => {
             this._logger.log('Socket.IO disconnected');
+            this.connected = false;
             this._disconnected$.next();
         });
 

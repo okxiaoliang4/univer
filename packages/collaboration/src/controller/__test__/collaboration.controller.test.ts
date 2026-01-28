@@ -18,6 +18,7 @@ import type { IConfigService, IMutationInfo, IUniverInstanceService } from '@uni
 import type { ICollaborationService } from '../../services/collaboration.service';
 import type { IOperationInfo } from '../../services/socket.service';
 import { UniverInstanceType } from '@univerjs/core';
+import { BehaviorSubject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import {
     createInsertRowMutation,
@@ -47,6 +48,19 @@ class MockCollaborationService implements ICollaborationService {
         serverVersion: 0,
     };
 
+    ready$ = of('');
+    connectStatus$ = new BehaviorSubject<'connected' | 'disconnected' | 'connecting'>('disconnected').asObservable();
+    saved$: Record<string, BehaviorSubject<boolean>> = {};
+    docJoined$ = of('');
+    docLeft$ = of('');
+
+    getSavedStatus = vi.fn((unitId: string) => {
+        if (!this.saved$[unitId]) {
+            this.saved$[unitId] = new BehaviorSubject<boolean>(true);
+        }
+        return this.saved$[unitId];
+    });
+
     sendChangeset = vi.fn();
     joinDoc = vi.fn(async () => {});
     leaveDoc = vi.fn();
@@ -54,17 +68,19 @@ class MockCollaborationService implements ICollaborationService {
     fetchOps = vi.fn(async () => this.nextFetchOps);
     syncOnReconnect = vi.fn(async () => this.nextSyncResult);
     getPendingMutations = vi.fn(() => this.pendingMutations);
-     getPendingBaseRev = vi.fn(() => this.currentVersion);
+    getPendingBaseRev = vi.fn(() => this.currentVersion);
 
-     setTransformedPendingMutations = vi.fn((unitId: string, mutations: IMutationInfo[], _baseRev: number) => {
-         this.pendingMutations = mutations;
-     });
-
+    setTransformedPendingMutations = vi.fn((unitId: string, mutations: IMutationInfo[], _baseRev: number) => {
+        this.pendingMutations = mutations;
+    });
 
     getCurrentVersion = vi.fn(() => this.currentVersion);
     setCurrentVersion = vi.fn((_unitId: string, version: number) => {
         this.currentVersion = version;
     });
+
+    getDocRev = vi.fn(() => this.currentVersion ?? 0);
+    updateDocRev = vi.fn();
 }
 
 describe('CollaborationController', () => {
