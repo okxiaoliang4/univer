@@ -108,6 +108,7 @@ impl TransformServiceCore {
         service.register_transform::<remove_rows::RemoveRowsTransform>();
         service.register_transform::<remove_col::RemoveColTransform>();
         service.register_transform::<sheets_mutations::AddConditionalRuleTransform>();
+        service.register_transform::<sheets_mutations::AddDataValidationTransform>();
         service.register_transform::<sheets_mutations::AddRangeProtectionTransform>();
         service.register_transform::<sheets_mutations::AddRangeThemeTransform>();
         service.register_transform::<sheets_mutations::AddWorksheetMergeTransform>();
@@ -127,6 +128,7 @@ impl TransformServiceCore {
         service.register_transform::<sheets_mutations::RegisterWorksheetRangeThemeStyleTransform>();
         service.register_transform::<sheets_mutations::RemoveRangeThemeTransform>();
         service.register_transform::<sheets_mutations::RemoveSheetTransform>();
+        service.register_transform::<sheets_mutations::RemoveDataValidationTransform>();
         service.register_transform::<sheets_mutations::RemoveWorksheetMergeTransform>();
         service.register_transform::<sheets_mutations::ReorderRangeTransform>();
         service.register_transform::<sheets_mutations::SetColDataTransform>();
@@ -161,6 +163,7 @@ impl TransformServiceCore {
         service.register_transform::<sheets_mutations::ToggleGridlinesTransform>();
         service
             .register_transform::<sheets_mutations::UnregisterWorksheetRangeThemeStyleTransform>();
+        service.register_transform::<sheets_mutations::UpdateDataValidationTransform>();
 
         service
     }
