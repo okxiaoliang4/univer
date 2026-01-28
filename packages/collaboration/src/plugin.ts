@@ -15,7 +15,7 @@
  */
 
 import type { ICollaborationConfig } from './controller/config.schema';
-import { IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
+import { AuthzIoLocalService, IAuthzIoService, IConfigService, Inject, Injector, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
 import { CollaborationController } from './controller/collaboration.controller';
 import { COLLABORATION_PLUGIN_CONFIG_KEY, defaultPluginConfig } from './controller/config.schema';
 import { AwarenessService, IAwarenessService } from './services/awareness.service';
@@ -48,6 +48,7 @@ export class CollaborationPlugin extends Plugin {
             [IPendingMutationSerivce, { useClass: PendingMutationSerivce }],
             [ICollaborationService, { useClass: CollaborationService }],
             [ISocketService, { useClass: SocketService }],
+            [IAuthzIoService, { useClass: AuthzIoLocalService }],
             [IAwarenessService, { useClass: AwarenessService }],
         ]);
 
