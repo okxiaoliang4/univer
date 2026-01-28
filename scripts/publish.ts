@@ -19,6 +19,8 @@ import path from 'node:path';
 const packages: string[] = [];
 for await (const pkgGlob of [
     'packages/core',
+    'packages/collaboration',
+    'packages/collaboration-ui',
     'packages/design',
     'packages/docs-drawing-ui',
     'packages/docs-mention-ui',
@@ -52,6 +54,7 @@ for await (const pkgGlob of [
     'packages/thread-comment-ui',
     'packages/ui',
     'packages/uniscript',
+    'packages/univer-ot-wasm',
 ]) {
     const file = `${pkgGlob}/package.json`;
     const json = (await Bun.file(file).json()) as Record<string, unknown>;

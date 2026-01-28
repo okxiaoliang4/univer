@@ -1,6 +1,6 @@
 {
     "name": "@univerjs/collaboration",
-    "version": "1.0.0",
+    "version": "0.15.0",
     "packageManager": "pnpm@10.27.0",
     "description": "Collaboration library for Univer",
     "author": "Univer Team",
