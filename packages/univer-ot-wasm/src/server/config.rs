@@ -1,4 +1,5 @@
 use std::env;
+use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -68,4 +69,47 @@ impl Config {
                 .expect("GRPC_SERVER_PORT must be a valid u16"),
         }
     }
+
+    pub fn log_summary(&self) {
+        info!(
+            "Config loaded: database_url={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}",
+            redact_url(&self.database_url),
+            self.server_port,
+            self.grpc_server_port,
+            self.ws_path,
+            self.snapshot_interval,
+            self.s3_endpoint,
+            self.s3_region,
+            self.s3_bucket,
+            redact_secret(&self.s3_access_key),
+            redact_secret(&self.s3_secret_key),
+            redact_url(&self.redis_url),
+            self.awareness_redis_enabled,
+            self.awareness_ttl_seconds,
+            self.etcd_endpoints,
+            self.etcd_lease_ttl_seconds,
+            self.etcd_registration_ip
+        );
+    }
+}
+
+fn redact_secret(value: &str) -> String {
+    if value.is_empty() {
+        return "[empty]".to_string();
+    }
+    let suffix_len = 4.min(value.len());
+    let suffix = &value[value.len() - suffix_len..];
+    format!("***{}", suffix)
+}
+
+fn redact_url(value: &str) -> String {
+    if let Some(protocol_pos) = value.find("://") {
+        let rest = &value[protocol_pos + 3..];
+        if let Some(at_pos) = rest.find('@') {
+            let prefix = &value[..protocol_pos + 3];
+            let suffix = &rest[at_pos + 1..];
+            return format!("{}***:***@{}", prefix, suffix);
+        }
+    }
+    value.to_string()
 }

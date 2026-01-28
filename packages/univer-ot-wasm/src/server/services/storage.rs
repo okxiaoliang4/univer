@@ -1,5 +1,5 @@
 use crate::server::database::entities::storage;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use aws_credential_types::Credentials;
 use aws_sdk_s3::config::Region;
 use aws_sdk_s3::presigning::PresigningConfig;
@@ -131,6 +131,14 @@ impl StorageService {
             "version": version,
         });
 
+        tracing::info!(
+            "Uploading snapshot to storage: doc_id={}, version={}, bucket={}, endpoint={}, path={}",
+            doc_id,
+            version,
+            self.bucket,
+            self.endpoint,
+            path
+        );
         let output = self
             .s3_client
             .put_object()
@@ -139,7 +147,13 @@ impl StorageService {
             .content_type("application/json")
             .body(bytes.into())
             .send()
-            .await?;
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to upload snapshot to storage: doc_id={}, version={}, bucket={}, endpoint={}, path={}",
+                    doc_id, version, self.bucket, self.endpoint, path
+                )
+            })?;
 
         let version_id = output
             .version_id()
@@ -166,7 +180,15 @@ impl StorageService {
             updated_at: sea_orm::Set(now.into()),
         };
 
-        record.insert(&*self.db).await?;
+        record
+            .insert(&*self.db)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to insert storage record: doc_id={}, storage_id={}, path={}",
+                    doc_id, storage_id, path
+                )
+            })?;
 
         Ok(StoredSnapshot { storage_id, size })
     }

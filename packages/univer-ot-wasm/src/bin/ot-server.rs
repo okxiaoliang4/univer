@@ -53,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
             config
         }
     };
+    config.log_summary();
     info!("Starting OT server on port {}", config.server_port);
     info!("gRPC server will listen on port {}", config.grpc_server_port);
 
