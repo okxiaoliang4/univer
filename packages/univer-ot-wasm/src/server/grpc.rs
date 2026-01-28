@@ -218,7 +218,7 @@ impl Editable for EditableGrpcService {
 
         if let Some(url) = req.url {
             info!("Creating document from URL: doc_id={}, url={}", doc_id, url);
-            match self.state
+            return match self.state
                 .document_service
                 .create_document_from_url(
                     doc_id,
@@ -238,19 +238,17 @@ impl Editable for EditableGrpcService {
                     error!("Failed to create document from URL: doc_id={}, error={}", doc_id, err);
                     Err(Status::internal(format!("Failed to create document: {}", err)))
                 }
-            }
-        } else {
-            // Both bytes and url are missing or invalid
-            error!(
-                "Neither valid updates payload nor url provided for doc_id={}",
-                doc_id
-            );
-            Err(Status::invalid_argument(
-                "Either updates payload or url must be provided"
-            ))
+            };
         }
 
-        Ok(Response::new(NewDocumentResponse {}))
+        // Both bytes and url are missing or invalid
+        error!(
+            "Neither valid updates payload nor url provided for doc_id={}",
+            doc_id
+        );
+        Err(Status::invalid_argument(
+            "Either updates payload or url must be provided"
+        ))
     }
 
     async fn clone_document(
