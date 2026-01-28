@@ -31,6 +31,7 @@ impl ServerState {
         s3_bucket: String,
         s3_access_key: String,
         s3_secret_key: String,
+        server_env: String,
         redis_url: String,
         awareness_redis_enabled: bool,
         awareness_ttl_seconds: u64,
@@ -45,6 +46,7 @@ impl ServerState {
             s3_bucket,
             s3_access_key,
             s3_secret_key,
+            server_env,
             redis_url.clone(),
         )
         .expect("Failed to initialize storage service");

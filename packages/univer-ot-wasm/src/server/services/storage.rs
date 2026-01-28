@@ -23,6 +23,7 @@ pub struct StorageService {
     endpoint: String,
     region: String,
     bucket: String,
+    server_env: String,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +49,7 @@ impl StorageService {
         bucket: String,
         access_key: String,
         secret_key: String,
+        server_env: String,
         redis_url: String,
     ) -> Result<Self> {
         let credentials = Credentials::new(access_key, secret_key, None, None, "static");
@@ -66,6 +68,7 @@ impl StorageService {
             endpoint,
             region,
             bucket,
+            server_env,
         })
     }
 
@@ -124,7 +127,10 @@ impl StorageService {
         let bytes = serde_json::to_vec(content)?;
         let size = bytes.len() as i64;
         let hash = format!("{:x}", md5::compute(&bytes));
-        let path = format!("documents/{}/snapshots/{}.json", doc_id, version);
+        let path = format!(
+            "{}/documents/{}/snapshots/{}.json",
+            self.server_env, doc_id, version
+        );
         let filename = format!("{}-{}.json", doc_id, version);
         let metadata = json!({
             "doc_id": doc_id.to_string(),
@@ -167,7 +173,7 @@ impl StorageService {
             endpoint: sea_orm::Set(self.endpoint.clone()),
             region: sea_orm::Set(self.region.clone()),
             bucket: sea_orm::Set(self.bucket.clone()),
-            path: sea_orm::Set(path),
+            path: sea_orm::Set(path.clone()),
             size: sea_orm::Set(size),
             hash: sea_orm::Set(hash),
             hash_algorithm: sea_orm::Set("md5".to_string()),

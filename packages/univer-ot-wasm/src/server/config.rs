@@ -4,6 +4,7 @@ use tracing::info;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
+    pub server_env: String,
     pub server_port: u16,
     pub ws_path: String,
     pub snapshot_interval: u64,
@@ -26,6 +27,7 @@ impl Config {
         Self {
             database_url: env::var("DATABASE_URL")
                 .expect("DATABASE_URL environment variable must be set"),
+            server_env: env::var("SERVER_ENV").unwrap_or_else(|_| "dev".to_string()),
             server_port: env::var("SERVER_PORT")
                 .unwrap_or_else(|_| "3000".to_string())
                 .parse()
@@ -72,8 +74,9 @@ impl Config {
 
     pub fn log_summary(&self) {
         info!(
-            "Config loaded: database_url={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}",
+            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}",
             redact_url(&self.database_url),
+            self.server_env,
             self.server_port,
             self.grpc_server_port,
             self.ws_path,
