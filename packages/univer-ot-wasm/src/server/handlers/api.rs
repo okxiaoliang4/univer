@@ -81,6 +81,9 @@ pub struct DocumentResponse {
 pub struct GetOperationsQuery {
     pub from_rev: Option<i64>,
     pub to_rev: Option<i64>,
+    /// Maximum number of operations to return.
+    /// Defaults to DEFAULT_OPERATIONS_LIMIT if not specified.
+    pub limit: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -270,9 +273,11 @@ pub async fn get_operations(
     let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let from_rev = query.from_rev.unwrap_or(0);
+    // Use provided limit or default to DEFAULT_OPERATIONS_LIMIT for API calls
+    let limit = query.limit.or(Some(crate::server::services::document::DocumentService::DEFAULT_OPERATIONS_LIMIT));
     let operations = state
         .document_service
-        .get_operations(doc_uuid, from_rev, query.to_rev)
+        .get_operations(doc_uuid, from_rev, query.to_rev, limit)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

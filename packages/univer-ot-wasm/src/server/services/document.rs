@@ -701,15 +701,26 @@ impl DocumentService {
         }
     }
 
-    /// Get operations for a document within a revision range
+    /// Maximum number of operations that can be fetched in a single query.
+    /// This prevents memory explosion when querying large operation histories.
+    pub const MAX_OPERATIONS_LIMIT: u64 = 10000;
+
+    /// Default limit for operation queries when no limit is specified (for API calls).
+    pub const DEFAULT_OPERATIONS_LIMIT: u64 = 1000;
+
+    /// Get operations for a document within a revision range.
+    /// The `limit` parameter controls the maximum number of operations returned:
+    /// - `Some(n)`: Return at most n operations (capped at MAX_OPERATIONS_LIMIT)
+    /// - `None`: No limit (used internally for OT transformation which needs all ops)
     pub async fn get_operations(
         &self,
         doc_id: Uuid,
         from_rev: i64,
         to_rev: Option<i64>,
+        limit: Option<u64>,
     ) -> Result<Vec<OperationInfo>> {
-        debug!("Getting operations: doc_id={}, from_rev={}, to_rev={:?}",
-            doc_id, from_rev, to_rev);
+        debug!("Getting operations: doc_id={}, from_rev={}, to_rev={:?}, limit={:?}",
+            doc_id, from_rev, to_rev, limit);
 
         let mut query = operation_log::Entity::find()
             .filter(operation_log::Column::DocId.eq(doc_id))
@@ -720,6 +731,12 @@ impl DocumentService {
             query = query.filter(operation_log::Column::Rev.lte(to_rev));
         }
 
+        // Apply limit if specified (capped at MAX_OPERATIONS_LIMIT)
+        if let Some(limit) = limit {
+            let effective_limit = limit.min(Self::MAX_OPERATIONS_LIMIT);
+            query = query.limit(effective_limit);
+        }
+
         let operations = match query.all(&*self.db).await {
             Ok(ops) => ops,
             Err(e) => {
@@ -728,6 +745,7 @@ impl DocumentService {
             }
         };
 
+        let count = operations.len();
         let result: Vec<OperationInfo> = operations
             .into_iter()
             .map(|op| OperationInfo {
@@ -741,7 +759,12 @@ impl DocumentService {
             })
             .collect();
 
-        info!("Retrieved operations: doc_id={}, count={}", doc_id, result.len());
+        // Warn if fetching a large number of operations (potential memory concern)
+        if count > 1000 {
+            warn!("Large operation query: doc_id={}, count={}, limit={:?}", doc_id, count, limit);
+        } else {
+            info!("Retrieved operations: doc_id={}, count={}", doc_id, count);
+        }
         Ok(result)
     }
 
@@ -804,14 +827,17 @@ impl DocumentService {
         }
     }
 
-    /// Get operations since a specific revision (for OT transformation)
+    /// Get operations since a specific revision (for OT transformation).
+    /// Note: This returns ALL operations since the revision without limit,
+    /// as OT transformation requires complete operation history for correctness.
     pub async fn get_operations_since(
         &self,
         doc_id: Uuid,
         since_rev: i64,
     ) -> Result<Vec<OperationInfo>> {
         debug!("Getting operations since revision: doc_id={}, since_rev={}", doc_id, since_rev);
-        self.get_operations(doc_id, since_rev + 1, None).await
+        // Pass None for limit as OT transformation needs all operations
+        self.get_operations(doc_id, since_rev + 1, None, None).await
     }
 }
 

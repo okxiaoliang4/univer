@@ -191,13 +191,16 @@ impl TransformServiceCore {
             return (m1_list.to_vec(), Vec::new(), None);
         }
 
+        // Pre-allocate with known capacity to avoid reallocation
         let mut current_m1_list: Vec<MutationInfoInternal> = m1_list.to_vec();
         let mut m2_primes: Vec<MutationInfoInternal> = Vec::with_capacity(m2_list.len());
+        // Reusable buffer for new_m1_list to avoid repeated allocation
+        let mut new_m1_list: Vec<MutationInfoInternal> = Vec::with_capacity(m1_list.len());
 
         for (_m2_index, m2) in m2_list.iter().enumerate() {
             let mut current_m2: Option<MutationInfoInternal> = Some(m2.clone());
-            let mut new_m1_list: Vec<MutationInfoInternal> =
-                Vec::with_capacity(current_m1_list.len());
+            // Clear and reuse the buffer instead of allocating a new Vec
+            new_m1_list.clear();
 
             wasm_log_debug!("transform_list m2 index={} id={}", _m2_index, m2.id);
 
@@ -238,7 +241,8 @@ impl TransformServiceCore {
             if let Some(m2_prime) = current_m2 {
                 m2_primes.push(m2_prime);
             }
-            current_m1_list = new_m1_list;
+            // Swap buffers to reuse allocations instead of dropping and reallocating
+            std::mem::swap(&mut current_m1_list, &mut new_m1_list);
         }
 
         wasm_log_info!(

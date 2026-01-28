@@ -87,6 +87,7 @@ impl OTService {
                         doc_id,
                         existing_rev,
                         Some(existing_rev + changeset_size - 1),
+                        None, // No limit needed as range is bounded by changeset_size
                     )
                     .await?;
                 return Ok(ChangesetApplied {

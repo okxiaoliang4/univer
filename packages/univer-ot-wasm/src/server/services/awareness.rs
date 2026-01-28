@@ -90,6 +90,10 @@ impl AwarenessService {
             let mut guard = self.memory.write().expect("awareness memory lock poisoned");
             if let Some(doc_state) = guard.get_mut(doc_id) {
                 doc_state.remove(&client_id);
+                // Clean up empty document entry to prevent memory leak
+                if doc_state.is_empty() {
+                    guard.remove(doc_id);
+                }
             }
         }
 
@@ -102,9 +106,16 @@ impl AwarenessService {
                 .socket_map
                 .write()
                 .expect("awareness socket lock poisoned");
-            guard
+            let client_id = guard
                 .get_mut(doc_id)
-                .and_then(|doc_map| doc_map.remove(socket_id))
+                .and_then(|doc_map| doc_map.remove(socket_id));
+            // Clean up empty document entry in socket_map to prevent memory leak
+            if let Some(doc_map) = guard.get(doc_id) {
+                if doc_map.is_empty() {
+                    guard.remove(doc_id);
+                }
+            }
+            client_id
         };
 
         if let Some(client_id) = client_id {

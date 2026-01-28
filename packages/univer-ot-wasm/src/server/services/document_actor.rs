@@ -70,6 +70,9 @@ impl DocumentActorManager {
             if !sender.is_closed() {
                 return sender.clone();
             }
+            // Remove the closed sender to prevent memory leak
+            actors.remove(&doc_id);
+            debug!("Removed closed actor sender: doc_id={}", doc_id);
         }
 
         let sender = self.spawn_actor(doc_id);
@@ -82,6 +85,39 @@ impl DocumentActorManager {
         let sender = self.spawn_actor(doc_id);
         actors.insert(doc_id, sender.clone());
         sender
+    }
+
+    /// Remove a specific actor from the manager.
+    /// This should be called when a document is deleted.
+    pub async fn remove_actor(&self, doc_id: Uuid) {
+        let mut actors = self.actors.lock().await;
+        if actors.remove(&doc_id).is_some() {
+            debug!("Removed actor for document: doc_id={}", doc_id);
+        }
+    }
+
+    /// Clean up all closed actor senders.
+    /// Returns the number of actors removed.
+    pub async fn cleanup_closed_actors(&self) -> usize {
+        let mut actors = self.actors.lock().await;
+        let before = actors.len();
+        actors.retain(|doc_id, sender| {
+            let keep = !sender.is_closed();
+            if !keep {
+                debug!("Cleaning up closed actor: doc_id={}", doc_id);
+            }
+            keep
+        });
+        let removed = before - actors.len();
+        if removed > 0 {
+            debug!("Cleaned up {} closed actors", removed);
+        }
+        removed
+    }
+
+    /// Get the current number of actors being managed.
+    pub async fn actor_count(&self) -> usize {
+        self.actors.lock().await.len()
     }
 
     fn spawn_actor(&self, doc_id: Uuid) -> mpsc::Sender<ApplyChangesetTask> {
