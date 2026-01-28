@@ -17,6 +17,7 @@
 import type { IMutationInfo, Nullable } from '@univerjs/core';
 import type { Observable } from 'rxjs';
 import type { Socket } from 'socket.io-client';
+import type { ICollaborationConfig } from '../controller/config.schema';
 import { createIdentifier, Disposable, ILogService } from '@univerjs/core';
 import { Subject } from 'rxjs';
 import { io } from 'socket.io-client';
@@ -26,7 +27,7 @@ export interface ISocketService {
     connected: boolean;
     disconnected$: Observable<void>;
     changesetPushed$: Observable<IChangesetPushed>;
-    createSocket(url: string): Nullable<Socket>;
+    createSocket(url: string, config: ICollaborationConfig): Nullable<Socket>;
     getSocket(): Nullable<Socket>;
     emit(event: string, ...args: any[]): void;
 }
@@ -109,13 +110,14 @@ export class SocketService extends Disposable implements ISocketService {
         super();
     }
 
-    createSocket(url: string): Nullable<Socket> {
+    createSocket(url: string, config: ICollaborationConfig): Nullable<Socket> {
         this._socket = io(url, {
             transports: ['websocket'],
             // Explicitly specify root namespace
             path: '/socket.io/',
             reconnection: true,
             autoConnect: true,
+            query: config.params,
         });
 
         this._socket.on('connect', () => {

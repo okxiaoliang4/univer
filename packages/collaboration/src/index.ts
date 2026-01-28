@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+export type { ICollaborationConfig } from './controller/config.schema';
 export { CollaborationPlugin } from './plugin';
 export { IAwarenessService } from './services/awareness.service';
 export { CollaborationService, ICollaborationService } from './services/collaboration.service';
