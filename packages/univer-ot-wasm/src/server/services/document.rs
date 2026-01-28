@@ -55,7 +55,7 @@ impl DocumentService {
             creator_id: sea_orm::Set(creator_id.clone()),
             doc_type: sea_orm::Set(doc_type),
             create_type: sea_orm::Set(create_type),
-            current_version: sea_orm::Set(0),
+            current_version: sea_orm::Set(1),
             created_at: sea_orm::Set(now.into()),
             updated_at: sea_orm::Set(now.into()),
         };
@@ -97,7 +97,7 @@ impl DocumentService {
             size: sea_orm::Set(Some(size)),
             users: sea_orm::Set(Some(users.into())),
             restore_from_id: sea_orm::Set(None),
-            version: sea_orm::Set(0), // Snapshot version = version at which snapshot was taken
+            version: sea_orm::Set(1), // Snapshot version = version at which snapshot was taken
             created_at: sea_orm::Set(now.into()),
             updated_at: sea_orm::Set(now.into()),
         };
@@ -117,7 +117,7 @@ impl DocumentService {
             return Err(e.into());
         }
 
-        info!("Document created successfully: doc_id={}, name={}, version=0", doc_id, name);
+        info!("Document created successfully: doc_id={}, name={}, version=1", doc_id, name);
         Ok(0)
     }
 
