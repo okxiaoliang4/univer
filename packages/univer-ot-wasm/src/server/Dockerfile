@@ -14,28 +14,51 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy workspace Cargo files
-COPY packages/univer-ot-wasm/Cargo.toml packages/univer-ot-wasm/Cargo.lock ./
-COPY packages/univer-ot-wasm/migration/Cargo.toml ./migration/
-
-# Copy proto files and build script (needed for build.rs)
-COPY packages/univer-ot-wasm/proto ./proto
-COPY packages/univer-ot-wasm/build.rs ./
-
-# Copy source code
-COPY packages/univer-ot-wasm/src ./src
-COPY packages/univer-ot-wasm/migration/src ./migration/src
-
-# Build the server binary
+# Configure build environment
 # Use dynamic linking for OpenSSL (musl target defaults to static linking)
 ENV OPENSSL_STATIC=0
 ENV PKG_CONFIG_ALLOW_CROSS=1
 ENV RUSTFLAGS="-C target-feature=-crt-static"
-RUN cargo check --features server
+
+# Copy workspace Cargo files first (for dependency caching)
+COPY packages/univer-ot-wasm/Cargo.toml ./
+COPY packages/univer-ot-wasm/Cargo.lock ./
+COPY packages/univer-ot-wasm/migration/Cargo.toml ./migration/
+
+# Copy build script and proto files (needed for build.rs)
+COPY packages/univer-ot-wasm/build.rs ./
+COPY packages/univer-ot-wasm/proto ./proto
+
+# Create dummy source files to cache dependencies
+# This allows Docker to cache the dependency layer separately from source code
+RUN mkdir -p src/bin src/server migration/src && \
+    echo "fn main() {}" > src/bin/ot-server.rs && \
+    echo "// dummy" > src/lib.rs && \
+    echo "// dummy" > migration/src/lib.rs
+
+# Fetch and build dependencies only (this layer will be cached unless Cargo.toml changes)
+# First, fetch dependencies to ensure they are downloaded
+RUN cargo fetch --features server || true
+
+# Try to build with dummy code - this will compile dependencies even if the binary fails
+# The dependencies will be cached in target/ directory
+RUN cargo build --release --features server --bin ot-server || \
+    (echo "Dummy build failed (expected), but dependencies should be cached" && \
+     cargo build --release --features server --lib || true)
+
+# Clean up dummy source files but keep the dependency cache in target/
+RUN rm -rf src migration/src
+
+# Copy actual source code
+COPY packages/univer-ot-wasm/src ./src
+COPY packages/univer-ot-wasm/migration/src ./migration/src
+
+# Build the actual server binary
+# This will reuse the cached dependencies layer
 RUN cargo build --release --features server --bin ot-server
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.19
 
 # Install runtime dependencies
 RUN apk add --no-cache \
