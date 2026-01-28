@@ -168,33 +168,55 @@ impl Editable for EditableGrpcService {
             }
         };
         if let Some(bytes) = req.updates {
-            info!("Creating document from updates payload: doc_id={}, size={}", doc_id, bytes.len());
-            let content = match serde_json::from_slice::<JsonValue>(&bytes) {
-                Ok(c) => c,
-                Err(e) => {
-                    error!("Invalid updates payload for doc_id={}: {}", doc_id, e);
-                    return Err(Status::invalid_argument(format!("Invalid updates payload: {}", e)));
-                }
-            };
-            match self.state
-                .document_service
-                .create_document(
+            if bytes.is_empty() {
+                warn!("Empty updates payload for doc_id={}, falling back to url", doc_id);
+            } else {
+                info!(
+                    "Creating document from updates payload: doc_id={}, size={}",
                     doc_id,
-                    req.creator_id,
-                    req.name,
-                    req.doc_type as i16,
-                    req.create_type as i16,
-                    content,
-                )
-                .await
-            {
-                Ok(_) => info!("Document created successfully from updates: doc_id={}", doc_id),
-                Err(err) => {
-                    error!("Failed to create document from updates: doc_id={}, error={}", doc_id, err);
-                    return Err(Status::internal(format!("Failed to create document: {}", err)));
+                    bytes.len()
+                );
+                match serde_json::from_slice::<JsonValue>(&bytes) {
+                    Ok(content) => {
+                        match self.state
+                            .document_service
+                            .create_document(
+                                doc_id,
+                                req.creator_id,
+                                req.name,
+                                req.doc_type as i16,
+                                req.create_type as i16,
+                                content,
+                            )
+                            .await
+                        {
+                            Ok(_) => {
+                                info!("Document created successfully from updates: doc_id={}", doc_id);
+                                return Ok(Response::new(NewDocumentResponse {}));
+                            }
+                            Err(err) => {
+                                error!(
+                                    "Failed to create document from updates: doc_id={}, error={}",
+                                    doc_id, err
+                                );
+                                return Err(Status::internal(format!(
+                                    "Failed to create document: {}",
+                                    err
+                                )));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Invalid updates payload for doc_id={}, will fallback to url: {}",
+                            doc_id, e
+                        );
+                    }
                 }
             }
-        } else if let Some(url) = req.url {
+        }
+
+        if let Some(url) = req.url {
             info!("Creating document from URL: doc_id={}, url={}", doc_id, url);
             match self.state
                 .document_service
@@ -208,32 +230,24 @@ impl Editable for EditableGrpcService {
                 )
                 .await
             {
-                Ok(_) => info!("Document created successfully from URL: doc_id={}", doc_id),
+                Ok(_) => {
+                    info!("Document created successfully from URL: doc_id={}", doc_id);
+                    Ok(Response::new(NewDocumentResponse {}))
+                }
                 Err(err) => {
                     error!("Failed to create document from URL: doc_id={}, error={}", doc_id, err);
-                    return Err(Status::internal(format!("Failed to create document: {}", err)));
+                    Err(Status::internal(format!("Failed to create document: {}", err)))
                 }
             }
         } else {
-            info!("Creating empty document: doc_id={}", doc_id);
-            match self.state
-                .document_service
-                .create_document(
-                    doc_id,
-                    req.creator_id,
-                    req.name,
-                    req.doc_type as i16,
-                    req.create_type as i16,
-                    JsonValue::Object(Default::default()),
-                )
-                .await
-            {
-                Ok(_) => info!("Empty document created successfully: doc_id={}", doc_id),
-                Err(err) => {
-                    error!("Failed to create empty document: doc_id={}, error={}", doc_id, err);
-                    return Err(Status::internal(format!("Failed to create document: {}", err)));
-                }
-            }
+            // Both bytes and url are missing or invalid
+            error!(
+                "Neither valid updates payload nor url provided for doc_id={}",
+                doc_id
+            );
+            Err(Status::invalid_argument(
+                "Either updates payload or url must be provided"
+            ))
         }
 
         Ok(Response::new(NewDocumentResponse {}))
