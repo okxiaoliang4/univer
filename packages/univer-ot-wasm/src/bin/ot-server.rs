@@ -77,10 +77,12 @@ async fn main() -> anyhow::Result<()> {
 
     let etcd_service = state.etcd_service.clone();
     let instance_id = Uuid::new_v4();
-    let local_ip = local_ip_address::local_ip()
-        .map(|ip| ip.to_string())
-        .unwrap_or_else(|_| "127.0.0.1".to_string());
-    let endpoint = format!("{}:{}", local_ip, config.grpc_server_port);
+    let registration_ip = config.etcd_registration_ip.clone().unwrap_or_else(|| {
+        local_ip_address::local_ip()
+            .map(|ip| ip.to_string())
+            .unwrap_or_else(|_| "127.0.0.1".to_string())
+    });
+    let endpoint = format!("{}:{}", registration_ip, config.grpc_server_port);
     let registration = etcd_service
         .register_with_lease(
             "ot-collaboration",

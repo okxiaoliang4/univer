@@ -53,6 +53,9 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /app/target/release/ot-server /app/ot-server
 
+# Ensure binary is executable
+RUN chmod +x /app/ot-server
+
 # Change ownership
 RUN chown -R appuser:appuser /app
 
@@ -69,4 +72,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
 # Run the server
-CMD ["./ot-server"]
+CMD ["/app/ot-server"]

@@ -16,6 +16,7 @@ pub struct Config {
     pub awareness_ttl_seconds: u64,
     pub etcd_endpoints: Vec<String>,
     pub etcd_lease_ttl_seconds: u64,
+    pub etcd_registration_ip: Option<String>,
     pub grpc_server_port: u16,
 }
 
@@ -37,10 +38,10 @@ impl Config {
                 .expect("S3_ENDPOINT environment variable must be set"),
             s3_region: env::var("S3_REGION").expect("S3_REGION environment variable must be set"),
             s3_bucket: env::var("S3_BUCKET").expect("S3_BUCKET environment variable must be set"),
-            s3_access_key: env::var("S3_ACCESS_KEY")
-                .expect("S3_ACCESS_KEY environment variable must be set"),
-            s3_secret_key: env::var("S3_SECRET_KEY")
-                .expect("S3_SECRET_KEY environment variable must be set"),
+            s3_access_key: env::var("S3_ACCESS_KEY_ID")
+                .expect("S3_ACCESS_KEY_ID environment variable must be set"),
+            s3_secret_key: env::var("S3_SECRET_ACCESS_KEY")
+                .expect("S3_SECRET_ACCESS_KEY environment variable must be set"),
             redis_url: env::var("REDIS_URL").expect("REDIS_URL environment variable must be set"),
             awareness_redis_enabled: env::var("AWARENESS_REDIS_ENABLED")
                 .unwrap_or_else(|_| "false".to_string())
@@ -60,6 +61,7 @@ impl Config {
                 .unwrap_or_else(|_| "30".to_string())
                 .parse()
                 .expect("ETCD_LEASE_TTL_SECONDS must be a valid u64"),
+            etcd_registration_ip: env::var("ETCD_REGISTRATION_IP").ok(),
             grpc_server_port: env::var("GRPC_SERVER_PORT")
                 .unwrap_or_else(|_| "50051".to_string())
                 .parse()
