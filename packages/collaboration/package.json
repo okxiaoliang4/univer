@@ -35,16 +35,6 @@
                 "require": "./lib/cjs/*",
                 "types": "./lib/types/index.d.ts"
             },
-            "./facade": {
-                "import": "./lib/es/facade.js",
-                "require": "./lib/cjs/facade.js",
-                "types": "./lib/types/facade/index.d.ts"
-            },
-            "./lib/facade": {
-                "import": "./lib/es/facade.js",
-                "require": "./lib/cjs/facade.js",
-                "types": "./lib/types/facade/index.d.ts"
-            },
             "./lib/*": "./lib/*"
         }
     },
@@ -66,8 +56,6 @@
     },
     "dependencies": {
         "@univerjs/core": "workspace:*",
-        "@univerjs/network": "workspace:*",
-        "@univerjs/sheets": "workspace:*",
         "@univerjs/univer-ot-wasm": "workspace:*",
         "localforage": "^1.10.0",
         "rxjs": "^7.8.2",
