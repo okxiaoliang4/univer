@@ -6,7 +6,7 @@ on:
             - main
             - develop
             - dev
-            - feature/nestjs
+            - ot
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
