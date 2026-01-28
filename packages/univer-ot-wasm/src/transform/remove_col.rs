@@ -2,6 +2,7 @@ use crate::mutations::types::{
     InsertColMutationParams, RemoveColMutationParams, SetRangeValuesMutationParams,
 };
 use crate::transform::mutation_transform::MutationTransform;
+use crate::transform::sheets_mutations::common::shift_rule_ranges_for_remove;
 use crate::transform::sheets_transform_utils::shift_col_keys_for_remove;
 use crate::types::{
     MutationInfoInternal, ObjectMatrixPrimitiveType, Range, SubUnitParams, TransformResultInternal,
@@ -174,6 +175,222 @@ impl MutationTransform for RemoveColTransform {
         m2: &MutationInfoInternal,
     ) -> TransformResultInternal {
         // Remove col and remove rows are independent
+        TransformResultInternal {
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(m2.clone()),
+            error: None,
+        }
+    }
+
+    fn transform_with_add_conditional_rule(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
+        let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
+            .unwrap_or_else(|_| RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+            });
+        let mut m2_params: serde_json::Value = m2.params.clone();
+        if m2_params.get("unitId").and_then(|v| v.as_str())
+            != Some(&m1_params.sub_unit_params.unit_id)
+            || m2_params.get("subUnitId").and_then(|v| v.as_str())
+                != Some(&m1_params.sub_unit_params.sub_unit_id)
+        {
+            return TransformResultInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
+                error: None,
+            };
+        }
+        let remove_start = m1_params.range.start_column;
+        let remove_end = m1_params.range.end_column;
+        if let Some(rule) = m2_params.get_mut("rule") {
+            if !shift_rule_ranges_for_remove(rule, None, Some((remove_start, remove_end))) {
+                return TransformResultInternal {
+                    m1_prime: Some(m1.clone()),
+                    m2_prime: None,
+                    error: None,
+                };
+            }
+        }
+        TransformResultInternal {
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(MutationInfoInternal {
+                id: m2.id.clone(),
+                params: m2_params,
+            }),
+            error: None,
+        }
+    }
+
+    fn transform_with_set_conditional_rule(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
+        let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
+            .unwrap_or_else(|_| RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+            });
+        let mut m2_params: serde_json::Value = m2.params.clone();
+        if m2_params.get("unitId").and_then(|v| v.as_str())
+            != Some(&m1_params.sub_unit_params.unit_id)
+            || m2_params.get("subUnitId").and_then(|v| v.as_str())
+                != Some(&m1_params.sub_unit_params.sub_unit_id)
+        {
+            return TransformResultInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
+                error: None,
+            };
+        }
+        let remove_start = m1_params.range.start_column;
+        let remove_end = m1_params.range.end_column;
+        if let Some(rule) = m2_params.get_mut("rule") {
+            if !shift_rule_ranges_for_remove(rule, None, Some((remove_start, remove_end))) {
+                return TransformResultInternal {
+                    m1_prime: Some(m1.clone()),
+                    m2_prime: None,
+                    error: None,
+                };
+            }
+        }
+        TransformResultInternal {
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(MutationInfoInternal {
+                id: m2.id.clone(),
+                params: m2_params,
+            }),
+            error: None,
+        }
+    }
+
+    fn transform_with_delete_conditional_rule(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
+        let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
+            .unwrap_or_else(|_| RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+            });
+        let mut m2_params: serde_json::Value = m2.params.clone();
+        if m2_params.get("unitId").and_then(|v| v.as_str())
+            != Some(&m1_params.sub_unit_params.unit_id)
+            || m2_params.get("subUnitId").and_then(|v| v.as_str())
+                != Some(&m1_params.sub_unit_params.sub_unit_id)
+        {
+            return TransformResultInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
+                error: None,
+            };
+        }
+        let remove_start = m1_params.range.start_column;
+        let remove_end = m1_params.range.end_column;
+        if let Some(rule) = m2_params.get_mut("rule") {
+            if !shift_rule_ranges_for_remove(rule, None, Some((remove_start, remove_end))) {
+                return TransformResultInternal {
+                    m1_prime: Some(m1.clone()),
+                    m2_prime: None,
+                    error: None,
+                };
+            }
+        }
+        TransformResultInternal {
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(MutationInfoInternal {
+                id: m2.id.clone(),
+                params: m2_params,
+            }),
+            error: None,
+        }
+    }
+
+    fn transform_with_move_conditional_rule(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
+        let m1_params: RemoveColMutationParams = serde_json::from_value(m1.params.clone())
+            .unwrap_or_else(|_| RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "".to_string(),
+                    sub_unit_id: "".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+            });
+        let mut m2_params: serde_json::Value = m2.params.clone();
+        if m2_params.get("unitId").and_then(|v| v.as_str())
+            != Some(&m1_params.sub_unit_params.unit_id)
+            || m2_params.get("subUnitId").and_then(|v| v.as_str())
+                != Some(&m1_params.sub_unit_params.sub_unit_id)
+        {
+            return TransformResultInternal {
+                m1_prime: Some(m1.clone()),
+                m2_prime: Some(m2.clone()),
+                error: None,
+            };
+        }
+        let remove_start = m1_params.range.start_column;
+        let remove_end = m1_params.range.end_column;
+        if let Some(rule) = m2_params.get_mut("rule") {
+            if !shift_rule_ranges_for_remove(rule, None, Some((remove_start, remove_end))) {
+                return TransformResultInternal {
+                    m1_prime: Some(m1.clone()),
+                    m2_prime: None,
+                    error: None,
+                };
+            }
+        }
+        TransformResultInternal {
+            m1_prime: Some(m1.clone()),
+            m2_prime: Some(MutationInfoInternal {
+                id: m2.id.clone(),
+                params: m2_params,
+            }),
+            error: None,
+        }
+    }
+
+    fn transform_with_conditional_formatting_formula_mark_dirty(
+        &self,
+        m1: &MutationInfoInternal,
+        m2: &MutationInfoInternal,
+    ) -> TransformResultInternal {
         TransformResultInternal {
             m1_prime: Some(m1.clone()),
             m2_prime: Some(m2.clone()),

@@ -12,6 +12,10 @@ macro_rules! sheet_mutation_transform_list {
         $macro!(transform_with_remove_rows, "sheet.mutation.remove-rows");
         $macro!(transform_with_remove_col, "sheet.mutation.remove-col");
         $macro!(
+            transform_with_add_conditional_rule,
+            "sheet.mutation.add-conditional-rule"
+        );
+        $macro!(
             transform_with_add_range_protection,
             "sheet.mutation.add-range-protection"
         );
@@ -28,8 +32,16 @@ macro_rules! sheet_mutation_transform_list {
             "sheet.mutation.add-worksheet-protection"
         );
         $macro!(
+            transform_with_conditional_formatting_formula_mark_dirty,
+            "sheet.mutation.conditional-formatting-formula-mark-dirty"
+        );
+        $macro!(
             transform_with_copy_worksheet_end,
             "sheet.mutation.copy-worksheet-end"
+        );
+        $macro!(
+            transform_with_delete_conditional_rule,
+            "sheet.mutation.delete-conditional-rule"
         );
         $macro!(
             transform_with_delete_range_protection,
@@ -46,6 +58,10 @@ macro_rules! sheet_mutation_transform_list {
         $macro!(transform_with_empty, "sheet.mutation.empty");
         $macro!(transform_with_insert_sheet, "sheet.mutation.insert-sheet");
         $macro!(transform_with_move_columns, "sheet.mutation.move-columns");
+        $macro!(
+            transform_with_move_conditional_rule,
+            "sheet.mutation.move-conditional-rule"
+        );
         $macro!(transform_with_move_rows, "sheet.mutation.move-rows");
         $macro!(transform_with_move_range, "sheet.mutation.move-range");
         $macro!(
@@ -81,6 +97,10 @@ macro_rules! sheet_mutation_transform_list {
         $macro!(
             transform_with_set_range_protection,
             "sheet.mutation.set-range-protection"
+        );
+        $macro!(
+            transform_with_set_conditional_rule,
+            "sheet.mutation.set-conditional-rule"
         );
         $macro!(
             transform_with_set_range_theme,

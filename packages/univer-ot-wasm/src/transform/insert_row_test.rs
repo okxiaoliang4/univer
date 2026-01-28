@@ -418,6 +418,97 @@ mod tests {
     }
 
     #[test]
+    fn test_transform_insert_row_add_conditional_rule() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-row".to_string(),
+            serde_json::to_value(InsertRowMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 2,
+                    start_column: 0,
+                    end_row: 2,
+                    end_column: 0,
+                },
+                row_info: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.add-conditional-rule".to_string(),
+            serde_json::json!({
+                "unitId": "test-unit",
+                "subUnitId": "test-sheet",
+                "rule": {
+                    "cfId": "cf-5",
+                    "stopIfTrue": false,
+                    "ranges": [{ "startRow": 3, "startColumn": 0, "endRow": 3, "endColumn": 0 }],
+                    "rule": { "type": "highlightCell" }
+                }
+            }),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_none());
+        let params = result.m2_prime.unwrap().params;
+        let rule = params.get("rule").unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startRow").unwrap().as_u64().unwrap(), 4);
+    }
+
+    #[test]
+    fn test_transform_insert_row_set_conditional_rule() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-row".to_string(),
+            serde_json::to_value(InsertRowMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 0,
+                },
+                row_info: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.set-conditional-rule".to_string(),
+            serde_json::json!({
+                "unitId": "test-unit",
+                "subUnitId": "test-sheet",
+                "cfId": "cf-6",
+                "rule": {
+                    "cfId": "cf-6",
+                    "stopIfTrue": false,
+                    "ranges": [{ "startRow": 2, "startColumn": 0, "endRow": 2, "endColumn": 0 }],
+                    "rule": { "type": "highlightCell" }
+                }
+            }),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_none());
+        let params = result.m2_prime.unwrap().params;
+        let rule = params.get("rule").unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startRow").unwrap().as_u64().unwrap(), 3);
+    }
+
+    #[test]
     fn test_compose_insert_row_contiguous() {
         let service = TransformService::new();
 

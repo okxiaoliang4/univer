@@ -49,17 +49,20 @@ impl MutationTransform for RemoveSheetTransform {
     impl_remove_sheet_conflict!(transform_with_insert_col);
     impl_remove_sheet_conflict!(transform_with_remove_rows);
     impl_remove_sheet_conflict!(transform_with_remove_col);
+    impl_remove_sheet_conflict!(transform_with_add_conditional_rule);
     impl_remove_sheet_conflict!(transform_with_add_range_protection);
     impl_remove_sheet_conflict!(transform_with_add_range_theme);
     impl_remove_sheet_conflict!(transform_with_add_worksheet_merge);
     impl_remove_sheet_conflict!(transform_with_add_worksheet_protection);
     impl_remove_sheet_conflict!(transform_with_copy_worksheet_end);
+    impl_remove_sheet_conflict!(transform_with_delete_conditional_rule);
     impl_remove_sheet_conflict!(transform_with_delete_range_protection);
     impl_remove_sheet_conflict!(transform_with_delete_worksheet_protection);
     impl_remove_sheet_conflict!(transform_with_remove_worksheet_range_theme_style);
     impl_remove_sheet_conflict!(transform_with_empty);
     impl_remove_sheet_conflict!(transform_with_insert_sheet);
     impl_remove_sheet_conflict!(transform_with_move_columns);
+    impl_remove_sheet_conflict!(transform_with_move_conditional_rule);
     impl_remove_sheet_conflict!(transform_with_move_rows);
     impl_remove_sheet_conflict!(transform_with_move_range);
     impl_remove_sheet_conflict!(transform_with_register_worksheet_range_theme_style);
@@ -74,6 +77,7 @@ impl MutationTransform for RemoveSheetTransform {
     impl_remove_sheet_conflict!(transform_with_set_gridlines_color);
     impl_remove_sheet_conflict!(transform_with_set_numfmt);
     impl_remove_sheet_conflict!(transform_with_remove_numfmt);
+    impl_remove_sheet_conflict!(transform_with_set_conditional_rule);
     impl_remove_sheet_conflict!(transform_with_set_range_protection);
     impl_remove_sheet_conflict!(transform_with_set_range_theme);
     impl_remove_sheet_conflict!(transform_with_set_row_data);
@@ -95,6 +99,7 @@ impl MutationTransform for RemoveSheetTransform {
     impl_remove_sheet_conflict!(transform_with_set_worksheet_row_count);
     impl_remove_sheet_conflict!(transform_with_set_worksheet_row_height);
     impl_remove_sheet_conflict!(transform_with_set_worksheet_row_is_auto_height);
+    impl_remove_sheet_conflict!(transform_with_conditional_formatting_formula_mark_dirty);
     impl_remove_sheet_conflict!(transform_with_toggle_gridlines);
     impl_remove_sheet_conflict!(transform_with_unregister_worksheet_range_theme_style);
 

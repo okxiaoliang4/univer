@@ -435,4 +435,93 @@ mod tests {
         let result = service.compose_internal(&m1, &m2);
         assert_eq!(result.len(), 2);
     }
+
+    #[test]
+    fn test_transform_remove_col_add_conditional_rule() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 2,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.add-conditional-rule".to_string(),
+            serde_json::json!({
+                "unitId": "test-unit",
+                "subUnitId": "test-sheet",
+                "rule": {
+                    "cfId": "cf-1",
+                    "stopIfTrue": false,
+                    "ranges": [{ "startRow": 0, "startColumn": 3, "endRow": 0, "endColumn": 3 }],
+                    "rule": { "type": "highlightCell" }
+                }
+            }),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_none());
+        let params = result.m2_prime.unwrap().params;
+        let rule = params.get("rule").unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startColumn").unwrap().as_u64().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_transform_remove_col_set_conditional_rule() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.remove-col".to_string(),
+            serde_json::to_value(RemoveColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 0,
+                    end_row: 0,
+                    end_column: 1,
+                },
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.set-conditional-rule".to_string(),
+            serde_json::json!({
+                "unitId": "test-unit",
+                "subUnitId": "test-sheet",
+                "cfId": "cf-2",
+                "rule": {
+                    "cfId": "cf-2",
+                    "stopIfTrue": false,
+                    "ranges": [{ "startRow": 0, "startColumn": 3, "endRow": 0, "endColumn": 3 }],
+                    "rule": { "type": "highlightCell" }
+                }
+            }),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_none());
+        let params = result.m2_prime.unwrap().params;
+        let rule = params.get("rule").unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startColumn").unwrap().as_u64().unwrap(), 1);
+    }
 }

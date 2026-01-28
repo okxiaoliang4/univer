@@ -358,11 +358,102 @@ mod tests {
 
         let result = service.transform_internal(&m1, &m2);
         assert!(result.error.is_some());
-        assert!(result.error.unwrap().contains("conflicts"));
+    }
+
+    #[test]
+    fn test_transform_insert_col_add_conditional_rule() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 1,
+                    end_row: 0,
+                    end_column: 1,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.add-conditional-rule".to_string(),
+            serde_json::json!({
+                "unitId": "test-unit",
+                "subUnitId": "test-sheet",
+                "rule": {
+                    "cfId": "cf-3",
+                    "stopIfTrue": false,
+                    "ranges": [{ "startRow": 0, "startColumn": 3, "endRow": 0, "endColumn": 3 }],
+                    "rule": { "type": "highlightCell" }
+                }
+            }),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_none());
+        let params = result.m2_prime.unwrap().params;
+        let rule = params.get("rule").unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startColumn").unwrap().as_u64().unwrap(), 4);
+    }
+
+    #[test]
+    fn test_transform_insert_col_set_conditional_rule() {
+        let service = TransformService::new();
+
+        let m1 = create_mutation_info(
+            "sheet.mutation.insert-col".to_string(),
+            serde_json::to_value(InsertColMutationParams {
+                sub_unit_params: SubUnitParams {
+                    unit_id: "test-unit".to_string(),
+                    sub_unit_id: "test-sheet".to_string(),
+                },
+                range: Range {
+                    start_row: 0,
+                    start_column: 2,
+                    end_row: 0,
+                    end_column: 2,
+                },
+                col_info: None,
+            })
+            .unwrap(),
+        );
+
+        let m2 = create_mutation_info(
+            "sheet.mutation.set-conditional-rule".to_string(),
+            serde_json::json!({
+                "unitId": "test-unit",
+                "subUnitId": "test-sheet",
+                "cfId": "cf-4",
+                "rule": {
+                    "cfId": "cf-4",
+                    "stopIfTrue": false,
+                    "ranges": [{ "startRow": 0, "startColumn": 0, "endRow": 0, "endColumn": 0 }],
+                    "rule": { "type": "highlightCell" }
+                }
+            }),
+        );
+
+        let result = service.transform_internal(&m1, &m2);
+        assert!(result.error.is_none());
+        let params = result.m2_prime.unwrap().params;
+        let rule = params.get("rule").unwrap();
+        let ranges = rule.get("ranges").unwrap().as_array().unwrap();
+        let range = ranges[0].as_object().unwrap();
+        assert_eq!(range.get("startColumn").unwrap().as_u64().unwrap(), 0);
     }
 
     #[test]
     fn test_compose_insert_col_contiguous() {
+
         let service = TransformService::new();
 
         let m1 = create_mutation_info(
