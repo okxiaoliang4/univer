@@ -1,3 +1,4 @@
+use crate::server::metrics;
 use crate::server::services::ot::Changeset;
 use crate::server::state::AppState;
 use crate::server::types::{
@@ -7,12 +8,22 @@ use crate::server::types::{
 };
 use crate::types::MutationInfoWithOpId;
 use anyhow::Result;
+use dashmap::DashMap;
 use socketioxide::{
     extract::{AckSender, Data, SocketRef},
     SocketIo,
 };
+use std::sync::OnceLock;
 use tracing::{error, info, warn};
 use uuid::Uuid;
+
+/// Track the number of users in each document room
+/// Key: doc_id, Value: count of connected users
+static DOCUMENT_USERS: OnceLock<DashMap<String, usize>> = OnceLock::new();
+
+fn get_document_users() -> &'static DashMap<String, usize> {
+    DOCUMENT_USERS.get_or_init(|| DashMap::new())
+}
 
 /// Setup Socket.IO event handlers
 pub fn setup_socketio(io: &SocketIo, state: AppState) {
@@ -20,6 +31,9 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
     let state_clone = state.clone();
     io.ns("/ws", move |socket: SocketRef| async move {
         info!("Socket connected to /ws namespace: {:?}", socket.id);
+
+        // Increment online users counter
+        metrics::increment_online_users();
 
         let state = state_clone.clone();
 
@@ -195,6 +209,18 @@ async fn handle_join_doc(
     socket.join(room.clone());
     info!("Socket {} joined room {}", socket.id, room);
 
+    // Track document users for metrics
+    let doc_users = get_document_users();
+    let mut count = doc_users.entry(req.doc_id.clone()).or_insert(0);
+    *count += 1;
+    let new_count = *count;
+    drop(count); // Release the lock
+
+    // If this is the first user in this document, increment online documents
+    if new_count == 1 {
+        metrics::increment_online_documents();
+    }
+
     Ok(JoinDocAck {
         status: "ok".to_string(),
         version: Some(version),
@@ -207,6 +233,22 @@ async fn handle_leave_doc(socket: &SocketRef, req: LeaveDocRequest) {
     let room = format!("doc:{}", req.doc_id);
     socket.leave(room.clone());
     info!("Socket {} left room {}", socket.id, room);
+
+    // Track document users for metrics
+    let doc_users = get_document_users();
+    if let Some(mut count) = doc_users.get_mut(&req.doc_id) {
+        if *count > 0 {
+            *count -= 1;
+            let new_count = *count;
+            drop(count); // Release the lock
+
+            // If this was the last user, decrement online documents
+            if new_count == 0 {
+                doc_users.remove(&req.doc_id);
+                metrics::decrement_online_documents();
+            }
+        }
+    }
 }
 
 async fn handle_awareness_init(
@@ -217,6 +259,18 @@ async fn handle_awareness_init(
     let doc_id = req.doc_id.clone();
     let room = format!("doc:{}", doc_id);
     socket.join(room.clone());
+
+    // Track document users for metrics
+    let doc_users = get_document_users();
+    let mut count = doc_users.entry(doc_id.clone()).or_insert(0);
+    *count += 1;
+    let new_count = *count;
+    drop(count); // Release the lock
+
+    // If this is the first user in this document, increment online documents
+    if new_count == 1 {
+        metrics::increment_online_documents();
+    }
 
     let snapshot = state.awareness_service.get_state(&doc_id).await?;
     let states = snapshot.into_values().collect::<Vec<_>>();
@@ -410,15 +464,38 @@ async fn handle_presence_update(
 }
 
 async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
+    info!("Socket disconnecting: {:?}", socket.id);
+
+    // Decrement online users counter
+    metrics::decrement_online_users();
+
     let rooms = socket.rooms().into_iter().collect::<Vec<_>>();
+    let doc_users = get_document_users();
+
     for room in rooms {
         if let Some(doc_id) = room.strip_prefix("doc:") {
+            // Clean up awareness state
             if let Err(e) = state
                 .awareness_service
                 .remove_by_socket(doc_id, &socket.id.to_string())
                 .await
             {
                 warn!("Error removing client awareness: {}", e);
+            }
+
+            // Update document user tracking
+            if let Some(mut count) = doc_users.get_mut(doc_id) {
+                if *count > 0 {
+                    *count -= 1;
+                    let new_count = *count;
+                    drop(count); // Release the lock
+
+                    // If this was the last user, decrement online documents
+                    if new_count == 0 {
+                        doc_users.remove(doc_id);
+                        metrics::decrement_online_documents();
+                    }
+                }
             }
         }
     }

@@ -32,6 +32,7 @@ mod server;
 use server::{
     config::Config,
     handlers::{api, socketio},
+    metrics,
     state::ServerState,
 };
 use socketioxide::SocketIo;
@@ -49,6 +50,18 @@ async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt().with_max_level(Level::INFO).init();
     info!("Tracing initialized");
+
+    // Initialize OpenTelemetry with Prometheus exporter
+    metrics::init_opentelemetry();
+
+    // Initialize process metrics
+    metrics::init_process_metrics();
+
+    // Initialize Socket.IO metrics
+    metrics::init_socketio_metrics();
+
+    // Start metrics collection background task
+    metrics::start_metrics_collection();
 
     // Load configuration
     let config = match Config::from_env() {
@@ -153,6 +166,7 @@ async fn main() -> anyhow::Result<()> {
     info!("Building application routes");
     let app = Router::new()
         .route("/health", get(api::health_check))
+        .route("/metrics", get(metrics::metrics_handler))
         .route("/api/documents", post(api::create_document))
         .route("/api/documents/{doc_id}", get(api::get_document))
         .route("/api/documents/{doc_id}/restore", post(api::restore_document))

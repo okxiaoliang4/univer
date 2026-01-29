@@ -7,6 +7,8 @@ pub mod grpc;
 #[cfg(feature = "server")]
 pub mod handlers;
 #[cfg(feature = "server")]
+pub mod metrics;
+#[cfg(feature = "server")]
 pub mod services;
 #[cfg(feature = "server")]
 pub mod state;
