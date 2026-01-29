@@ -80,6 +80,11 @@ export class AwarenessService extends Disposable implements IAwarenessService {
     private _update$ = new Subject<{ unitId: string; clientId: number }>();
     private _localState = new Map<string, IAwarenessState>();
 
+    // Track socket listeners per unit to prevent listener accumulation
+    private _socketListenerMap = new Map<string, (payload: IAwarenessState) => void>();
+    // Track document-specific subscriptions for proper cleanup
+    private _documentSubscriptions = new Map<string, Array<{ unsubscribe: () => void }>>();
+
     init$ = this._init$.asObservable();
     userIds$ = this._userIds$.asObservable();
     clientId$ = this._clientId$.asObservable();
@@ -120,6 +125,23 @@ export class AwarenessService extends Disposable implements IAwarenessService {
                 this._init$.next(this._init$.value);
                 this._state$.next(this._state$.value);
                 this._clientId$.next(this._clientId$.value);
+
+                // Clean up socket listener for this document
+                const socket = this._socketService.getSocket();
+                if (socket) {
+                    const listener = this._socketListenerMap.get(unitId);
+                    if (listener) {
+                        socket.off('presence_update', listener);
+                        this._socketListenerMap.delete(unitId);
+                    }
+                }
+
+                // Clean up document-specific subscriptions
+                const subscriptions = this._documentSubscriptions.get(unitId);
+                if (subscriptions) {
+                    subscriptions.forEach((sub) => sub.unsubscribe());
+                    this._documentSubscriptions.delete(unitId);
+                }
             })
         );
     }
@@ -149,8 +171,15 @@ export class AwarenessService extends Disposable implements IAwarenessService {
 
         const socket = this._socketService.getSocket();
         if (socket) {
+            // Remove old listener if exists (handles reconnection scenarios)
+            const oldListener = this._socketListenerMap.get(unitId);
+            if (oldListener) {
+                socket.off('presence_update', oldListener);
+            }
+
+            // Create and store the listener to ensure same reference for on/off
             const presenceUpdateListener = this._presenceUpdateListener.bind(this);
-            socket.off('presence_update', this._presenceUpdateListener.bind(this));
+            this._socketListenerMap.set(unitId, presenceUpdateListener);
             socket.on('presence_update', presenceUpdateListener);
 
             socket.emit(
@@ -200,11 +229,17 @@ export class AwarenessService extends Disposable implements IAwarenessService {
         const user = this._userManagerService.getCurrentUser();
 
         setCurrentState(user);
-        this.disposeWithMe(
-            this._userManagerService.currentUser$.subscribe((currentUser) => {
-                setCurrentState(currentUser);
-            })
-        );
+
+        // Create document-specific subscription that will be cleaned up on docLeft
+        const subscription = this._userManagerService.currentUser$.subscribe((currentUser) => {
+            setCurrentState(currentUser);
+        });
+
+        // Track subscription for cleanup
+        if (!this._documentSubscriptions.has(unitId)) {
+            this._documentSubscriptions.set(unitId, []);
+        }
+        this._documentSubscriptions.get(unitId)!.push(subscription);
     }
 
     private _addClient(clientID: string) {

@@ -15,7 +15,7 @@
  */
 
 import type { ICollaborationConfig } from './controller/config.schema';
-import { AuthzIoLocalService, IAuthzIoService, IConfigService, Inject, Injector, IUndoRedoService, merge, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
+import { IConfigService, Inject, Injector, IUndoRedoService, merge, mergeOverrideWithDependencies, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
 import { CollaborationController } from './controller/collaboration.controller';
 import { COLLABORATION_PLUGIN_CONFIG_KEY, defaultPluginConfig } from './controller/config.schema';
 import { AwarenessService, IAwarenessService } from './services/awareness.service';
@@ -43,16 +43,15 @@ export class CollaborationPlugin extends Plugin {
     }
 
     override onStarting(): void {
-        registerDependencies(this._injector, [
+        registerDependencies(this._injector, mergeOverrideWithDependencies([
             [CollaborationController],
             [ITransformService, { useClass: TransformService }],
             [IPendingMutationSerivce, { useClass: PendingMutationSerivce }],
             [ICollaborationService, { useClass: CollaborationService }],
             [ISocketService, { useClass: SocketService }],
-            [IAuthzIoService, { useClass: AuthzIoLocalService }],
             [IUndoRedoService, { useClass: CollaborationUndoRedoService }],
             [IAwarenessService, { useClass: AwarenessService }],
-        ]);
+        ], this._config?.override));
 
         touchDependencies(this._injector, [
             [CollaborationController],

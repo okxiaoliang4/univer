@@ -8,6 +8,8 @@ use tracing::{debug, warn};
 use uuid::Uuid;
 
 const DOC_ACTOR_QUEUE_CAPACITY: usize = 128;
+// Cleanup interval for closed actors (in seconds)
+const ACTOR_CLEANUP_INTERVAL_SECS: u64 = 300; // 5 minutes
 
 struct ApplyChangesetTask {
     changeset: Changeset,
@@ -22,9 +24,29 @@ pub struct DocumentActorManager {
 
 impl DocumentActorManager {
     pub fn new(ot_service: OTService) -> Self {
-        Self {
+        let manager = Self {
             ot_service,
             actors: Arc::new(Mutex::new(HashMap::new())),
+        };
+
+        // Spawn background task to periodically clean up closed actors
+        let cleanup_manager = manager.clone();
+        tokio::spawn(async move {
+            cleanup_manager.start_cleanup_task().await;
+        });
+
+        manager
+    }
+
+    /// Background task that periodically cleans up closed actor senders.
+    async fn start_cleanup_task(&self) {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(ACTOR_CLEANUP_INTERVAL_SECS));
+        loop {
+            interval.tick().await;
+            let count = self.cleanup_closed_actors().await;
+            if count > 0 {
+                debug!("Actor cleanup task: removed {} closed actors", count);
+            }
         }
     }
 
