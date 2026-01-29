@@ -158,12 +158,14 @@ impl OTService {
                 .get(index)
                 .map(|mutation| mutation.op_id.clone())
                 .unwrap_or_default();
+            let params = serde_json::to_string(&m1_prime.params)
+                .context("Failed to serialize mutation params for operation_log")?;
             let operation = operation_log::ActiveModel {
                 doc_id: Set(doc_id),
                 rev: Set(next_rev),
                 user_id: Set(changeset.user_id.clone()),
                 mutation_id: Set(m1_prime.id.clone()),
-                params: Set(m1_prime.params.clone()),
+                params: Set(params),
                 client_id: Set(changeset.client_id.clone()),
                 op_id: Set(op_id),
                 created_at: Set(now.into()),

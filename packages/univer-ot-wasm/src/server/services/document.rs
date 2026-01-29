@@ -746,18 +746,27 @@ impl DocumentService {
         };
 
         let count = operations.len();
-        let result: Vec<OperationInfo> = operations
+        let result: Result<Vec<OperationInfo>> = operations
             .into_iter()
-            .map(|op| OperationInfo {
-                rev: op.rev,
-                user_id: op.user_id.clone(),
-                mutation_id: op.mutation_id.clone(),
-                params: op.params.clone(),
-                client_id: op.client_id.clone(),
-                op_id: op.op_id.clone(),
-                created_at: op.created_at.into(),
+            .map(|op| {
+                let params = serde_json::from_str(&op.params).with_context(|| {
+                    format!(
+                        "Invalid operation params: doc_id={}, rev={}",
+                        doc_id, op.rev
+                    )
+                })?;
+                Ok(OperationInfo {
+                    rev: op.rev,
+                    user_id: op.user_id.clone(),
+                    mutation_id: op.mutation_id.clone(),
+                    params,
+                    client_id: op.client_id.clone(),
+                    op_id: op.op_id.clone(),
+                    created_at: op.created_at.into(),
+                })
             })
             .collect();
+        let result = result?;
 
         // Warn if fetching a large number of operations (potential memory concern)
         if count > 1000 {

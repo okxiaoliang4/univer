@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Initialize tracing
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+    tracing_subscriber::fmt::init();
     info!("Tracing initialized");
 
     // Initialize OpenTelemetry with Prometheus exporter

@@ -68,7 +68,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(OperationLogs::Params)
-                            .json_binary()
+                            .text()
                             .not_null(),
                     )
                     .col(
