@@ -89,8 +89,8 @@ services:
     # OT Server
     ot-server:
         build:
-            context: .
-            dockerfile: packages/univer-ot-wasm/src/server/Dockerfile
+            context: packages/univer-ot-wasm
+            dockerfile: Dockerfile
         container_name: univer-ot-server
 
         ports:
