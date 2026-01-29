@@ -57,7 +57,7 @@ reqwest = { version = "0.12", features = [
     "json",
     "rustls-tls"
 ] }
-mimalloc = "0.1.48"
+mimalloc = { version = "0.1.48", features = [ "v3" ] }
 opentelemetry = "0.31.0"
 opentelemetry_sdk = { version = "0.31.0", features = [ "rt-tokio" ] }
 opentelemetry-prometheus = "0.31.0"
