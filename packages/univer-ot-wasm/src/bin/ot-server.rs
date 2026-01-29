@@ -11,6 +11,7 @@ use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info, warn, Level};
 
+#[cfg(feature = "mimalloc")]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 

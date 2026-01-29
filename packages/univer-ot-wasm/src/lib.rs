@@ -2,9 +2,14 @@ use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
-#[cfg(all(feature = "wee_alloc", target_arch = "wasm32"))]
+extern crate alloc;
+
+#[cfg(target_arch = "wasm32")]
+use lol_alloc::{FreeListAllocator, LockedAllocator};
+
+#[cfg(target_arch = "wasm32")]
 #[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+static ALLOCATOR: LockedAllocator<FreeListAllocator> = LockedAllocator::new(FreeListAllocator::new());
 
 // Define console_error_panic_hook for better error messages in development
 #[cfg(feature = "console_error_panic_hook")]

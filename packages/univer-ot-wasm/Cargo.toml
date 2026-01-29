@@ -26,6 +26,7 @@ js-sys = "0.3"
 web-sys = "0.3"
 log = { version = "0.4.29", optional = true }
 console_log = { version = "1.0.0", optional = true }
+lol_alloc = "0.4.1"
 
 # Server dependencies (only used for binary, not WASM)
 axum = { version = "0.8", optional = true }
@@ -64,11 +65,7 @@ reqwest = { version = "0.12", features = [
     "json",
     "rustls-tls"
 ], optional = true }
-mimalloc = "0.1.48"
-
-[dependencies.wee_alloc]
-version = "0.4.5"
-optional = true
+mimalloc = { version = "0.1.48", optional = true }
 
 [dependencies.console_error_panic_hook]
 version = "0.1.6"
@@ -113,6 +110,7 @@ server = [
     "tokio-stream",
     "local-ip-address",
     "reqwest",
+    "mimalloc",
 ]
 
 [build-dependencies]
