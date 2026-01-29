@@ -26,16 +26,80 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Move rule
     registry.register_symmetric_ref(MOVE_RULE_ID, create_identity());
 
-    // With sheet operations
+    // With sheet operations - add-conditional-rule
     registry.register_identity(ADD_RULE_ID, "sheet.mutation.insert-row");
     registry.register_identity(ADD_RULE_ID, "sheet.mutation.insert-col");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.remove-rows");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.remove-col");
     registry.register_identity(ADD_RULE_ID, "sheet.mutation.set-range-values");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.move-range");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.move-rows");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.move-columns");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.add-worksheet-merge");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.set-range-protection");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.set-range-theme");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.set.numfmt");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.set-frozen");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.set-row-data");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.insert-sheet");
+    registry.register_identity(ADD_RULE_ID, "sheet.mutation.set-workbook-name");
 
+    // With sheet operations - delete-conditional-rule
     registry.register_identity(DELETE_RULE_ID, "sheet.mutation.insert-row");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.insert-col");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.remove-rows");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.remove-col");
     registry.register_identity(DELETE_RULE_ID, "sheet.mutation.set-range-values");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.move-range");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.move-rows");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.move-columns");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.add-worksheet-merge");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.set-range-protection");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.set-range-theme");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.set.numfmt");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.set-frozen");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.set-row-data");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.insert-sheet");
+    registry.register_identity(DELETE_RULE_ID, "sheet.mutation.set-workbook-name");
 
+    // With sheet operations - set-conditional-rule
     registry.register_identity(SET_RULE_ID, "sheet.mutation.insert-row");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.insert-col");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.remove-rows");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.remove-col");
     registry.register_identity(SET_RULE_ID, "sheet.mutation.set-range-values");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.move-range");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.move-rows");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.move-columns");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.add-worksheet-merge");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.set-range-protection");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.set-range-theme");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.set.numfmt");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.set-frozen");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.set-row-data");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.insert-sheet");
+    registry.register_identity(SET_RULE_ID, "sheet.mutation.set-workbook-name");
+
+    // With sheet operations - move-conditional-rule
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.insert-row");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.insert-col");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.remove-rows");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.remove-col");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.set-range-values");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.move-range");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.move-rows");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.move-columns");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.add-worksheet-merge");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.set-range-protection");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.set-range-theme");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.set.numfmt");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.set-frozen");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.set-row-data");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.insert-sheet");
+    registry.register_identity(MOVE_RULE_ID, "sheet.mutation.set-workbook-name");
+
+    // With data validation (different features, don't interfere)
+    // Note: data-validation module registers these in the opposite direction
 }
 
 fn create_identity() -> TransformFnRef {

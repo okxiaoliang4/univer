@@ -18,6 +18,12 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
         "sheet.mutation.set-range-values",
         create_transform_with_set_range_values(),
     );
+
+    // Identity transforms with non-interfering mutations
+    // These operations don't affect row positions or are at different levels
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-sheet");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-workbook-name");
 }
 
 /// Helper to create identity transform result (zero-copy!)

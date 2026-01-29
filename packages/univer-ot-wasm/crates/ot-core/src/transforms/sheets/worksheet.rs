@@ -6,6 +6,24 @@ pub const MUTATION_ID: MutationId = "sheet.mutation.insert-sheet";
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_symmetric_ref(MUTATION_ID, create_identity());
+
+    // Identity transforms with all sheet-level operations
+    // insert-sheet operates at workbook level, doesn't interfere with cell-level operations
+    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-row");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-col");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.remove-rows");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.remove-col");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-values");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.move-range");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.move-rows");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.move-columns");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.add-worksheet-merge");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-protection");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set.numfmt");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-frozen");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-row-data");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-workbook-name");
 }
 
 fn create_identity() -> TransformFnRef {

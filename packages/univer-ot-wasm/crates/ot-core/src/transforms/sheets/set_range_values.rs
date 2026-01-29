@@ -10,6 +10,14 @@ pub const MUTATION_ID: MutationId = "sheet.mutation.set-range-values";
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Self-transform (set-range-values vs set-range-values)
     registry.register_symmetric_ref(MUTATION_ID, create_self_transform());
+
+    // Identity transforms with non-interfering mutations
+    // Note: transforms with insert-row/col, remove-rows/col are registered in those files
+    registry.register_identity(MUTATION_ID, "sheet.mutation.add-worksheet-merge");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-protection");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-sheet");
+    registry.register_identity(MUTATION_ID, "sheet.mutation.set-workbook-name");
 }
 
 /// Helper to create identity transform result (zero-copy!)
