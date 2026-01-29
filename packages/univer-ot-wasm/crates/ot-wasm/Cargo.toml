@@ -1,0 +1,34 @@
+[package]
+name = "ot-wasm"
+
+version.workspace = true
+
+edition.workspace = true
+
+license.workspace = true
+
+authors.workspace = true
+
+description = "WASM bindings for Operational Transformation"
+
+[lib]
+crate-type = [ "cdylib" ]
+
+[dependencies]
+ot-core = { path = "../ot-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
+lol_alloc = "0.4.1"
+console_error_panic_hook = { version = "0.1.6", optional = true }
+
+[features]
+default = [ "console_error_panic_hook" ]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"

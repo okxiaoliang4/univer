@@ -15,8 +15,8 @@
  */
 
 import type { IWorkbookData } from '@univerjs/core';
-import { CollaborationPlugin } from '@univerjs/collaboration';
-import { generateRandomId, LocaleType, LogLevel, Univer, UniverInstanceType, UserManagerService } from '@univerjs/core';
+import { CollaborationPlugin, CollaborationUndoRedoService } from '@univerjs/collaboration';
+import { generateRandomId, IUndoRedoService, LocaleType, LogLevel, Univer, UniverInstanceType, UserManagerService } from '@univerjs/core';
 import { FUniver } from '@univerjs/core/facade';
 import { UniverDebuggerPlugin } from '@univerjs/debugger';
 import { UniverDocsPlugin } from '@univerjs/docs';
@@ -110,6 +110,7 @@ async function createNewInstance() {
             [LocaleType.ZH_TW]: zhTW,
         },
         logLevel: LogLevel.VERBOSE,
+        override: [[IUndoRedoService, { useClass: CollaborationUndoRedoService }]],
     });
 
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
@@ -118,6 +119,10 @@ async function createNewInstance() {
     const userId = url.searchParams.get('userId') || `uid_${generateRandomId()}`;
 
     univer.registerPlugins([
+        [CollaborationPlugin, {
+            wsUrl: 'ws://localhost:8800/ws',
+            userId,
+        }],
         [UniverRPCMainThreadPlugin, { workerURL: worker }],
         [UniverDocsPlugin],
         [UniverRenderEnginePlugin],
@@ -149,10 +154,6 @@ async function createNewInstance() {
         [UniverSheetsTablePlugin],
         [UniverNetworkPlugin],
         [UniverSheetsNotePlugin],
-        [CollaborationPlugin, {
-            wsUrl: 'ws://localhost:8800/ws',
-            userId,
-        }],
     ]);
 
     // If we are running in e2e platform, we should immediately register the debugger plugin.
@@ -169,7 +170,7 @@ async function createNewInstance() {
     const userManagerService = injector.get(UserManagerService);
     userManagerService.setCurrentUser(mockUser);
 
-    const docId = '019bc0ff-395c-725c-baff-735705955782';
+    const docId = 'c5aedffc-130a-42c6-b2d5-4162a55a1495';
     const doc = await fetch(`http://localhost:8800/api/documents/${docId}`)
         .then((res) => res.json());
 

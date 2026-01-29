@@ -15,7 +15,16 @@
  */
 
 import type { ICollaborationConfig } from './controller/config.schema';
-import { IConfigService, Inject, Injector, IUndoRedoService, merge, mergeOverrideWithDependencies, Plugin, registerDependencies, touchDependencies } from '@univerjs/core';
+import {
+    IConfigService,
+    Inject,
+    Injector,
+    merge,
+    mergeOverrideWithDependencies,
+    Plugin,
+    registerDependencies,
+    touchDependencies,
+} from '@univerjs/core';
 import { CollaborationController } from './controller/collaboration.controller';
 import { COLLABORATION_PLUGIN_CONFIG_KEY, defaultPluginConfig } from './controller/config.schema';
 import { AwarenessService, IAwarenessService } from './services/awareness.service';
@@ -23,7 +32,6 @@ import { CollaborationService, ICollaborationService } from './services/collabor
 import { IPendingMutationSerivce, PendingMutationSerivce } from './services/offline-storage.service';
 import { ISocketService, SocketService } from './services/socket.service';
 import { ITransformService, TransformService } from './services/transform.service';
-import { CollaborationUndoRedoService } from './services/undo-redo.service';
 
 export class CollaborationPlugin extends Plugin {
     static override pluginName = 'COLLABORATION_PLUGIN';
@@ -43,15 +51,15 @@ export class CollaborationPlugin extends Plugin {
     }
 
     override onStarting(): void {
+        const config = this._configService.getConfig<ICollaborationConfig>(COLLABORATION_PLUGIN_CONFIG_KEY);
         registerDependencies(this._injector, mergeOverrideWithDependencies([
+            [ISocketService, { useClass: SocketService }],
             [CollaborationController],
             [ITransformService, { useClass: TransformService }],
             [IPendingMutationSerivce, { useClass: PendingMutationSerivce }],
             [ICollaborationService, { useClass: CollaborationService }],
-            [ISocketService, { useClass: SocketService }],
-            [IUndoRedoService, { useClass: CollaborationUndoRedoService }],
             [IAwarenessService, { useClass: AwarenessService }],
-        ], this._config?.override));
+        ], config?.override ?? []));
 
         touchDependencies(this._injector, [
             [CollaborationController],

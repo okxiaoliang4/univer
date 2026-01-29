@@ -62,6 +62,6 @@
 
     "vitest.maximumConfigs": 80,
     "rust-analyzer.linkedProjects": [
-        "packages-experimental/univer-ot-wasm/Cargo.toml"
+        "packages/univer-ot-wasm/Cargo.toml"
     ]
 }

@@ -1,0 +1,68 @@
+[package]
+name = "ot-server"
+
+version.workspace = true
+
+edition.workspace = true
+
+license.workspace = true
+
+authors.workspace = true
+
+description = "OT Server implementation"
+
+[[bin]]
+name = "ot-server"
+path = "src/main.rs"
+
+[dependencies]
+ot-core = { path = "../ot-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Server dependencies (no feature flags needed!)
+axum = "0.8"
+tokio = { version = "1", features = [ "full" ] }
+sea-orm = { version = "2.0.0-rc", features = [
+    "runtime-tokio-native-tls",
+    "sqlx-postgres",
+    "macros"
+] }
+uuid = { version = "1.0", features = [
+    "v4",
+    "serde"
+] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [ "env-filter" ] }
+anyhow = "1.0"
+thiserror = "1.0"
+tower = "0.4"
+tower-http = { version = "0.5", features = [ "cors" ] }
+chrono = { version = "0.4", features = [ "serde" ] }
+async-trait = "0.1"
+dotenvy = "0.15"
+migration = { path = "../../migration" }
+socketioxide = "0.18"
+aws-credential-types = "1"
+aws-sdk-s3 = { version = "1", features = [ "behavior-version-latest" ] }
+redis = { version = "0.25", features = [ "tokio-comp" ] }
+md5 = "0.7"
+etcd-client = "0.14"
+tonic = "0.11"
+tonic-reflection = "0.11"
+prost = "0.12"
+tokio-stream = "0.1"
+local-ip-address = "0.6"
+reqwest = { version = "0.12", features = [
+    "json",
+    "rustls-tls"
+] }
+mimalloc = "0.1.48"
+opentelemetry = "0.31.0"
+opentelemetry_sdk = { version = "0.31.0", features = [ "rt-tokio" ] }
+opentelemetry-prometheus = "0.31.0"
+prometheus = "0.14"
+dashmap = "6.1"
+
+[build-dependencies]
+tonic-build = "0.11"

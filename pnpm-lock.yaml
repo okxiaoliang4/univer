@@ -805,12 +805,6 @@ importers:
       '@univerjs/core':
         specifier: workspace:*
         version: link:../core
-      '@univerjs/network':
-        specifier: workspace:*
-        version: link:../network
-      '@univerjs/sheets':
-        specifier: workspace:*
-        version: link:../sheets
       '@univerjs/univer-ot-wasm':
         specifier: workspace:*
         version: link:../univer-ot-wasm
@@ -854,9 +848,6 @@ importers:
       lodash-es:
         specifier: ^4.17.22
         version: 4.17.22
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
       rxjs:
         specifier: '>=7.0.0'
         version: 7.8.2
