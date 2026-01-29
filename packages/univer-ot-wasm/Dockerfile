@@ -19,8 +19,8 @@ COPY crates/ot-server/Cargo.toml ./crates/ot-server/
 COPY crates/ot-server/build.rs ./crates/ot-server/
 COPY migration/Cargo.toml ./migration/
 
-# Copy proto files for gRPC
-COPY crates/ot-server/proto ./crates/ot-server/proto
+# Copy proto files for gRPC (build.rs expects them at workspace root)
+COPY proto ./proto
 
 # Create dummy source files to cache dependencies
 RUN mkdir -p crates/ot-core/src \
