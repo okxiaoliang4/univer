@@ -15,6 +15,7 @@ COPY Cargo.toml Cargo.lock ./
 
 # Copy all crate manifests
 COPY crates/ot-core/Cargo.toml ./crates/ot-core/
+COPY crates/ot-wasm/Cargo.toml ./crates/ot-wasm/
 COPY crates/ot-server/Cargo.toml ./crates/ot-server/
 COPY crates/ot-server/build.rs ./crates/ot-server/
 COPY migration/Cargo.toml ./migration/
@@ -24,9 +25,11 @@ COPY proto ./proto
 
 # Create dummy source files to cache dependencies
 RUN mkdir -p crates/ot-core/src \
+    crates/ot-wasm/src \
     crates/ot-server/src \
     migration/src && \
     echo "pub fn main() {}" > crates/ot-core/src/lib.rs && \
+    echo "pub fn main() {}" > crates/ot-wasm/src/lib.rs && \
     echo "fn main() {}" > crates/ot-server/src/main.rs && \
     echo "pub fn main() {}" > migration/src/lib.rs
 
@@ -35,15 +38,18 @@ RUN cargo build -p ot-server --release || true
 
 # Remove dummy source files and build artifacts
 RUN rm -rf crates/ot-core/src \
+    crates/ot-wasm/src \
     crates/ot-server/src \
     migration/src && \
     rm -f target/release/ot-server \
     target/release/deps/ot_server* \
     target/release/deps/libot_core* \
+    target/release/deps/libot_wasm* \
     target/release/deps/libmigration*
 
 # Copy real source code
 COPY crates/ot-core/src ./crates/ot-core/src
+COPY crates/ot-wasm/src ./crates/ot-wasm/src
 COPY crates/ot-server/src ./crates/ot-server/src
 COPY migration/src ./migration/src
 
