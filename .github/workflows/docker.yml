@@ -44,8 +44,8 @@ jobs:
             - name: Build and push Docker image
               uses: docker/build-push-action@v5
               with:
-                  context: .
-                  file: ./packages/univer-ot-wasm/src/server/Dockerfile
+                  context: packages/univer-ot-wasm
+                  file: ./packages/univer-ot-wasm/Dockerfile
                   push: true
                   tags: ${{ steps.docker_meta.outputs.tags }}
                   cache-from: |
