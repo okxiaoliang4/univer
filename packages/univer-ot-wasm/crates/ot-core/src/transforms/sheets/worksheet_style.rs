@@ -1,9 +1,12 @@
+use crate::mutations::sheets::{
+    SetWorksheetDefaultStyleMutation, SetWorksheetRightToLeftMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const SET_DEFAULT_STYLE_ID: MutationId = "sheet.mutation.set-worksheet-default-style";
-pub const SET_RIGHT_TO_LEFT_ID: MutationId = "sheet.mutation.set-worksheet-right-to-left";
+pub const SET_DEFAULT_STYLE_ID: MutationId = SetWorksheetDefaultStyleMutation::ID;
+pub const SET_RIGHT_TO_LEFT_ID: MutationId = SetWorksheetRightToLeftMutation::ID;
 
 const WORKSHEET_STYLE_MUTATIONS: &[MutationId] = &[
     SET_DEFAULT_STYLE_ID,

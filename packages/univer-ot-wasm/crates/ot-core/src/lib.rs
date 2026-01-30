@@ -48,14 +48,12 @@
 
 mod registry;
 mod types;
-mod params;
 pub mod transforms;
 pub mod utils;
 pub mod mutations;
 
 pub use registry::{TransformRegistry, TransformFn, MutationId};
 pub use types::*;
-pub use params::*;
 
 /// The main service for performing OT transforms
 ///

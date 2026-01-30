@@ -1,10 +1,14 @@
-use crate::mutations::sheets::SetRangeValuesMutationParams;
+use crate::mutations::sheets::{
+    SetRangeValuesMutation, AddWorksheetMergeMutation, SetRangeProtectionMutation,
+    SetRangeThemeMutation, InsertSheetMutation, SetWorkbookNameMutation,
+    SetRangeValuesMutationParams,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use crate::utils::params::same_worksheet;
 use std::sync::Arc;
 
-pub const MUTATION_ID: MutationId = "sheet.mutation.set-range-values";
+pub const MUTATION_ID: MutationId = SetRangeValuesMutation::ID;
 
 /// Register all transforms for set-range-values mutation
 pub fn register_transforms(registry: &mut TransformRegistry) {
@@ -13,11 +17,11 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
 
     // Identity transforms with non-interfering mutations
     // Note: transforms with insert-row/col, remove-rows/col are registered in those files
-    registry.register_identity(MUTATION_ID, "sheet.mutation.add-worksheet-merge");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-protection");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-sheet");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-workbook-name");
+    registry.register_identity(MUTATION_ID, AddWorksheetMergeMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeProtectionMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeThemeMutation::ID);
+    registry.register_identity(MUTATION_ID, InsertSheetMutation::ID);
+    registry.register_identity(MUTATION_ID, SetWorkbookNameMutation::ID);
 }
 
 /// Helper to create identity transform result (zero-copy!)
@@ -65,34 +69,26 @@ fn create_self_transform() -> TransformFnRef {
 
         if let (Some(m1_cells), Some(m2_cells)) = (&m1_params.cell_value, &m2_params.cell_value) {
             // Find conflicting cells
-            let mut m1_prime_cells = m1_cells.data.clone();
-            let m2_prime_cells = m2_cells.data.clone();
+            let mut m1_prime_cells = m1_cells.clone();
 
             // For each cell in m1, check if m2 also modifies it
-            for (row_key, row_value) in &m1_cells.data {
-                if let Some(m2_row) = m2_cells.data.get(row_key) {
-                    if let (serde_json::Value::Object(m1_cols), serde_json::Value::Object(m2_cols)) =
-                        (row_value, m2_row)
-                    {
-                        // Check for column conflicts
-                        let mut m1_prime_row = m1_cols.clone();
+            for (row_key, m1_row) in m1_cells {
+                if let Some(m2_row) = m2_cells.get(row_key) {
+                    // Check for column conflicts
+                    let mut m1_prime_row = m1_row.clone();
 
-                        for col_key in m1_cols.keys() {
-                            if m2_cols.contains_key(col_key) {
-                                // Conflict! LWW: m2 wins, so remove from m1_prime
-                                m1_prime_row.remove(col_key);
-                            }
+                    for col_key in m1_row.keys() {
+                        if m2_row.contains_key(col_key) {
+                            // Conflict! LWW: m2 wins, so remove from m1_prime
+                            m1_prime_row.remove(col_key);
                         }
+                    }
 
-                        // Update or remove the row in m1_prime
-                        if m1_prime_row.is_empty() {
-                            m1_prime_cells.remove(row_key);
-                        } else {
-                            m1_prime_cells.insert(
-                                row_key.clone(),
-                                serde_json::Value::Object(m1_prime_row),
-                            );
-                        }
+                    // Update or remove the row in m1_prime
+                    if m1_prime_row.is_empty() {
+                        m1_prime_cells.remove(row_key);
+                    } else {
+                        m1_prime_cells.insert(row_key.clone(), m1_prime_row);
                     }
                 }
             }
@@ -106,7 +102,6 @@ fn create_self_transform() -> TransformFnRef {
 
             // m2 keeps all its cells (LWW - it wins on conflicts)
             // Note: m2_prime_params already has a clone of m2_params, which includes the original cell_value
-            let _ = m2_prime_cells; // m2_prime_cells is same as original, no need to reassign
         }
 
         TransformResultRef {

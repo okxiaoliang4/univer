@@ -1,8 +1,9 @@
+use crate::mutations::sheets::ReorderRangeMutation;
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use std::sync::Arc;
 
-pub const REORDER_RANGE_ID: MutationId = "sheet.mutation.reorder-range";
+pub const REORDER_RANGE_ID: MutationId = ReorderRangeMutation::ID;
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register symmetric transform

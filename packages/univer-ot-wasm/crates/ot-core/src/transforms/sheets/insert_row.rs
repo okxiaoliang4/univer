@@ -1,11 +1,15 @@
-use crate::mutations::sheets::{InsertRowMutationParams, SetRangeValuesMutationParams};
+use crate::mutations::sheets::{
+    InsertRowMutation, SetRangeValuesMutation, SetRangeThemeMutation,
+    InsertSheetMutation, SetWorkbookNameMutation,
+    InsertRowMutationParams, SetRangeValuesMutationParams,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use crate::utils::shift::shift_row_keys_for_insert;
 use crate::utils::params::same_worksheet;
 use std::sync::Arc;
 
-pub const MUTATION_ID: MutationId = "sheet.mutation.insert-row";
+pub const MUTATION_ID: MutationId = InsertRowMutation::ID;
 
 /// Register all transforms for insert-row mutation
 pub fn register_transforms(registry: &mut TransformRegistry) {
@@ -15,15 +19,15 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Bidirectional: insert-row vs set-range-values
     registry.register_bidirectional_ref(
         MUTATION_ID,
-        "sheet.mutation.set-range-values",
+        SetRangeValuesMutation::ID,
         create_transform_with_set_range_values(),
     );
 
     // Identity transforms with non-interfering mutations
     // These operations don't affect row positions or are at different levels
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-sheet");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-workbook-name");
+    registry.register_identity(MUTATION_ID, SetRangeThemeMutation::ID);
+    registry.register_identity(MUTATION_ID, InsertSheetMutation::ID);
+    registry.register_identity(MUTATION_ID, SetWorkbookNameMutation::ID);
 }
 
 /// Helper to create identity transform result (zero-copy!)
@@ -194,7 +198,7 @@ mod tests {
         };
 
         let m2 = MutationInfo {
-            id: "sheet.mutation.set-range-values".to_string(),
+            id: SetRangeValuesMutation::ID.to_string(),
             params: json!({
                 "unitId": "workbook1",
                 "subUnitId": "sheet1",

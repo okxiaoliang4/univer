@@ -1,13 +1,17 @@
+use crate::mutations::thread_comment::{
+    AddCommentMutation, UpdateCommentMutation, UpdateCommentRefMutation,
+    ResolveCommentMutation, DeleteCommentMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
 use std::sync::Arc;
 
-pub const ADD_COMMENT_ID: MutationId = "thread-comment.mutation.add-comment";
-pub const UPDATE_COMMENT_ID: MutationId = "thread-comment.mutation.update-comment";
-pub const UPDATE_COMMENT_REF_ID: MutationId = "thread-comment.mutation.update-comment-ref";
-pub const RESOLVE_COMMENT_ID: MutationId = "thread-comment.mutation.resolve-comment";
-pub const DELETE_COMMENT_ID: MutationId = "thread-comment.mutation.delete-comment";
+pub const ADD_COMMENT_ID: MutationId = AddCommentMutation::ID;
+pub const UPDATE_COMMENT_ID: MutationId = UpdateCommentMutation::ID;
+pub const UPDATE_COMMENT_REF_ID: MutationId = UpdateCommentRefMutation::ID;
+pub const RESOLVE_COMMENT_ID: MutationId = ResolveCommentMutation::ID;
+pub const DELETE_COMMENT_ID: MutationId = DeleteCommentMutation::ID;
 
 const LOCAL_COMMENT_MUTATIONS: &[MutationId] = &[
     ADD_COMMENT_ID,

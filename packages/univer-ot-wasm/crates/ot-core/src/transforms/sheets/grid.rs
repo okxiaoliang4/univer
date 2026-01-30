@@ -1,9 +1,10 @@
+use crate::mutations::sheets::{ToggleGridlinesMutation, SetGridlinesColorMutation};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const TOGGLE_GRIDLINES_ID: MutationId = "sheet.mutation.toggle-gridlines";
-pub const SET_GRIDLINES_COLOR_ID: MutationId = "sheet.mutation.set-gridlines-color";
+pub const TOGGLE_GRIDLINES_ID: MutationId = ToggleGridlinesMutation::ID;
+pub const SET_GRIDLINES_COLOR_ID: MutationId = SetGridlinesColorMutation::ID;
 
 const GRID_MUTATIONS: &[MutationId] = &[
     TOGGLE_GRIDLINES_ID,

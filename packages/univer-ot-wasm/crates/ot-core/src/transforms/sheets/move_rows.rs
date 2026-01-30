@@ -1,10 +1,17 @@
-use crate::mutations::sheets::MoveRowsMutationParams;
+use crate::mutations::sheets::{
+    MoveRowsMutation, InsertRowMutation, RemoveRowMutation, SetRangeValuesMutation, MoveRangeMutation,
+    InsertColMutation, RemoveColMutation, MoveColsMutation, AddWorksheetMergeMutation,
+    SetRangeProtectionMutation, SetRangeThemeMutation, SetFrozenMutation, SetRowDataMutation,
+    InsertSheetMutation, SetWorkbookNameMutation,
+    MoveRowsMutationParams,
+};
+use crate::mutations::sheets_numfmt::SetNumfmtMutation;
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::utils::params::same_worksheet;
 use std::sync::Arc;
 
-pub const MUTATION_ID: MutationId = "sheet.mutation.move-rows";
+pub const MUTATION_ID: MutationId = MoveRowsMutation::ID;
 
 /// Register all transforms for move-rows mutation
 pub fn register_transforms(registry: &mut TransformRegistry) {
@@ -14,35 +21,35 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Bidirectional with structural operations
     registry.register_bidirectional_ref(
         MUTATION_ID,
-        "sheet.mutation.insert-row",
+        InsertRowMutation::ID,
         create_identity(),
     );
     registry.register_bidirectional_ref(
         MUTATION_ID,
-        "sheet.mutation.remove-rows",
+        RemoveRowMutation::ID,
         create_identity(),
     );
     registry.register_bidirectional_ref(
         MUTATION_ID,
-        "sheet.mutation.set-range-values",
+        SetRangeValuesMutation::ID,
         create_identity(),
     );
 
     // Identity with column operations
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-col");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.remove-col");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.move-columns");
+    registry.register_identity(MUTATION_ID, InsertColMutation::ID);
+    registry.register_identity(MUTATION_ID, RemoveColMutation::ID);
+    registry.register_identity(MUTATION_ID, MoveColsMutation::ID);
 
     // Identity transforms with non-interfering mutations
-    registry.register_identity(MUTATION_ID, "sheet.mutation.move-range");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.add-worksheet-merge");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-protection");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set.numfmt");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-frozen");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-row-data");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-sheet");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-workbook-name");
+    registry.register_identity(MUTATION_ID, MoveRangeMutation::ID);
+    registry.register_identity(MUTATION_ID, AddWorksheetMergeMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeProtectionMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeThemeMutation::ID);
+    registry.register_identity(MUTATION_ID, SetNumfmtMutation::ID);
+    registry.register_identity(MUTATION_ID, SetFrozenMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRowDataMutation::ID);
+    registry.register_identity(MUTATION_ID, InsertSheetMutation::ID);
+    registry.register_identity(MUTATION_ID, SetWorkbookNameMutation::ID);
 }
 
 /// Helper to create identity transform result (zero-copy!)

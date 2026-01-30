@@ -1,14 +1,19 @@
+use crate::mutations::sheets_pivot_table::{
+    AddPivotTableMutation, RemovePivotTableMutation, SetPivotTableSourceRangeMutation,
+    SetPivotTableTargetCellMutation, SetPivotTableFieldsConfigMutation,
+    SetPivotTableCalculatedDataMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
 use std::sync::Arc;
 
-pub const ADD_PIVOT_TABLE_ID: MutationId = "sheet.mutation.add-pivot-table";
-pub const REMOVE_PIVOT_TABLE_ID: MutationId = "sheet.mutation.remove-pivot-table";
-pub const SET_SOURCE_RANGE_ID: MutationId = "sheet.mutation.set-pivot-table-source-range";
-pub const SET_TARGET_CELL_ID: MutationId = "sheet.mutation.set-pivot-table-target-cell";
-pub const SET_FIELDS_CONFIG_ID: MutationId = "sheet.mutation.set-pivot-table-fields-config";
-pub const SET_CALCULATED_DATA_ID: MutationId = "sheet.mutation.set-pivot-table-calculated-data";
+pub const ADD_PIVOT_TABLE_ID: MutationId = AddPivotTableMutation::ID;
+pub const REMOVE_PIVOT_TABLE_ID: MutationId = RemovePivotTableMutation::ID;
+pub const SET_SOURCE_RANGE_ID: MutationId = SetPivotTableSourceRangeMutation::ID;
+pub const SET_TARGET_CELL_ID: MutationId = SetPivotTableTargetCellMutation::ID;
+pub const SET_FIELDS_CONFIG_ID: MutationId = SetPivotTableFieldsConfigMutation::ID;
+pub const SET_CALCULATED_DATA_ID: MutationId = SetPivotTableCalculatedDataMutation::ID;
 
 const LOCAL_PIVOT_TABLE_MUTATIONS: &[MutationId] = &[
     ADD_PIVOT_TABLE_ID,

@@ -42,25 +42,48 @@ use crate::transforms::constants::{
     THREAD_COMMENT_MUTATIONS,
 };
 
+// Import all mutation structs used in constants
+use crate::mutations::sheets::{
+    InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation,
+    SetRangeValuesMutation, MoveRangeMutation, MoveRowsMutation, MoveColsMutation,
+    AddWorksheetMergeMutation, SetRangeProtectionMutation, SetRangeThemeMutation,
+    SetFrozenMutation, SetRowDataMutation, InsertSheetMutation, SetWorkbookNameMutation,
+    RemoveWorksheetMergeMutation, AddRangeProtectionMutation, DeleteRangeProtectionMutation,
+    AddRangeThemeMutation, RemoveRangeThemeMutation, SetColDataMutation, RemoveSheetMutation,
+    SetWorksheetNameMutation, SetWorksheetOrderMutation, SetWorksheetHideMutation,
+    CopyWorksheetEndMutation, SetRowVisibleMutation, SetRowHiddenMutation,
+    SetColVisibleMutation, SetColHiddenMutation, SetWorksheetRowHeightMutation,
+    SetWorksheetRowIsAutoHeightMutation, SetWorksheetRowAutoHeightMutation,
+    SetWorksheetColWidthMutation, SetWorksheetRowCountMutation, SetWorksheetColumnCountMutation,
+    ToggleGridlinesMutation, SetGridlinesColorMutation, SetTabColorMutation,
+    ReorderRangeMutation, EmptyMutation, AddWorksheetProtectionMutation,
+    SetWorksheetProtectionMutation, DeleteWorksheetProtectionMutation,
+    SetWorksheetPermissionPointsMutation, SetWorksheetDefaultStyleMutation,
+    SetWorksheetRightToLeftMutation, SetWorksheetRangeThemeStyleMutation,
+    DeleteWorksheetRangeThemeStyleMutation, RegisterWorksheetRangeThemeStyleMutation,
+    UnregisterWorksheetRangeThemeStyleMutation,
+};
+use crate::mutations::sheets_numfmt::{SetNumfmtMutation, RemoveNumfmtMutation};
+
 /// All existing core mutations for cross-module registration
 const EXISTING_CORE_MUTATIONS: &[MutationId] = &[
-    "sheet.mutation.insert-row",
-    "sheet.mutation.insert-col",
-    "sheet.mutation.remove-rows",
-    "sheet.mutation.remove-col",
-    "sheet.mutation.set-range-values",
-    "sheet.mutation.move-range",
-    "sheet.mutation.move-rows",
-    "sheet.mutation.move-columns",
-    "sheet.mutation.add-worksheet-merge",
-    "sheet.mutation.set-range-protection",
-    "sheet.mutation.set-range-theme",
-    "sheet.mutation.set.numfmt",
-    "sheet.mutation.remove.numfmt",
-    "sheet.mutation.set-frozen",
-    "sheet.mutation.set-row-data",
-    "sheet.mutation.insert-sheet",
-    "sheet.mutation.set-workbook-name",
+    InsertRowMutation::ID,
+    InsertColMutation::ID,
+    RemoveRowMutation::ID,
+    RemoveColMutation::ID,
+    SetRangeValuesMutation::ID,
+    MoveRangeMutation::ID,
+    MoveRowsMutation::ID,
+    MoveColsMutation::ID,
+    AddWorksheetMergeMutation::ID,
+    SetRangeProtectionMutation::ID,
+    SetRangeThemeMutation::ID,
+    SetNumfmtMutation::ID,
+    RemoveNumfmtMutation::ID,
+    SetFrozenMutation::ID,
+    SetRowDataMutation::ID,
+    InsertSheetMutation::ID,
+    SetWorkbookNameMutation::ID,
 ];
 
 /// Register all sheets transforms
@@ -118,78 +141,78 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
 fn register_new_modules_cross_transforms(registry: &mut TransformRegistry) {
     // Visibility mutations
     let visibility_mutations: &[MutationId] = &[
-        "sheet.mutation.set-row-visible",
-        "sheet.mutation.set-row-hidden",
-        "sheet.mutation.set-col-visible",
-        "sheet.mutation.set-col-hidden",
+        SetRowVisibleMutation::ID,
+        SetRowHiddenMutation::ID,
+        SetColVisibleMutation::ID,
+        SetColHiddenMutation::ID,
     ];
 
     // Dimension mutations
     let dimension_mutations: &[MutationId] = &[
-        "sheet.mutation.set-worksheet-row-height",
-        "sheet.mutation.set-worksheet-row-is-auto-height",
-        "sheet.mutation.set-worksheet-row-auto-height",
-        "sheet.mutation.set-worksheet-col-width",
-        "sheet.mutation.set-worksheet-row-count",
-        "sheet.mutation.set-worksheet-column-count",
+        SetWorksheetRowHeightMutation::ID,
+        SetWorksheetRowIsAutoHeightMutation::ID,
+        SetWorksheetRowAutoHeightMutation::ID,
+        SetWorksheetColWidthMutation::ID,
+        SetWorksheetRowCountMutation::ID,
+        SetWorksheetColumnCountMutation::ID,
     ];
 
     // Grid mutations
     let grid_mutations: &[MutationId] = &[
-        "sheet.mutation.toggle-gridlines",
-        "sheet.mutation.set-gridlines-color",
+        ToggleGridlinesMutation::ID,
+        SetGridlinesColorMutation::ID,
     ];
 
     // Tab mutations
     let tab_mutations: &[MutationId] = &[
-        "sheet.mutation.set-tab-color",
+        SetTabColorMutation::ID,
     ];
 
     // Reorder mutations
     let reorder_mutations: &[MutationId] = &[
-        "sheet.mutation.reorder-range",
+        ReorderRangeMutation::ID,
     ];
 
     // Empty mutations
     let empty_mutations: &[MutationId] = &[
-        "sheet.mutation.empty",
+        EmptyMutation::ID,
     ];
 
     // Worksheet protection mutations
     let ws_protection_mutations: &[MutationId] = &[
-        "sheet.mutation.add-worksheet-protection",
-        "sheet.mutation.set-worksheet-protection",
-        "sheet.mutation.delete-worksheet-protection",
-        "sheet.mutation.set-worksheet-permission-points",
+        AddWorksheetProtectionMutation::ID,
+        SetWorksheetProtectionMutation::ID,
+        DeleteWorksheetProtectionMutation::ID,
+        SetWorksheetPermissionPointsMutation::ID,
     ];
 
     // Worksheet style mutations
     let ws_style_mutations: &[MutationId] = &[
-        "sheet.mutation.set-worksheet-default-style",
-        "sheet.mutation.set-worksheet-right-to-left",
+        SetWorksheetDefaultStyleMutation::ID,
+        SetWorksheetRightToLeftMutation::ID,
     ];
 
     // Range theme style mutations
     let range_theme_style_mutations: &[MutationId] = &[
-        "sheet.mutation.set-worksheet-range-theme-style",
-        "sheet.mutation.remove-worksheet-range-theme-style",
-        "sheet.mutation.register-worksheet-range-theme-style",
-        "sheet.mutation.unregister-worksheet-range-theme-style",
+        SetWorksheetRangeThemeStyleMutation::ID,
+        DeleteWorksheetRangeThemeStyleMutation::ID,
+        RegisterWorksheetRangeThemeStyleMutation::ID,
+        UnregisterWorksheetRangeThemeStyleMutation::ID,
     ];
 
     // Additional mutations
     let additional_mutations: &[MutationId] = &[
-        "sheet.mutation.remove-worksheet-merge",
-        "sheet.mutation.add-range-protection",
-        "sheet.mutation.delete-range-protection",
-        "sheet.mutation.add-range-theme",
-        "sheet.mutation.remove-range-theme",
-        "sheet.mutation.set-col-data",
-        "sheet.mutation.remove-sheet",
-        "sheet.mutation.set-worksheet-name",
-        "sheet.mutation.set-worksheet-order",
-        "sheet.mutation.set-worksheet-hidden",
-        "sheet.mutation.copy-worksheet-end",
+        RemoveWorksheetMergeMutation::ID,
+        AddRangeProtectionMutation::ID,
+        DeleteRangeProtectionMutation::ID,
+        AddRangeThemeMutation::ID,
+        RemoveRangeThemeMutation::ID,
+        SetColDataMutation::ID,
+        RemoveSheetMutation::ID,
+        SetWorksheetNameMutation::ID,
+        SetWorksheetOrderMutation::ID,
+        SetWorksheetHideMutation::ID,
+        CopyWorksheetEndMutation::ID,
     ];
 
     // All new module mutation groups
@@ -223,51 +246,51 @@ fn register_cross_module_with_other_features(registry: &mut TransformRegistry) {
     // All new module mutations that need cross-registration with other features
     let new_module_mutations: &[MutationId] = &[
         // Visibility mutations
-        "sheet.mutation.set-row-visible",
-        "sheet.mutation.set-row-hidden",
-        "sheet.mutation.set-col-visible",
-        "sheet.mutation.set-col-hidden",
+        SetRowVisibleMutation::ID,
+        SetRowHiddenMutation::ID,
+        SetColVisibleMutation::ID,
+        SetColHiddenMutation::ID,
         // Dimension mutations
-        "sheet.mutation.set-worksheet-row-height",
-        "sheet.mutation.set-worksheet-row-is-auto-height",
-        "sheet.mutation.set-worksheet-row-auto-height",
-        "sheet.mutation.set-worksheet-col-width",
-        "sheet.mutation.set-worksheet-row-count",
-        "sheet.mutation.set-worksheet-column-count",
+        SetWorksheetRowHeightMutation::ID,
+        SetWorksheetRowIsAutoHeightMutation::ID,
+        SetWorksheetRowAutoHeightMutation::ID,
+        SetWorksheetColWidthMutation::ID,
+        SetWorksheetRowCountMutation::ID,
+        SetWorksheetColumnCountMutation::ID,
         // Grid mutations
-        "sheet.mutation.toggle-gridlines",
-        "sheet.mutation.set-gridlines-color",
+        ToggleGridlinesMutation::ID,
+        SetGridlinesColorMutation::ID,
         // Tab mutations
-        "sheet.mutation.set-tab-color",
+        SetTabColorMutation::ID,
         // Reorder mutations
-        "sheet.mutation.reorder-range",
+        ReorderRangeMutation::ID,
         // Empty mutations
-        "sheet.mutation.empty",
+        EmptyMutation::ID,
         // Worksheet protection mutations
-        "sheet.mutation.add-worksheet-protection",
-        "sheet.mutation.set-worksheet-protection",
-        "sheet.mutation.delete-worksheet-protection",
-        "sheet.mutation.set-worksheet-permission-points",
+        AddWorksheetProtectionMutation::ID,
+        SetWorksheetProtectionMutation::ID,
+        DeleteWorksheetProtectionMutation::ID,
+        SetWorksheetPermissionPointsMutation::ID,
         // Worksheet style mutations
-        "sheet.mutation.set-worksheet-default-style",
-        "sheet.mutation.set-worksheet-right-to-left",
+        SetWorksheetDefaultStyleMutation::ID,
+        SetWorksheetRightToLeftMutation::ID,
         // Range theme style mutations
-        "sheet.mutation.set-worksheet-range-theme-style",
-        "sheet.mutation.remove-worksheet-range-theme-style",
-        "sheet.mutation.register-worksheet-range-theme-style",
-        "sheet.mutation.unregister-worksheet-range-theme-style",
+        SetWorksheetRangeThemeStyleMutation::ID,
+        DeleteWorksheetRangeThemeStyleMutation::ID,
+        RegisterWorksheetRangeThemeStyleMutation::ID,
+        UnregisterWorksheetRangeThemeStyleMutation::ID,
         // Additional mutations
-        "sheet.mutation.remove-worksheet-merge",
-        "sheet.mutation.add-range-protection",
-        "sheet.mutation.delete-range-protection",
-        "sheet.mutation.add-range-theme",
-        "sheet.mutation.remove-range-theme",
-        "sheet.mutation.set-col-data",
-        "sheet.mutation.remove-sheet",
-        "sheet.mutation.set-worksheet-name",
-        "sheet.mutation.set-worksheet-order",
-        "sheet.mutation.set-worksheet-hidden",
-        "sheet.mutation.copy-worksheet-end",
+        RemoveWorksheetMergeMutation::ID,
+        AddRangeProtectionMutation::ID,
+        DeleteRangeProtectionMutation::ID,
+        AddRangeThemeMutation::ID,
+        RemoveRangeThemeMutation::ID,
+        SetColDataMutation::ID,
+        RemoveSheetMutation::ID,
+        SetWorksheetNameMutation::ID,
+        SetWorksheetOrderMutation::ID,
+        SetWorksheetHideMutation::ID,
+        CopyWorksheetEndMutation::ID,
     ];
 
     // All other feature module mutations

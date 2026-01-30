@@ -1,19 +1,25 @@
+use crate::mutations::sheets::{
+    RemoveWorksheetMergeMutation, AddRangeProtectionMutation, DeleteRangeProtectionMutation,
+    AddRangeThemeMutation, RemoveRangeThemeMutation, SetColDataMutation, RemoveSheetMutation,
+    SetWorksheetNameMutation, SetWorksheetOrderMutation, SetWorksheetHideMutation,
+    CopyWorksheetEndMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
 // Additional mutations that need transforms but don't fit existing modules
-pub const REMOVE_WORKSHEET_MERGE_ID: MutationId = "sheet.mutation.remove-worksheet-merge";
-pub const ADD_RANGE_PROTECTION_ID: MutationId = "sheet.mutation.add-range-protection";
-pub const DELETE_RANGE_PROTECTION_ID: MutationId = "sheet.mutation.delete-range-protection";
-pub const ADD_RANGE_THEME_ID: MutationId = "sheet.mutation.add-range-theme";
-pub const REMOVE_RANGE_THEME_ID: MutationId = "sheet.mutation.remove-range-theme";
-pub const SET_COL_DATA_ID: MutationId = "sheet.mutation.set-col-data";
-pub const REMOVE_SHEET_ID: MutationId = "sheet.mutation.remove-sheet";
-pub const SET_WORKSHEET_NAME_ID: MutationId = "sheet.mutation.set-worksheet-name";
-pub const SET_WORKSHEET_ORDER_ID: MutationId = "sheet.mutation.set-worksheet-order";
-pub const SET_WORKSHEET_HIDDEN_ID: MutationId = "sheet.mutation.set-worksheet-hidden";
-pub const COPY_WORKSHEET_END_ID: MutationId = "sheet.mutation.copy-worksheet-end";
+pub const REMOVE_WORKSHEET_MERGE_ID: MutationId = RemoveWorksheetMergeMutation::ID;
+pub const ADD_RANGE_PROTECTION_ID: MutationId = AddRangeProtectionMutation::ID;
+pub const DELETE_RANGE_PROTECTION_ID: MutationId = DeleteRangeProtectionMutation::ID;
+pub const ADD_RANGE_THEME_ID: MutationId = AddRangeThemeMutation::ID;
+pub const REMOVE_RANGE_THEME_ID: MutationId = RemoveRangeThemeMutation::ID;
+pub const SET_COL_DATA_ID: MutationId = SetColDataMutation::ID;
+pub const REMOVE_SHEET_ID: MutationId = RemoveSheetMutation::ID;
+pub const SET_WORKSHEET_NAME_ID: MutationId = SetWorksheetNameMutation::ID;
+pub const SET_WORKSHEET_ORDER_ID: MutationId = SetWorksheetOrderMutation::ID;
+pub const SET_WORKSHEET_HIDDEN_ID: MutationId = SetWorksheetHideMutation::ID;
+pub const COPY_WORKSHEET_END_ID: MutationId = CopyWorksheetEndMutation::ID;
 
 const ADDITIONAL_MUTATIONS: &[MutationId] = &[
     REMOVE_WORKSHEET_MERGE_ID,

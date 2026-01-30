@@ -1,11 +1,14 @@
+use crate::mutations::sheets::{
+    SetRowVisibleMutation, SetRowHiddenMutation, SetColVisibleMutation, SetColHiddenMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const SET_ROW_VISIBLE_ID: MutationId = "sheet.mutation.set-row-visible";
-pub const SET_ROW_HIDDEN_ID: MutationId = "sheet.mutation.set-row-hidden";
-pub const SET_COL_VISIBLE_ID: MutationId = "sheet.mutation.set-col-visible";
-pub const SET_COL_HIDDEN_ID: MutationId = "sheet.mutation.set-col-hidden";
+pub const SET_ROW_VISIBLE_ID: MutationId = SetRowVisibleMutation::ID;
+pub const SET_ROW_HIDDEN_ID: MutationId = SetRowHiddenMutation::ID;
+pub const SET_COL_VISIBLE_ID: MutationId = SetColVisibleMutation::ID;
+pub const SET_COL_HIDDEN_ID: MutationId = SetColHiddenMutation::ID;
 
 const VISIBILITY_MUTATIONS: &[MutationId] = &[
     SET_ROW_VISIBLE_ID,

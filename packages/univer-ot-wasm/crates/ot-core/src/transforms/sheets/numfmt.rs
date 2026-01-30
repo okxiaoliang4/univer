@@ -1,3 +1,10 @@
+use crate::mutations::sheets::{
+    InsertRowMutation, InsertColMutation, SetRangeValuesMutation, RemoveRowMutation,
+    RemoveColMutation, MoveRangeMutation, MoveRowsMutation, MoveColsMutation,
+    AddWorksheetMergeMutation, SetRangeProtectionMutation, SetRangeThemeMutation,
+    SetFrozenMutation, SetRowDataMutation, InsertSheetMutation, SetWorkbookNameMutation,
+};
+use crate::mutations::sheets_numfmt::{SetNumfmtMutation, RemoveNumfmtMutation};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::{
@@ -12,46 +19,46 @@ use crate::transforms::constants::{
 };
 use std::sync::Arc;
 
-pub const SET_NUMFMT_ID: MutationId = "sheet.mutation.set.numfmt";
-pub const REMOVE_NUMFMT_ID: MutationId = "sheet.mutation.remove.numfmt";
+pub const SET_NUMFMT_ID: MutationId = SetNumfmtMutation::ID;
+pub const REMOVE_NUMFMT_ID: MutationId = RemoveNumfmtMutation::ID;
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register set.numfmt transforms
     registry.register_symmetric_ref(SET_NUMFMT_ID, create_identity());
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.insert-row");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.insert-col");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.set-range-values");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.remove-rows");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.remove-col");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.move-range");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.move-rows");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.move-columns");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.add-worksheet-merge");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.set-range-protection");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.set-range-theme");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.set-frozen");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.set-row-data");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.insert-sheet");
-    registry.register_identity(SET_NUMFMT_ID, "sheet.mutation.set-workbook-name");
+    registry.register_identity(SET_NUMFMT_ID, InsertRowMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, InsertColMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, SetRangeValuesMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, RemoveRowMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, RemoveColMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, MoveRangeMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, MoveRowsMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, MoveColsMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, AddWorksheetMergeMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, SetRangeProtectionMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, SetRangeThemeMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, SetFrozenMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, SetRowDataMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, InsertSheetMutation::ID);
+    registry.register_identity(SET_NUMFMT_ID, SetWorkbookNameMutation::ID);
 
     // Register remove.numfmt transforms
     registry.register_symmetric_ref(REMOVE_NUMFMT_ID, create_identity());
     registry.register_identity(REMOVE_NUMFMT_ID, SET_NUMFMT_ID);
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.insert-row");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.insert-col");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.set-range-values");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.remove-rows");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.remove-col");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.move-range");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.move-rows");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.move-columns");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.add-worksheet-merge");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.set-range-protection");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.set-range-theme");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.set-frozen");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.set-row-data");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.insert-sheet");
-    registry.register_identity(REMOVE_NUMFMT_ID, "sheet.mutation.set-workbook-name");
+    registry.register_identity(REMOVE_NUMFMT_ID, InsertRowMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, InsertColMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, SetRangeValuesMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, RemoveRowMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, RemoveColMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, MoveRangeMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, MoveRowsMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, MoveColsMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, AddWorksheetMergeMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, SetRangeProtectionMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, SetRangeThemeMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, SetFrozenMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, SetRowDataMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, InsertSheetMutation::ID);
+    registry.register_identity(REMOVE_NUMFMT_ID, SetWorkbookNameMutation::ID);
 
     // Register remove.numfmt cross-module transforms with all feature modules
     register_cross_module_transforms(registry);

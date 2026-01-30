@@ -1,12 +1,16 @@
+use crate::mutations::sheets_filter::{
+    SetSheetsFilterRangeMutation, SetSheetsFilterCriteriaMutation,
+    RemoveSheetsFilterMutation, ReCalcSheetsFilterMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
 use std::sync::Arc;
 
-pub const SET_FILTER_RANGE_ID: MutationId = "sheet.mutation.set-filter-range";
-pub const SET_FILTER_CRITERIA_ID: MutationId = "sheet.mutation.set-filter-criteria";
-pub const REMOVE_FILTER_ID: MutationId = "sheet.mutation.remove-filter";
-pub const RECALC_FILTER_ID: MutationId = "sheet.mutation.re-calc-filter";
+pub const SET_FILTER_RANGE_ID: MutationId = SetSheetsFilterRangeMutation::ID;
+pub const SET_FILTER_CRITERIA_ID: MutationId = SetSheetsFilterCriteriaMutation::ID;
+pub const REMOVE_FILTER_ID: MutationId = RemoveSheetsFilterMutation::ID;
+pub const RECALC_FILTER_ID: MutationId = ReCalcSheetsFilterMutation::ID;
 
 const LOCAL_FILTER_MUTATIONS: &[MutationId] = &[
     SET_FILTER_RANGE_ID,

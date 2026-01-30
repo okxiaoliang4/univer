@@ -1,11 +1,16 @@
-use crate::mutations::sheets::{InsertColMutationParams, SetRangeValuesMutationParams};
+use crate::mutations::sheets::{
+    InsertColMutation, InsertColMutationParams,
+    SetRangeValuesMutation, SetRangeValuesMutationParams,
+    InsertRowMutation, MoveColsMutation, SetRangeThemeMutation,
+    SetRowDataMutation, InsertSheetMutation, SetWorkbookNameMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use crate::utils::shift::shift_col_keys_for_insert;
 use crate::utils::params::same_worksheet;
 use std::sync::Arc;
 
-pub const MUTATION_ID: MutationId = "sheet.mutation.insert-col";
+pub const MUTATION_ID: MutationId = InsertColMutation::ID;
 
 /// Register all transforms for insert-col mutation
 pub fn register_transforms(registry: &mut TransformRegistry) {
@@ -15,19 +20,19 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Bidirectional: insert-col vs set-range-values
     registry.register_bidirectional_ref(
         MUTATION_ID,
-        "sheet.mutation.set-range-values",
+        SetRangeValuesMutation::ID,
         create_transform_with_set_range_values(),
     );
 
     // Identity: insert-col vs insert-row (different dimensions, don't interfere)
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-row");
+    registry.register_identity(MUTATION_ID, InsertRowMutation::ID);
 
     // Identity transforms with non-interfering mutations
-    registry.register_identity(MUTATION_ID, "sheet.mutation.move-columns");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-row-data");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-sheet");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-workbook-name");
+    registry.register_identity(MUTATION_ID, MoveColsMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeThemeMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRowDataMutation::ID);
+    registry.register_identity(MUTATION_ID, InsertSheetMutation::ID);
+    registry.register_identity(MUTATION_ID, SetWorkbookNameMutation::ID);
 }
 
 /// Helper to create identity transform result (zero-copy!)

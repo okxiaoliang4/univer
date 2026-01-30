@@ -1,11 +1,15 @@
+use crate::mutations::sheets::{
+    AddWorksheetProtectionMutation, SetWorksheetProtectionMutation,
+    DeleteWorksheetProtectionMutation, SetWorksheetPermissionPointsMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const ADD_WORKSHEET_PROTECTION_ID: MutationId = "sheet.mutation.add-worksheet-protection";
-pub const SET_WORKSHEET_PROTECTION_ID: MutationId = "sheet.mutation.set-worksheet-protection";
-pub const DELETE_WORKSHEET_PROTECTION_ID: MutationId = "sheet.mutation.delete-worksheet-protection";
-pub const SET_PERMISSION_POINTS_ID: MutationId = "sheet.mutation.set-worksheet-permission-points";
+pub const ADD_WORKSHEET_PROTECTION_ID: MutationId = AddWorksheetProtectionMutation::ID;
+pub const SET_WORKSHEET_PROTECTION_ID: MutationId = SetWorksheetProtectionMutation::ID;
+pub const DELETE_WORKSHEET_PROTECTION_ID: MutationId = DeleteWorksheetProtectionMutation::ID;
+pub const SET_PERMISSION_POINTS_ID: MutationId = SetWorksheetPermissionPointsMutation::ID;
 
 const WORKSHEET_PROTECTION_MUTATIONS: &[MutationId] = &[
     ADD_WORKSHEET_PROTECTION_ID,

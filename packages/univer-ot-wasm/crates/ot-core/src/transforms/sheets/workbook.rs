@@ -1,29 +1,36 @@
+use crate::mutations::sheets::{
+    SetWorkbookNameMutation, InsertRowMutation, InsertColMutation, RemoveRowMutation,
+    RemoveColMutation, SetRangeValuesMutation, MoveRangeMutation, MoveRowsMutation, MoveColsMutation,
+    AddWorksheetMergeMutation, SetRangeProtectionMutation, SetRangeThemeMutation,
+    SetFrozenMutation, SetRowDataMutation, InsertSheetMutation,
+};
+use crate::mutations::sheets_numfmt::SetNumfmtMutation;
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const MUTATION_ID: MutationId = "sheet.mutation.set-workbook-name";
+pub const MUTATION_ID: MutationId = SetWorkbookNameMutation::ID;
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_symmetric_ref(MUTATION_ID, create_lww());
 
     // Identity transforms with all sheet-level operations
     // set-workbook-name operates at workbook level, doesn't interfere with cell-level operations
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-row");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-col");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.remove-rows");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.remove-col");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-values");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.move-range");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.move-rows");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.move-columns");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.add-worksheet-merge");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-protection");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-range-theme");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set.numfmt");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-frozen");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.set-row-data");
-    registry.register_identity(MUTATION_ID, "sheet.mutation.insert-sheet");
+    registry.register_identity(MUTATION_ID, InsertRowMutation::ID);
+    registry.register_identity(MUTATION_ID, InsertColMutation::ID);
+    registry.register_identity(MUTATION_ID, RemoveRowMutation::ID);
+    registry.register_identity(MUTATION_ID, RemoveColMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeValuesMutation::ID);
+    registry.register_identity(MUTATION_ID, MoveRangeMutation::ID);
+    registry.register_identity(MUTATION_ID, MoveRowsMutation::ID);
+    registry.register_identity(MUTATION_ID, MoveColsMutation::ID);
+    registry.register_identity(MUTATION_ID, AddWorksheetMergeMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeProtectionMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRangeThemeMutation::ID);
+    registry.register_identity(MUTATION_ID, SetNumfmtMutation::ID);
+    registry.register_identity(MUTATION_ID, SetFrozenMutation::ID);
+    registry.register_identity(MUTATION_ID, SetRowDataMutation::ID);
+    registry.register_identity(MUTATION_ID, InsertSheetMutation::ID);
 }
 
 fn create_lww() -> TransformFnRef {

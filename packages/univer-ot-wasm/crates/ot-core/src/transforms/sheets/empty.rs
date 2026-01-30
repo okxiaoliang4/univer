@@ -1,8 +1,9 @@
+use crate::mutations::sheets::EmptyMutation;
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use std::sync::Arc;
 
-pub const EMPTY_ID: MutationId = "sheet.mutation.empty";
+pub const EMPTY_ID: MutationId = EmptyMutation::ID;
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register symmetric transform - empty mutation is identity

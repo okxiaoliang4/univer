@@ -1,12 +1,15 @@
+use crate::mutations::sheets_note::{
+    UpdateNoteMutation, RemoveNoteMutation, ToggleNotePopupMutation, UpdateNotePositionMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
 use std::sync::Arc;
 
-pub const UPDATE_NOTE_ID: MutationId = "sheet.mutation.update-note";
-pub const REMOVE_NOTE_ID: MutationId = "sheet.mutation.remove-note";
-pub const TOGGLE_NOTE_POPUP_ID: MutationId = "sheet.mutation.toggle-note-popup";
-pub const UPDATE_NOTE_POSITION_ID: MutationId = "sheet.mutation.update-note-position";
+pub const UPDATE_NOTE_ID: MutationId = UpdateNoteMutation::ID;
+pub const REMOVE_NOTE_ID: MutationId = RemoveNoteMutation::ID;
+pub const TOGGLE_NOTE_POPUP_ID: MutationId = ToggleNotePopupMutation::ID;
+pub const UPDATE_NOTE_POSITION_ID: MutationId = UpdateNotePositionMutation::ID;
 
 const LOCAL_NOTE_MUTATIONS: &[MutationId] = &[
     UPDATE_NOTE_ID,

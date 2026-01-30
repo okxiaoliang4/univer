@@ -1,13 +1,18 @@
+use crate::mutations::sheets::{
+    SetWorksheetRowHeightMutation, SetWorksheetRowIsAutoHeightMutation,
+    SetWorksheetRowAutoHeightMutation, SetWorksheetColWidthMutation,
+    SetWorksheetRowCountMutation, SetWorksheetColumnCountMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const SET_ROW_HEIGHT_ID: MutationId = "sheet.mutation.set-worksheet-row-height";
-pub const SET_ROW_IS_AUTO_HEIGHT_ID: MutationId = "sheet.mutation.set-worksheet-row-is-auto-height";
-pub const SET_ROW_AUTO_HEIGHT_ID: MutationId = "sheet.mutation.set-worksheet-row-auto-height";
-pub const SET_COL_WIDTH_ID: MutationId = "sheet.mutation.set-worksheet-col-width";
-pub const SET_ROW_COUNT_ID: MutationId = "sheet.mutation.set-worksheet-row-count";
-pub const SET_COL_COUNT_ID: MutationId = "sheet.mutation.set-worksheet-column-count";
+pub const SET_ROW_HEIGHT_ID: MutationId = SetWorksheetRowHeightMutation::ID;
+pub const SET_ROW_IS_AUTO_HEIGHT_ID: MutationId = SetWorksheetRowIsAutoHeightMutation::ID;
+pub const SET_ROW_AUTO_HEIGHT_ID: MutationId = SetWorksheetRowAutoHeightMutation::ID;
+pub const SET_COL_WIDTH_ID: MutationId = SetWorksheetColWidthMutation::ID;
+pub const SET_ROW_COUNT_ID: MutationId = SetWorksheetRowCountMutation::ID;
+pub const SET_COL_COUNT_ID: MutationId = SetWorksheetColumnCountMutation::ID;
 
 const DIMENSION_MUTATIONS: &[MutationId] = &[
     SET_ROW_HEIGHT_ID,

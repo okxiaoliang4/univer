@@ -1,11 +1,15 @@
+use crate::mutations::sheets::{
+    SetWorksheetRangeThemeStyleMutation, DeleteWorksheetRangeThemeStyleMutation,
+    RegisterWorksheetRangeThemeStyleMutation, UnregisterWorksheetRangeThemeStyleMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const SET_RANGE_THEME_STYLE_ID: MutationId = "sheet.mutation.set-worksheet-range-theme-style";
-pub const REMOVE_RANGE_THEME_STYLE_ID: MutationId = "sheet.mutation.remove-worksheet-range-theme-style";
-pub const REGISTER_RANGE_THEME_STYLE_ID: MutationId = "sheet.mutation.register-worksheet-range-theme-style";
-pub const UNREGISTER_RANGE_THEME_STYLE_ID: MutationId = "sheet.mutation.unregister-worksheet-range-theme-style";
+pub const SET_RANGE_THEME_STYLE_ID: MutationId = SetWorksheetRangeThemeStyleMutation::ID;
+pub const REMOVE_RANGE_THEME_STYLE_ID: MutationId = DeleteWorksheetRangeThemeStyleMutation::ID;
+pub const REGISTER_RANGE_THEME_STYLE_ID: MutationId = RegisterWorksheetRangeThemeStyleMutation::ID;
+pub const UNREGISTER_RANGE_THEME_STYLE_ID: MutationId = UnregisterWorksheetRangeThemeStyleMutation::ID;
 
 const RANGE_THEME_STYLE_MUTATIONS: &[MutationId] = &[
     SET_RANGE_THEME_STYLE_ID,

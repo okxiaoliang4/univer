@@ -1,13 +1,17 @@
+use crate::mutations::sheets_hyper_link::{
+    AddHyperLinkMutation, RemoveHyperLinkMutation, UpdateHyperLinkMutation,
+    UpdateHyperLinkRefMutation, UpdateRichHyperLinkMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
 use std::sync::Arc;
 
-pub const ADD_HYPER_LINK_ID: MutationId = "sheets.mutation.add-hyper-link";
-pub const REMOVE_HYPER_LINK_ID: MutationId = "sheets.mutation.remove-hyper-link";
-pub const UPDATE_HYPER_LINK_ID: MutationId = "sheets.mutation.update-hyper-link";
-pub const UPDATE_HYPER_LINK_REF_ID: MutationId = "sheets.mutation.update-hyper-link-ref";
-pub const UPDATE_RICH_HYPER_LINK_ID: MutationId = "sheets.mutation.update-rich-hyper-link";
+pub const ADD_HYPER_LINK_ID: MutationId = AddHyperLinkMutation::ID;
+pub const REMOVE_HYPER_LINK_ID: MutationId = RemoveHyperLinkMutation::ID;
+pub const UPDATE_HYPER_LINK_ID: MutationId = UpdateHyperLinkMutation::ID;
+pub const UPDATE_HYPER_LINK_REF_ID: MutationId = UpdateHyperLinkRefMutation::ID;
+pub const UPDATE_RICH_HYPER_LINK_ID: MutationId = UpdateRichHyperLinkMutation::ID;
 
 const LOCAL_HYPER_LINK_MUTATIONS: &[MutationId] = &[
     ADD_HYPER_LINK_ID,

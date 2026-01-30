@@ -1,8 +1,9 @@
+use crate::mutations::sheets::SetTabColorMutation;
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use std::sync::Arc;
 
-pub const SET_TAB_COLOR_ID: MutationId = "sheet.mutation.set-tab-color";
+pub const SET_TAB_COLOR_ID: MutationId = SetTabColorMutation::ID;
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register symmetric transform

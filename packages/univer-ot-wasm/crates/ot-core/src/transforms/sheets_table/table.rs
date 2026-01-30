@@ -1,12 +1,15 @@
+use crate::mutations::sheets_table::{
+    AddSheetTableMutation, SetSheetTableMutation, SetSheetTableFilterMutation, DeleteSheetTableMutation,
+};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
 use std::sync::Arc;
 
-pub const ADD_TABLE_ID: MutationId = "sheet.mutation.add-table";
-pub const SET_TABLE_ID: MutationId = "sheet.mutation.set-sheet-table";
-pub const SET_TABLE_FILTER_ID: MutationId = "sheet.mutation.set-table-filter";
-pub const DELETE_TABLE_ID: MutationId = "sheet.mutation.delete-table";
+pub const ADD_TABLE_ID: MutationId = AddSheetTableMutation::ID;
+pub const SET_TABLE_ID: MutationId = SetSheetTableMutation::ID;
+pub const SET_TABLE_FILTER_ID: MutationId = SetSheetTableFilterMutation::ID;
+pub const DELETE_TABLE_ID: MutationId = DeleteSheetTableMutation::ID;
 
 const LOCAL_TABLE_MUTATIONS: &[MutationId] = &[
     ADD_TABLE_ID,
