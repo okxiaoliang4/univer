@@ -1,5 +1,6 @@
 {
     "name": "@univerjs/univer-ot-wasm",
+    "type": "module",
     "version": "0.15.0",
     "description": "Rust WASM implementation of Univer Operational Transformation",
     "author": "Univer Team",
@@ -21,14 +22,28 @@
         "rust",
         "collaboration"
     ],
+    "exports": {
+        ".": {
+            "node": {
+                "types": "./pkg-node/ot_wasm.d.ts",
+                "default": "./pkg-node/ot_wasm.js"
+            },
+            "default": {
+                "types": "./pkg/ot_wasm.d.ts",
+                "default": "./pkg/ot_wasm.js"
+            }
+        }
+    },
     "main": "pkg/ot_wasm.js",
     "types": "pkg/ot_wasm.d.ts",
     "files": [
+        "pkg-node/**/*",
         "pkg/**/*"
     ],
     "scripts": {
-        "build": "wasm-pack build crates/ot-wasm --target bundler --out-dir ../../pkg",
-        "build:node": "wasm-pack build crates/ot-wasm --target nodejs --out-dir ../../pkg",
+        "build": "wasm-pack build crates/ot-wasm --target bundler --out-dir ../../pkg && wasm-pack build crates/ot-wasm --target nodejs --out-dir ../../pkg-node",
+        "build:bundler": "wasm-pack build crates/ot-wasm --target bundler --out-dir ../../pkg",
+        "build:node": "wasm-pack build crates/ot-wasm --target nodejs --out-dir ../../pkg-node",
         "build:web": "wasm-pack build crates/ot-wasm --target web --out-dir ../../pkg",
         "build:server": "cargo build -p ot-server --release",
         "build:core": "cargo build -p ot-core --release",
@@ -41,7 +56,7 @@
         "dev": "wasm-pack build crates/ot-wasm --target bundler --out-dir ../../pkg --dev",
         "start:server": "cargo r -p ot-server",
         "dev:server": "cargo watch -x 'run --release -p ot-server'",
-        "clean": "cargo clean && rm -rf pkg",
+        "clean": "cargo clean && rm -rf pkg pkg-node",
         "lint": "cargo clippy --workspace --all-targets",
         "prepare": "cargo --version && rustc --version"
     },
