@@ -216,6 +216,11 @@ impl TransformRegistry {
             .map(|(_, v)| v)
     }
 
+    /// Check if a transform is registered for the given mutation pair
+    pub fn has_transform(&self, m1_id: &str, m2_id: &str) -> bool {
+        self.get_transform_ref(m1_id, m2_id).is_some()
+    }
+
     /// Get the number of registered transforms
     pub fn len(&self) -> usize {
         self.transforms_ref.len()

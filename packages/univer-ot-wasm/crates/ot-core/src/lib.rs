@@ -140,6 +140,11 @@ impl TransformService {
     pub fn registry_size(&self) -> usize {
         self.registry.len()
     }
+
+    /// Check if a transform is registered for the given mutation pair
+    pub fn has_transform(&self, m1_id: &str, m2_id: &str) -> bool {
+        self.registry.has_transform(m1_id, m2_id)
+    }
 }
 
 impl Default for TransformService {

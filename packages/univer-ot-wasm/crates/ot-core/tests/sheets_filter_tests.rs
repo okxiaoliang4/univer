@@ -1,0 +1,52 @@
+//! Tests for sheets-filter module transforms
+
+use ot_core::{MutationInfo, TransformService};
+use serde_json::json;
+
+#[test]
+fn test_set_filter_range_vs_set_filter_range_lww() {
+    let service = TransformService::new();
+    let m1 = MutationInfo {
+        id: "sheet.mutation.set-filter-range".to_string(),
+        params: json!({"unitId": "w1", "subUnitId": "s1", "range": {"startRow": 0, "endRow": 10}}),
+    };
+    let m2 = MutationInfo {
+        id: "sheet.mutation.set-filter-range".to_string(),
+        params: json!({"unitId": "w1", "subUnitId": "s1", "range": {"startRow": 0, "endRow": 20}}),
+    };
+    let result = service.transform(&m1, &m2);
+    assert!(result.m1_prime.is_none()); // LWW: m1 removed
+    assert!(result.m2_prime.is_some()); // LWW: m2 wins
+}
+
+#[test]
+fn test_set_filter_criteria_vs_set_filter_criteria_identity() {
+    let service = TransformService::new();
+    let m1 = MutationInfo {
+        id: "sheet.mutation.set-filter-criteria".to_string(),
+        params: json!({"unitId": "w1", "subUnitId": "s1", "criteria": {}}),
+    };
+    let m2 = MutationInfo {
+        id: "sheet.mutation.set-filter-criteria".to_string(),
+        params: json!({"unitId": "w1", "subUnitId": "s1", "criteria": {}}),
+    };
+    let result = service.transform(&m1, &m2);
+    assert!(result.m1_prime.is_some());
+    assert!(result.m2_prime.is_some());
+}
+
+#[test]
+fn test_remove_filter_vs_remove_filter_identity() {
+    let service = TransformService::new();
+    let m1 = MutationInfo {
+        id: "sheet.mutation.remove-filter".to_string(),
+        params: json!({"unitId": "w1", "subUnitId": "s1"}),
+    };
+    let m2 = MutationInfo {
+        id: "sheet.mutation.remove-filter".to_string(),
+        params: json!({"unitId": "w1", "subUnitId": "s1"}),
+    };
+    let result = service.transform(&m1, &m2);
+    assert!(result.m1_prime.is_some()); // Identity
+    assert!(result.m2_prime.is_some());
+}
