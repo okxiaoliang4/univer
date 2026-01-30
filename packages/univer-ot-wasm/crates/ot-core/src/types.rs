@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -96,7 +97,9 @@ impl<'a> MutationOutcome<'a> {
         match self {
             MutationOutcome::Unchanged(m) => m.clone(),
             MutationOutcome::Modified(m) => m,
-            MutationOutcome::Removed => panic!("called `MutationOutcome::unwrap()` on a `Removed` value"),
+            MutationOutcome::Removed => {
+                panic!("called `MutationOutcome::unwrap()` on a `Removed` value")
+            }
         }
     }
 
@@ -177,24 +180,20 @@ pub enum CellValue {
 }
 
 /// Cell value type enum
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
 pub enum CellValueType {
-    #[serde(rename = "1")]
     String = 1,
-    #[serde(rename = "2")]
     Number = 2,
-    #[serde(rename = "3")]
     Boolean = 3,
-    #[serde(rename = "4")]
     ForceString = 4,
 }
 
 /// BooleanNumber enum (0 or 1)
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize_repr, Deserialize_repr, PartialEq, Eq)]
+#[repr(u8)]
 pub enum BooleanNumber {
-    #[serde(rename = "0")]
     False = 0,
-    #[serde(rename = "1")]
     True = 1,
 }
 
@@ -561,17 +560,11 @@ pub enum EditStateEnum {
 /// Unit object type
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum UnitObject {
-    #[serde(rename = "0")]
     Unknown = 0,
-    #[serde(rename = "1")]
     Univer = 1,
-    #[serde(rename = "2")]
     Workbook = 2,
-    #[serde(rename = "3")]
     Worksheet = 3,
-    #[serde(rename = "4")]
     Document = 4,
-    #[serde(rename = "5")]
     Slide = 5,
 }
 
@@ -634,9 +627,7 @@ pub struct IRangeThemeStyle {
 /// Dimension enum (Row or Column)
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Dimension {
-    #[serde(rename = "0")]
     Rows = 0,
-    #[serde(rename = "1")]
     Columns = 1,
 }
 
