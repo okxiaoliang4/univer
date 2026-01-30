@@ -21,8 +21,8 @@
         "rust",
         "collaboration"
     ],
-    "main": "pkg/univer_ot_wasm.js",
-    "types": "pkg/univer_ot_wasm.d.ts",
+    "main": "pkg/ot_wasm.js",
+    "types": "pkg/ot_wasm.d.ts",
     "files": [
         "pkg/**/*"
     ],

@@ -15,11 +15,11 @@
  */
 
 import type { IMutationInfo } from '@univerjs/core';
-import type { ComposeResult, TransformListResult, TransformResult } from '@univerjs/univer-ot-wasm';
+import type { WasmComposeResult, WasmTransformListResult, WasmTransformResult } from '@univerjs/univer-ot-wasm';
 import { createIdentifier, Disposable } from '@univerjs/core';
 import {
-    MutationInfo,
     TransformService as UniverOTWasmTransformService,
+    WasmMutationInfo,
 } from '@univerjs/univer-ot-wasm';
 
 export interface ITransformResult {
@@ -64,15 +64,15 @@ export class TransformService extends Disposable implements ITransformService {
     }
 
     compose(m1: IMutationInfo, m2: IMutationInfo): IMutationInfo[] {
-        let m1Info: MutationInfo | undefined;
-        let m2Info: MutationInfo | undefined;
-        let composeResult: ComposeResult | undefined;
+        let m1Info: WasmMutationInfo | undefined;
+        let m2Info: WasmMutationInfo | undefined;
+        let composeResult: WasmComposeResult | undefined;
         const composed: IMutationInfo[] = [];
-        const resultInfoList: MutationInfo[] = [];
+        const resultInfoList: WasmMutationInfo[] = [];
         try {
-            m1Info = new MutationInfo(m1.id, m1.params);
-            m2Info = new MutationInfo(m2.id, m2.params);
-            composeResult = this._transformService.compose(m1Info, m2Info);
+            m1Info = new WasmMutationInfo(m1.id, m1.params);
+            m2Info = new WasmMutationInfo(m2.id, m2.params);
+            composeResult = this._transformService.compose([m1Info, m2Info]);
             const mutations = composeResult.mutations;
             for (const mutation of mutations) {
                 resultInfoList.push(mutation);
@@ -100,15 +100,15 @@ export class TransformService extends Disposable implements ITransformService {
             return mutations;
         }
 
-        const input: MutationInfo[] = [];
+        const input: WasmMutationInfo[] = [];
         const output: IMutationInfo[] = [];
-        let composeResult: ComposeResult | undefined;
-        const resultInfoList: MutationInfo[] = [];
+        let composeResult: WasmComposeResult | undefined;
+        const resultInfoList: WasmMutationInfo[] = [];
         try {
             for (const mutation of mutations) {
-                input.push(new MutationInfo(mutation.id, mutation.params));
+                input.push(new WasmMutationInfo(mutation.id, mutation.params));
             }
-            composeResult = this._transformService.compose_list(input);
+            composeResult = this._transformService.compose(input);
             const resultMutations = composeResult.mutations;
             const typeHint = mutations[0]?.type;
             for (const mutation of resultMutations) {
@@ -137,21 +137,21 @@ export class TransformService extends Disposable implements ITransformService {
         m1List: IMutationInfo[],
         m2List: IMutationInfo[]
     ): ITransformListResult {
-        const m1InfoList: MutationInfo[] = [];
-        const m2InfoList: MutationInfo[] = [];
-        let transformListResult: TransformListResult | undefined;
-        const resultM1InfoList: MutationInfo[] = [];
-        const resultM2InfoList: MutationInfo[] = [];
+        const m1InfoList: WasmMutationInfo[] = [];
+        const m2InfoList: WasmMutationInfo[] = [];
+        let transformListResult: WasmTransformListResult | undefined;
+        const resultM1InfoList: WasmMutationInfo[] = [];
+        const resultM2InfoList: WasmMutationInfo[] = [];
 
         try {
             for (const m of m1List) {
-                m1InfoList.push(new MutationInfo(m.id, m.params));
+                m1InfoList.push(new WasmMutationInfo(m.id, m.params));
             }
             for (const m of m2List) {
-                m2InfoList.push(new MutationInfo(m.id, m.params));
+                m2InfoList.push(new WasmMutationInfo(m.id, m.params));
             }
 
-            transformListResult = this._transformService.transform_list(
+            transformListResult = this._transformService.transformList(
                 m1InfoList,
                 m2InfoList
             );
@@ -213,17 +213,17 @@ export class TransformService extends Disposable implements ITransformService {
     }
 
     transform(m1: IMutationInfo, m2: IMutationInfo): ITransformResult {
-        let m1Info: MutationInfo | undefined;
-        let m2Info: MutationInfo | undefined;
-        let transformResult: TransformResult | undefined;
-        const resultM1InfoList: MutationInfo[] = [];
-        const resultM2InfoList: MutationInfo[] = [];
+        let m1Info: WasmMutationInfo | undefined;
+        let m2Info: WasmMutationInfo | undefined;
+        let transformResult: WasmTransformResult | undefined;
+        const resultM1InfoList: WasmMutationInfo[] = [];
+        const resultM2InfoList: WasmMutationInfo[] = [];
         try {
             this._logMutation('transform input m1', m1);
             this._logMutation('transform input m2', m2);
 
-            m1Info = new MutationInfo(m1.id, m1.params);
-            m2Info = new MutationInfo(m2.id, m2.params);
+            m1Info = new WasmMutationInfo(m1.id, m1.params);
+            m2Info = new WasmMutationInfo(m2.id, m2.params);
             transformResult = this._transformService.transform(m1Info, m2Info);
 
             const m1Prime = transformResult.m1_prime;
