@@ -1,5 +1,6 @@
 use super::ot::{Changeset, ChangesetApplied};
 use super::OTService;
+use crate::metrics;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -148,11 +149,22 @@ impl DocumentActorManager {
 
         tokio::spawn(async move {
             debug!("Document actor started: doc_id={}", doc_id);
+            let mut ops_count: u64 = 0;
             while let Some(task) = receiver.recv().await {
                 let result = ot_service.apply_changeset(doc_id, task.changeset).await;
+                if result.is_ok() {
+                    ops_count += 1;
+                }
                 let _ = task.respond_to.send(result);
             }
-            debug!("Document actor stopped: doc_id={}", doc_id);
+            // Record total operations for this document when actor stops
+            if ops_count > 0 {
+                metrics::record_ops_per_document(ops_count as f64);
+            }
+            debug!(
+                "Document actor stopped: doc_id={}, total_ops={}",
+                doc_id, ops_count
+            );
         });
 
         sender
