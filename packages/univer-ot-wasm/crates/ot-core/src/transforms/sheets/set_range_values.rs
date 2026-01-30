@@ -1,4 +1,4 @@
-use crate::params::SetRangeValuesMutationParams;
+use crate::mutations::sheets::SetRangeValuesMutationParams;
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use crate::utils::params::same_worksheet;
@@ -101,9 +101,7 @@ fn create_self_transform() -> TransformFnRef {
             if m1_prime_cells.is_empty() {
                 m1_prime_params.cell_value = None;
             } else {
-                m1_prime_params.cell_value = Some(crate::types::ObjectMatrixPrimitiveType {
-                    data: m1_prime_cells,
-                });
+                m1_prime_params.cell_value = Some(m1_prime_cells);
             }
 
             // m2 keeps all its cells (LWW - it wins on conflicts)

@@ -23,12 +23,12 @@ serde_json = { workspace = true }
 # Server dependencies (no feature flags needed!)
 axum = "0.8"
 tokio = { version = "1", features = [ "full" ] }
-sea-orm = { version = "2.0.0-rc", features = [
+sea-orm = { version = "2.0.0-rc.30", features = [
     "runtime-tokio-native-tls",
     "sqlx-postgres",
     "macros"
 ] }
-uuid = { version = "1.0", features = [
+uuid = { version = "1.20", features = [
     "v4",
     "serde"
 ] }
@@ -63,6 +63,11 @@ opentelemetry_sdk = { version = "0.31.0", features = [ "rt-tokio" ] }
 opentelemetry-prometheus = "0.31.0"
 prometheus = "0.14"
 dashmap = "6.1"
+
+[dev-dependencies]
+rust_socketio = { version = "0.6", features = [ "async" ] }
+sysinfo = "0.34"
+futures-util = "0.3"
 
 [build-dependencies]
 tonic-build = "0.11"

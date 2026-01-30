@@ -1,4 +1,4 @@
-use crate::params::{InsertRowMutationParams, SetRangeValuesMutationParams};
+use crate::mutations::sheets::{InsertRowMutationParams, SetRangeValuesMutationParams};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
 use crate::utils::shift::shift_row_keys_for_insert;

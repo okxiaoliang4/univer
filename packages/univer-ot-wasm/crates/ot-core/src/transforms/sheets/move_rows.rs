@@ -1,4 +1,4 @@
-use crate::params::MoveRowsMutationParams;
+use crate::mutations::sheets::MoveRowsMutationParams;
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::utils::params::same_worksheet;
