@@ -1,13 +1,15 @@
 use crate::database::entities::{documents, operation_log};
+use crate::metrics;
 use crate::services::document::DocumentService;
 use crate::services::op_queue::OpQueueService;
-use ot_core::{MutationInfo, MutationInfoWithOpId, TransformService};
 use anyhow::{Context, Result};
+use ot_core::{MutationInfo, MutationInfoWithOpId, TransformService};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
 };
 use std::sync::Arc;
+use std::time::Instant;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -59,6 +61,12 @@ impl OTService {
         doc_id: Uuid,
         changeset: Changeset,
     ) -> Result<ChangesetApplied> {
+        // Start timing for end-to-end latency
+        let e2e_start = Instant::now();
+
+        // Increment total operations counter
+        metrics::increment_operations_total();
+
         let txn = (*self.db).begin().await?;
 
         // Get current version from documents table (SeaORM 2.0 uses transactions for locking)
@@ -105,12 +113,19 @@ impl OTService {
 
         // Validate base_rev is not greater than current version (shouldn't happen)
         if changeset.base_rev > current_version {
+            // Record failed operation
+            metrics::increment_operations_failed();
+            metrics::record_operation_e2e_latency(e2e_start.elapsed().as_secs_f64());
             return Err(anyhow::anyhow!(
                 "Version mismatch: client base_rev {} is greater than server version {}",
                 changeset.base_rev,
                 current_version
             ));
         }
+
+        // Record version drift (difference between client base_rev and server current_version)
+        let version_drift = (current_version - changeset.base_rev) as f64;
+        metrics::record_version_drift(version_drift);
 
         // Get operations that happened after base_rev (for OT transformation)
         // This will be empty if base_rev == current_version, or contain concurrent operations
@@ -128,6 +143,12 @@ impl OTService {
             })
             .collect();
 
+        // Record conflict if there are concurrent operations
+        let has_conflict = !concurrent_mutations.is_empty();
+        if has_conflict {
+            metrics::increment_conflicts_total();
+        }
+
         // Transform all mutations against concurrent operations using transform_list
         let m1_internal: Vec<MutationInfo> = changeset
             .mutations
@@ -138,12 +159,31 @@ impl OTService {
             })
             .collect();
 
+        // Start timing for transform latency
+        let transform_start = Instant::now();
+
         let (m1_primes, _, error) = self
             .transform_service
             .transform_list(&m1_internal, &concurrent_mutations);
 
+        // Record transform latency
+        metrics::record_transform_latency(transform_start.elapsed().as_secs_f64());
+
+        // Record transform complexity (number of concurrent mutations to transform against)
+        if !concurrent_mutations.is_empty() {
+            metrics::record_transform_complexity(concurrent_mutations.len() as f64);
+        }
+
         if let Some(err) = error {
+            // Record failed operation
+            metrics::increment_operations_failed();
+            metrics::record_operation_e2e_latency(e2e_start.elapsed().as_secs_f64());
             return Err(anyhow::anyhow!("Transform error: {}", err));
+        }
+
+        // Record conflict resolved if there was a conflict
+        if has_conflict {
+            metrics::increment_conflicts_resolved();
         }
 
         // Store all transformed operations (m1_primes) into database
@@ -193,6 +233,12 @@ impl OTService {
         // Do not enqueue snapshot job here; only enqueue doc_id to Redis queue
 
         txn.commit().await?;
+
+        // Record successful operation
+        metrics::increment_operations_success();
+
+        // Record end-to-end latency
+        metrics::record_operation_e2e_latency(e2e_start.elapsed().as_secs_f64());
 
         Ok(ChangesetApplied {
             server_rev: new_version,

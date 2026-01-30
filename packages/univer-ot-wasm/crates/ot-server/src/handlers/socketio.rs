@@ -6,15 +6,16 @@ use crate::types::{
     FetchOpsAck, FetchOpsRequest, JoinDocAck, JoinDocRequest, LeaveDocRequest, OperationInfo,
     PresenceUpdateRequest,
 };
-use ot_core::MutationInfoWithOpId;
 use anyhow::Result;
 use dashmap::DashMap;
+use ot_core::MutationInfoWithOpId;
 use socketioxide::{
     extract::{AckSender, Data, SocketRef},
     SocketIo,
 };
 use std::collections::HashSet;
 use std::sync::OnceLock;
+use std::time::Instant;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -62,6 +63,9 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
 
         // Increment online users counter
         metrics::increment_online_users();
+
+        // Increment WebSocket connections counter
+        metrics::increment_websocket_connections();
 
         let state = state_clone.clone();
 
@@ -240,10 +244,19 @@ async fn handle_join_doc(
     // Track socket joining document
     let is_new_document = track_socket_join(&req.doc_id, &socket.id.to_string());
 
-    // If this is the first socket in this document, increment online documents
+    // Increment user joins counter
+    metrics::increment_user_joins();
+
+    // If this is the first socket in this document, increment online documents and active sessions
     if is_new_document {
         metrics::increment_online_documents();
+        metrics::increment_active_sessions();
         info!("Document {} now online (first user)", req.doc_id);
+    }
+
+    // Record users per session (count of users in this document)
+    if let Some(sockets) = get_document_sockets().get(&req.doc_id) {
+        metrics::record_users_per_session(sockets.len() as f64);
     }
 
     Ok(JoinDocAck {
@@ -259,12 +272,16 @@ async fn handle_leave_doc(socket: &SocketRef, req: LeaveDocRequest) {
     socket.leave(room.clone());
     info!("Socket {} left room {}", socket.id, room);
 
+    // Increment user leaves counter
+    metrics::increment_user_leaves();
+
     // Track socket leaving document
     let is_document_empty = track_socket_leave(&req.doc_id, &socket.id.to_string());
 
-    // If this was the last socket in this document, decrement online documents
+    // If this was the last socket in this document, decrement online documents and active sessions
     if is_document_empty {
         metrics::decrement_online_documents();
+        metrics::decrement_active_sessions();
         info!("Document {} now offline (last user left)", req.doc_id);
     }
 }
@@ -281,10 +298,19 @@ async fn handle_awareness_init(
     // Track socket joining document
     let is_new_document = track_socket_join(&doc_id, &socket.id.to_string());
 
-    // If this is the first socket in this document, increment online documents
+    // Increment user joins counter
+    metrics::increment_user_joins();
+
+    // If this is the first socket in this document, increment online documents and active sessions
     if is_new_document {
         metrics::increment_online_documents();
+        metrics::increment_active_sessions();
         info!("Document {} now online (first user via awareness)", doc_id);
+    }
+
+    // Record users per session
+    if let Some(sockets) = get_document_sockets().get(&doc_id) {
+        metrics::record_users_per_session(sockets.len() as f64);
     }
 
     let snapshot = state.awareness_service.get_state(&doc_id).await?;
@@ -345,6 +371,9 @@ async fn handle_changeset(
         mutations: result.mutations.clone(),
     };
 
+    // Start timing for broadcast latency
+    let broadcast_start = Instant::now();
+
     match serde_json::to_value(&pushed) {
         Ok(json) => {
             match socket
@@ -353,6 +382,8 @@ async fn handle_changeset(
                 .await
             {
                 Ok(_) => {
+                    // Record broadcast latency
+                    metrics::record_broadcast_latency(broadcast_start.elapsed().as_secs_f64());
                     info!(
                         "Broadcasted changeset_pushed to room {}: server_rev={}",
                         room, result.server_rev
@@ -484,10 +515,16 @@ async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
     // Decrement online users counter
     metrics::decrement_online_users();
 
+    // Decrement WebSocket connections counter
+    metrics::decrement_websocket_connections();
+
     let rooms = socket.rooms().into_iter().collect::<Vec<_>>();
 
     for room in rooms {
         if let Some(doc_id) = room.strip_prefix("doc:") {
+            // Increment user leaves counter
+            metrics::increment_user_leaves();
+
             // Clean up awareness state
             if let Err(e) = state
                 .awareness_service
@@ -500,9 +537,10 @@ async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
             // Track socket leaving document
             let is_document_empty = track_socket_leave(doc_id, &socket.id.to_string());
 
-            // If this was the last socket in this document, decrement online documents
+            // If this was the last socket in this document, decrement online documents and active sessions
             if is_document_empty {
                 metrics::decrement_online_documents();
+                metrics::decrement_active_sessions();
                 info!("Document {} now offline (last user disconnected)", doc_id);
             }
         }

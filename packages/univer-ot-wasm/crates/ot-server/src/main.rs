@@ -53,6 +53,9 @@ async fn main() -> anyhow::Result<()> {
     // Initialize Socket.IO metrics
     metrics::init_socketio_metrics();
 
+    // Initialize all OT collaboration metrics
+    metrics::init_all_ot_metrics();
+
     // Start metrics collection background task
     metrics::start_metrics_collection();
 

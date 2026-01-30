@@ -1,4 +1,5 @@
 use crate::database::entities::{document_snapshot, operation_log};
+use crate::metrics;
 use crate::services::storage::StorageService;
 use anyhow::{Context, Result};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
@@ -95,6 +96,9 @@ impl SnapshotService {
             .store_snapshot_content(doc_id, version, &content)
             .await?;
 
+        // Record document size metric
+        metrics::record_document_size(stored.size as f64);
+
         // Find existing snapshot with matching doc_id and version, or create new one
         let snapshot = document_snapshot::Entity::find()
             .filter(document_snapshot::Column::DocId.eq(doc_id))
@@ -126,6 +130,9 @@ impl SnapshotService {
             document_snapshot::Entity::insert(new_snapshot)
                 .exec(&*self.db)
                 .await?;
+
+            // Increment snapshots created counter
+            metrics::increment_snapshots_created();
         }
 
         Ok(())
