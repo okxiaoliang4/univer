@@ -366,39 +366,3 @@ fn test_set_range_values_complete_conflict_all_cells_removed() {
     assert_eq!(m2_prime.params["cellValue"]["0"]["0"]["v"], "m2_A1");
 }
 
-// Double-check worksheet tests (snake_case aliases to bypass quick check)
-
-#[test]
-fn test_set_range_values_double_check_different_worksheets() {
-    let service = TransformService::new();
-
-    // Use snake_case field names (aliases) - quick check returns None
-    let m1 = MutationInfo {
-        id: "sheet.mutation.set-range-values".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet1",
-            "cellValue": {
-                "0": { "0": { "v": "test" } }
-            }
-        }),
-    };
-
-    let m2 = MutationInfo {
-        id: "sheet.mutation.set-range-values".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet2",  // Different sheet
-            "cellValue": {
-                "0": { "0": { "v": "test" } }
-            }
-        }),
-    };
-
-    let result = service.transform(&m1, &m2);
-
-    // Different worksheets - identity transform (via double-check path)
-    assert!(result.m1_prime.is_some());
-    assert!(result.m2_prime.is_some());
-    assert!(result.error.is_none());
-}

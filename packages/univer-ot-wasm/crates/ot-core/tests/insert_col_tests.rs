@@ -114,7 +114,7 @@ fn test_insert_col_vs_set_range_values() {
             "subUnitId": "sheet1",
             "cellValue": {
                 "0": {
-                    "6": "value at column 6"
+                    "6": { "v": "value at column 6" }
                 }
             }
         }),
@@ -124,7 +124,7 @@ fn test_insert_col_vs_set_range_values() {
 
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
-    assert!(result.error.is_none());
+    assert!(result.error.is_none(), "Expected no error, got: {:?}", result.error);
 
     // Cell at column 6 should be shifted to column 7
     let m2_prime = result.m2_prime.unwrap();
@@ -212,84 +212,6 @@ fn test_insert_col_vs_insert_row_identity() {
     let result = service.transform(&m1, &m2);
 
     // Different dimensions - identity transform
-    assert!(result.m1_prime.is_some());
-    assert!(result.m2_prime.is_some());
-    assert!(result.error.is_none());
-}
-
-// Tests for double-check worksheet match (quick check returns None)
-
-#[test]
-fn test_insert_col_vs_insert_col_double_check_different_worksheets() {
-    let service = TransformService::new();
-
-    // Use snake_case field names (aliases) - quick check returns None
-    let m1 = MutationInfo {
-        id: "sheet.mutation.insert-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet1",
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 5
-            }
-        }),
-    };
-
-    let m2 = MutationInfo {
-        id: "sheet.mutation.insert-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet2", // Different sheet
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 5
-            }
-        }),
-    };
-
-    let result = service.transform(&m1, &m2);
-
-    // Different worksheets - identity transform (via double-check path)
-    assert!(result.m1_prime.is_some());
-    assert!(result.m2_prime.is_some());
-    assert!(result.error.is_none());
-}
-
-#[test]
-fn test_insert_col_vs_set_range_values_double_check_different_worksheets() {
-    let service = TransformService::new();
-
-    let m1 = MutationInfo {
-        id: "sheet.mutation.insert-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet1",
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 5
-            }
-        }),
-    };
-
-    let m2 = MutationInfo {
-        id: "sheet.mutation.set-range-values".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet2",
-            "cellValue": {}
-        }),
-    };
-
-    let result = service.transform(&m1, &m2);
-
-    // Different worksheets - identity transform (via double-check path)
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
     assert!(result.error.is_none());

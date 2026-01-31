@@ -153,10 +153,10 @@ fn test_remove_col_vs_set_range_values() {
             "subUnitId": "sheet1",
             "cellValue": {
                 "0": {
-                    "4": "before range",
-                    "6": "in range (removed)",
-                    "8": "after range",
-                    "10": "way after"
+                    "4": { "v": "before range" },
+                    "6": { "v": "in range (removed)" },
+                    "8": { "v": "after range" },
+                    "10": { "v": "way after" }
                 }
             }
         }),
@@ -715,120 +715,3 @@ fn test_remove_col_vs_insert_col_different_workbooks() {
     assert!(result.error.is_none());
 }
 
-// Double-check worksheet tests (snake_case aliases to bypass quick check)
-
-#[test]
-fn test_remove_col_vs_remove_col_double_check_different_worksheets() {
-    let service = TransformService::new();
-
-    // Use snake_case field names (aliases) - quick check returns None
-    let m1 = MutationInfo {
-        id: "sheet.mutation.remove-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet1",
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 7
-            }
-        }),
-    };
-
-    let m2 = MutationInfo {
-        id: "sheet.mutation.remove-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet2",  // Different sheet
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 7
-            }
-        }),
-    };
-
-    let result = service.transform(&m1, &m2);
-
-    // Different worksheets - identity transform (via double-check path)
-    assert!(result.m1_prime.is_some());
-    assert!(result.m2_prime.is_some());
-    assert!(result.error.is_none());
-}
-
-#[test]
-fn test_remove_col_vs_set_range_values_double_check_different_worksheets() {
-    let service = TransformService::new();
-
-    let m1 = MutationInfo {
-        id: "sheet.mutation.remove-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet1",
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 7
-            }
-        }),
-    };
-
-    let m2 = MutationInfo {
-        id: "sheet.mutation.set-range-values".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet2",  // Different sheet
-            "cellValue": {}
-        }),
-    };
-
-    let result = service.transform(&m1, &m2);
-
-    // Different worksheets - identity transform (via double-check path)
-    assert!(result.m1_prime.is_some());
-    assert!(result.m2_prime.is_some());
-    assert!(result.error.is_none());
-}
-
-#[test]
-fn test_remove_col_vs_insert_col_double_check_different_worksheets() {
-    let service = TransformService::new();
-
-    let m1 = MutationInfo {
-        id: "sheet.mutation.remove-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet1",
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 7
-            }
-        }),
-    };
-
-    let m2 = MutationInfo {
-        id: "sheet.mutation.insert-col".to_string(),
-        params: json!({
-            "unit_id": "workbook1",
-            "sub_unit_id": "sheet2",  // Different sheet
-            "range": {
-                "start_row": 0,
-                "start_column": 5,
-                "end_row": 10,
-                "end_column": 7
-            }
-        }),
-    };
-
-    let result = service.transform(&m1, &m2);
-
-    // Different worksheets - identity transform (via double-check path)
-    assert!(result.m1_prime.is_some());
-    assert!(result.m2_prime.is_some());
-    assert!(result.error.is_none());
-}

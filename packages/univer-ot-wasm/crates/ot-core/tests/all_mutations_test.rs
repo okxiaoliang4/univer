@@ -124,10 +124,10 @@ const CONDITIONAL_FORMATTING_MUTATIONS: &[&str] = &[
 // ============================================================================
 
 const SHEETS_FILTER_MUTATIONS: &[&str] = &[
-    "sheet.mutation.set-filter-range",
-    "sheet.mutation.set-filter-criteria",
-    "sheet.mutation.remove-filter",
-    "sheet.mutation.re-calc-filter",
+    "sheet.mutation.set-sheets-filter-range",
+    "sheet.mutation.set-sheets-filter-criteria",
+    "sheet.mutation.remove-sheets-filter",
+    "sheet.mutation.re-calc-sheets-filter",
 ];
 
 // ============================================================================
