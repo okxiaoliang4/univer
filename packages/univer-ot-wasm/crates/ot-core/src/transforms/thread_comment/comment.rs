@@ -3,9 +3,9 @@ use crate::mutations::thread_comment::{
     ResolveCommentMutation, DeleteCommentMutation,
 };
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
+use crate::utils::transform_helpers::{lww_transform, identity_transform};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
-use std::sync::Arc;
 
 pub const ADD_COMMENT_ID: MutationId = AddCommentMutation::ID;
 pub const UPDATE_COMMENT_ID: MutationId = UpdateCommentMutation::ID;
@@ -23,23 +23,23 @@ const LOCAL_COMMENT_MUTATIONS: &[MutationId] = &[
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register symmetric transforms for comment mutations
-    registry.register_symmetric_ref(ADD_COMMENT_ID, create_identity());
-    registry.register_symmetric_ref(UPDATE_COMMENT_ID, create_lww());
-    registry.register_symmetric_ref(UPDATE_COMMENT_REF_ID, create_lww());
-    registry.register_symmetric_ref(RESOLVE_COMMENT_ID, create_lww());
-    registry.register_symmetric_ref(DELETE_COMMENT_ID, create_identity());
+    registry.register_symmetric_ref(ADD_COMMENT_ID, identity_transform());
+    registry.register_symmetric_ref(UPDATE_COMMENT_ID, lww_transform());
+    registry.register_symmetric_ref(UPDATE_COMMENT_REF_ID, lww_transform());
+    registry.register_symmetric_ref(RESOLVE_COMMENT_ID, lww_transform());
+    registry.register_symmetric_ref(DELETE_COMMENT_ID, identity_transform());
 
     // Register bidirectional transforms within comment module
-    registry.register_bidirectional_ref(ADD_COMMENT_ID, UPDATE_COMMENT_ID, create_identity());
-    registry.register_bidirectional_ref(ADD_COMMENT_ID, UPDATE_COMMENT_REF_ID, create_identity());
-    registry.register_bidirectional_ref(ADD_COMMENT_ID, RESOLVE_COMMENT_ID, create_identity());
-    registry.register_bidirectional_ref(ADD_COMMENT_ID, DELETE_COMMENT_ID, create_identity());
-    registry.register_bidirectional_ref(UPDATE_COMMENT_ID, UPDATE_COMMENT_REF_ID, create_identity());
-    registry.register_bidirectional_ref(UPDATE_COMMENT_ID, RESOLVE_COMMENT_ID, create_identity());
-    registry.register_bidirectional_ref(UPDATE_COMMENT_ID, DELETE_COMMENT_ID, create_identity());
-    registry.register_bidirectional_ref(UPDATE_COMMENT_REF_ID, RESOLVE_COMMENT_ID, create_identity());
-    registry.register_bidirectional_ref(UPDATE_COMMENT_REF_ID, DELETE_COMMENT_ID, create_identity());
-    registry.register_bidirectional_ref(RESOLVE_COMMENT_ID, DELETE_COMMENT_ID, create_identity());
+    registry.register_bidirectional_ref(ADD_COMMENT_ID, UPDATE_COMMENT_ID, identity_transform());
+    registry.register_bidirectional_ref(ADD_COMMENT_ID, UPDATE_COMMENT_REF_ID, identity_transform());
+    registry.register_bidirectional_ref(ADD_COMMENT_ID, RESOLVE_COMMENT_ID, identity_transform());
+    registry.register_bidirectional_ref(ADD_COMMENT_ID, DELETE_COMMENT_ID, identity_transform());
+    registry.register_bidirectional_ref(UPDATE_COMMENT_ID, UPDATE_COMMENT_REF_ID, identity_transform());
+    registry.register_bidirectional_ref(UPDATE_COMMENT_ID, RESOLVE_COMMENT_ID, identity_transform());
+    registry.register_bidirectional_ref(UPDATE_COMMENT_ID, DELETE_COMMENT_ID, identity_transform());
+    registry.register_bidirectional_ref(UPDATE_COMMENT_REF_ID, RESOLVE_COMMENT_ID, identity_transform());
+    registry.register_bidirectional_ref(UPDATE_COMMENT_REF_ID, DELETE_COMMENT_ID, identity_transform());
+    registry.register_bidirectional_ref(RESOLVE_COMMENT_ID, DELETE_COMMENT_ID, identity_transform());
 
     // Register with all other modules
     for &comment_id in LOCAL_COMMENT_MUTATIONS {
@@ -68,21 +68,4 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
             registry.register_identity(comment_id, pt_id);
         }
     }
-}
-
-fn create_identity() -> TransformFnRef {
-    Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
-        TransformResultRef::identity(m1, m2)
-    })
-}
-
-fn create_lww() -> TransformFnRef {
-    Arc::new(|_m1: &MutationInfo, m2: &MutationInfo| {
-        use crate::types::MutationOutcome;
-        TransformResultRef {
-            m1_prime: MutationOutcome::Removed,
-            m2_prime: MutationOutcome::Unchanged(m2),
-            error: None,
-        }
-    })
 }

@@ -14,6 +14,8 @@ description = "Core Operational Transformation logic (pure Rust, no WASM depende
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_repr = { workspace = true }
+once_cell = { workspace = true }
 
 [dev-dependencies]
 # Add test dependencies as needed

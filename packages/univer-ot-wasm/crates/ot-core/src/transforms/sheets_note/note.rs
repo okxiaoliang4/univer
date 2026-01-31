@@ -2,9 +2,9 @@ use crate::mutations::sheets_note::{
     UpdateNoteMutation, RemoveNoteMutation, ToggleNotePopupMutation, UpdateNotePositionMutation,
 };
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
+use crate::utils::transform_helpers::{lww_transform, identity_transform};
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::*;
-use std::sync::Arc;
 
 pub const UPDATE_NOTE_ID: MutationId = UpdateNoteMutation::ID;
 pub const REMOVE_NOTE_ID: MutationId = RemoveNoteMutation::ID;
@@ -20,18 +20,18 @@ const LOCAL_NOTE_MUTATIONS: &[MutationId] = &[
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register symmetric transforms for note mutations
-    registry.register_symmetric_ref(UPDATE_NOTE_ID, create_lww());
-    registry.register_symmetric_ref(REMOVE_NOTE_ID, create_identity());
-    registry.register_symmetric_ref(TOGGLE_NOTE_POPUP_ID, create_lww());
-    registry.register_symmetric_ref(UPDATE_NOTE_POSITION_ID, create_lww());
+    registry.register_symmetric_ref(UPDATE_NOTE_ID, lww_transform());
+    registry.register_symmetric_ref(REMOVE_NOTE_ID, identity_transform());
+    registry.register_symmetric_ref(TOGGLE_NOTE_POPUP_ID, lww_transform());
+    registry.register_symmetric_ref(UPDATE_NOTE_POSITION_ID, lww_transform());
 
     // Register bidirectional transforms within note module
-    registry.register_bidirectional_ref(UPDATE_NOTE_ID, REMOVE_NOTE_ID, create_identity());
-    registry.register_bidirectional_ref(UPDATE_NOTE_ID, TOGGLE_NOTE_POPUP_ID, create_identity());
-    registry.register_bidirectional_ref(UPDATE_NOTE_ID, UPDATE_NOTE_POSITION_ID, create_identity());
-    registry.register_bidirectional_ref(REMOVE_NOTE_ID, TOGGLE_NOTE_POPUP_ID, create_identity());
-    registry.register_bidirectional_ref(REMOVE_NOTE_ID, UPDATE_NOTE_POSITION_ID, create_identity());
-    registry.register_bidirectional_ref(TOGGLE_NOTE_POPUP_ID, UPDATE_NOTE_POSITION_ID, create_identity());
+    registry.register_bidirectional_ref(UPDATE_NOTE_ID, REMOVE_NOTE_ID, identity_transform());
+    registry.register_bidirectional_ref(UPDATE_NOTE_ID, TOGGLE_NOTE_POPUP_ID, identity_transform());
+    registry.register_bidirectional_ref(UPDATE_NOTE_ID, UPDATE_NOTE_POSITION_ID, identity_transform());
+    registry.register_bidirectional_ref(REMOVE_NOTE_ID, TOGGLE_NOTE_POPUP_ID, identity_transform());
+    registry.register_bidirectional_ref(REMOVE_NOTE_ID, UPDATE_NOTE_POSITION_ID, identity_transform());
+    registry.register_bidirectional_ref(TOGGLE_NOTE_POPUP_ID, UPDATE_NOTE_POSITION_ID, identity_transform());
 
     // Register with all other modules (using constants)
     for &note_id in LOCAL_NOTE_MUTATIONS {
@@ -51,21 +51,4 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
             registry.register_identity(note_id, hl_id);
         }
     }
-}
-
-fn create_identity() -> TransformFnRef {
-    Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
-        TransformResultRef::identity(m1, m2)
-    })
-}
-
-fn create_lww() -> TransformFnRef {
-    Arc::new(|_m1: &MutationInfo, m2: &MutationInfo| {
-        use crate::types::MutationOutcome;
-        TransformResultRef {
-            m1_prime: MutationOutcome::Removed,
-            m2_prime: MutationOutcome::Unchanged(m2),
-            error: None,
-        }
-    })
 }

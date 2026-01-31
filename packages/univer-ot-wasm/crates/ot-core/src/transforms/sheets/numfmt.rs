@@ -6,6 +6,7 @@ use crate::mutations::sheets::{
 };
 use crate::mutations::sheets_numfmt::{SetNumfmtMutation, RemoveNumfmtMutation};
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
+use crate::utils::transform_helpers::identity_transform;
 use crate::types::{MutationInfo, TransformResultRef};
 use crate::transforms::constants::{
     DATA_VALIDATION_MUTATIONS,
@@ -17,14 +18,13 @@ use crate::transforms::constants::{
     PIVOT_TABLE_MUTATIONS,
     THREAD_COMMENT_MUTATIONS,
 };
-use std::sync::Arc;
 
 pub const SET_NUMFMT_ID: MutationId = SetNumfmtMutation::ID;
 pub const REMOVE_NUMFMT_ID: MutationId = RemoveNumfmtMutation::ID;
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register set.numfmt transforms
-    registry.register_symmetric_ref(SET_NUMFMT_ID, create_identity());
+    registry.register_symmetric_ref(SET_NUMFMT_ID, identity_transform());
     registry.register_identity(SET_NUMFMT_ID, InsertRowMutation::ID);
     registry.register_identity(SET_NUMFMT_ID, InsertColMutation::ID);
     registry.register_identity(SET_NUMFMT_ID, SetRangeValuesMutation::ID);
@@ -42,7 +42,7 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_identity(SET_NUMFMT_ID, SetWorkbookNameMutation::ID);
 
     // Register remove.numfmt transforms
-    registry.register_symmetric_ref(REMOVE_NUMFMT_ID, create_identity());
+    registry.register_symmetric_ref(REMOVE_NUMFMT_ID, identity_transform());
     registry.register_identity(REMOVE_NUMFMT_ID, SET_NUMFMT_ID);
     registry.register_identity(REMOVE_NUMFMT_ID, InsertRowMutation::ID);
     registry.register_identity(REMOVE_NUMFMT_ID, InsertColMutation::ID);
@@ -84,10 +84,4 @@ fn register_cross_module_transforms(registry: &mut TransformRegistry) {
             registry.register_identity(REMOVE_NUMFMT_ID, feature_mutation);
         }
     }
-}
-
-fn create_identity() -> TransformFnRef {
-    Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
-        TransformResultRef::identity(m1, m2)  // Zero-copy!
-    })
 }

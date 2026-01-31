@@ -183,3 +183,58 @@ pub fn shift_range_cols_for_remove(range: &mut Range, remove_start: i32, remove_
     range.end_column = range.start_column + remaining - 1;
     true
 }
+
+// ============================================================================
+// IObjectArrayPrimitiveType key shifting (for row_data, column_data, etc.)
+// ============================================================================
+
+use std::collections::HashMap;
+
+/// Shift keys in a simple HashMap<String, T> for row insert operation
+/// Used for row_data, where keys are row indices
+pub fn shift_array_keys_for_insert<T>(
+    data: &mut HashMap<String, T>,
+    insert_start: i32,
+    insert_count: i32,
+) {
+    let mut new_data = HashMap::with_capacity(data.len());
+    for (key, value) in std::mem::take(data) {
+        if let Ok(row_num) = key.parse::<i32>() {
+            if row_num >= insert_start {
+                new_data.insert((row_num + insert_count).to_string(), value);
+            } else {
+                new_data.insert(key, value);
+            }
+        } else {
+            new_data.insert(key, value);
+        }
+    }
+    *data = new_data;
+}
+
+/// Shift keys in a simple HashMap<String, T> for row remove operation
+/// Used for row_data, where keys are row indices
+/// Keys in the removed range are dropped
+pub fn shift_array_keys_for_remove<T>(
+    data: &mut HashMap<String, T>,
+    remove_start: i32,
+    remove_end: i32,
+) {
+    let remove_count = remove_end - remove_start + 1;
+    let mut new_data = HashMap::with_capacity(data.len());
+    for (key, value) in std::mem::take(data) {
+        if let Ok(row_num) = key.parse::<i32>() {
+            if row_num > remove_end {
+                // After remove range: shift down
+                new_data.insert((row_num - remove_count).to_string(), value);
+            } else if row_num < remove_start {
+                // Before remove range: no change
+                new_data.insert(key, value);
+            }
+            // In [remove_start, remove_end]: dropped
+        } else {
+            new_data.insert(key, value);
+        }
+    }
+    *data = new_data;
+}

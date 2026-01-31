@@ -1,316 +1,136 @@
-// Core sheet mutations
-pub mod insert_row;
-pub mod insert_col;
-pub mod remove_rows;
-pub mod remove_col;
-pub mod set_range_values;
-pub mod move_range;
-pub mod move_rows;
-pub mod move_columns;
+// All sheet mutations - one file per mutation (46 modules)
+// Files are named to match mutations/sheets/*.rs (without _mutation suffix)
 
-// Additional sheet features
-pub mod merge;
-pub mod protection;
-pub mod theme;
-pub mod numfmt;
-pub mod frozen;
-pub mod row_col_data;
-pub mod worksheet;
-pub mod workbook;
+// A
+pub mod add_range_protection;
+pub mod add_range_theme;
+pub mod add_worksheet_merge;
+pub mod add_worksheet_protection;
+pub mod add_worksheet_range_theme;
 
-// New modules for additional mutations
-pub mod visibility;
-pub mod dimensions;
-pub mod grid;
-pub mod tab;
-pub mod reorder;
+// C
+pub mod copy_worksheet_end;
+
+// D
+pub mod delete_range_protection;
+pub mod delete_worksheet_protection;
+pub mod delete_worksheet_range_theme;
+
+// E
 pub mod empty;
-pub mod worksheet_protection;
-pub mod worksheet_style;
-pub mod range_theme_style;
-pub mod additional;
 
-use crate::registry::{MutationId, TransformRegistry};
-use crate::transforms::constants::{
-    DATA_VALIDATION_MUTATIONS,
-    CONDITIONAL_FORMATTING_MUTATIONS,
-    FILTER_MUTATIONS,
-    HYPER_LINK_MUTATIONS,
-    NOTE_MUTATIONS,
-    TABLE_MUTATIONS,
-    PIVOT_TABLE_MUTATIONS,
-    THREAD_COMMENT_MUTATIONS,
-};
+// I
+pub mod insert_row_col;
+pub mod insert_sheet;
 
-// Import all mutation structs used in constants
-use crate::mutations::sheets::{
-    InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation,
-    SetRangeValuesMutation, MoveRangeMutation, MoveRowsMutation, MoveColsMutation,
-    AddWorksheetMergeMutation, SetRangeProtectionMutation, SetRangeThemeMutation,
-    SetFrozenMutation, SetRowDataMutation, InsertSheetMutation, SetWorkbookNameMutation,
-    RemoveWorksheetMergeMutation, AddRangeProtectionMutation, DeleteRangeProtectionMutation,
-    AddRangeThemeMutation, RemoveRangeThemeMutation, SetColDataMutation, RemoveSheetMutation,
-    SetWorksheetNameMutation, SetWorksheetOrderMutation, SetWorksheetHideMutation,
-    CopyWorksheetEndMutation, SetRowVisibleMutation, SetRowHiddenMutation,
-    SetColVisibleMutation, SetColHiddenMutation, SetWorksheetRowHeightMutation,
-    SetWorksheetRowIsAutoHeightMutation, SetWorksheetRowAutoHeightMutation,
-    SetWorksheetColWidthMutation, SetWorksheetRowCountMutation, SetWorksheetColumnCountMutation,
-    ToggleGridlinesMutation, SetGridlinesColorMutation, SetTabColorMutation,
-    ReorderRangeMutation, EmptyMutation, AddWorksheetProtectionMutation,
-    SetWorksheetProtectionMutation, DeleteWorksheetProtectionMutation,
-    SetWorksheetPermissionPointsMutation, SetWorksheetDefaultStyleMutation,
-    SetWorksheetRightToLeftMutation, SetWorksheetRangeThemeStyleMutation,
-    DeleteWorksheetRangeThemeStyleMutation, RegisterWorksheetRangeThemeStyleMutation,
-    UnregisterWorksheetRangeThemeStyleMutation,
-};
-use crate::mutations::sheets_numfmt::{SetNumfmtMutation, RemoveNumfmtMutation};
+// M
+pub mod mark_dirty_auto_height;
+pub mod move_range;
+pub mod move_rows_cols;
 
-/// All existing core mutations for cross-module registration
-const EXISTING_CORE_MUTATIONS: &[MutationId] = &[
-    InsertRowMutation::ID,
-    InsertColMutation::ID,
-    RemoveRowMutation::ID,
-    RemoveColMutation::ID,
-    SetRangeValuesMutation::ID,
-    MoveRangeMutation::ID,
-    MoveRowsMutation::ID,
-    MoveColsMutation::ID,
-    AddWorksheetMergeMutation::ID,
-    SetRangeProtectionMutation::ID,
-    SetRangeThemeMutation::ID,
-    SetNumfmtMutation::ID,
-    RemoveNumfmtMutation::ID,
-    SetFrozenMutation::ID,
-    SetRowDataMutation::ID,
-    InsertSheetMutation::ID,
-    SetWorkbookNameMutation::ID,
-];
+// N
+pub mod numfmt;
+
+// R
+pub mod register_range_theme;
+pub mod remove_range_theme;
+pub mod remove_row_col;
+pub mod remove_sheet;
+pub mod remove_worksheet_merge;
+pub mod reorder_range;
+
+// S
+pub mod set_col_data;
+pub mod set_col_visible;
+pub mod set_frozen;
+pub mod set_gridlines_color;
+pub mod set_range_protection;
+pub mod set_range_theme;
+pub mod set_range_values;
+pub mod set_row_data;
+pub mod set_row_visible;
+pub mod set_tab_color;
+pub mod set_workbook_name;
+pub mod set_worksheet_col_width;
+pub mod set_worksheet_column_count;
+pub mod set_worksheet_default_style;
+pub mod set_worksheet_hide;
+pub mod set_worksheet_name;
+pub mod set_worksheet_order;
+pub mod set_worksheet_permission_points;
+pub mod set_worksheet_protection;
+pub mod set_worksheet_right_to_left;
+pub mod set_worksheet_row_count;
+pub mod set_worksheet_row_height;
+
+// T
+pub mod toggle_gridlines;
+
+// U
+pub mod unregister_range_theme_style;
+
+use crate::registry::TransformRegistry;
 
 /// Register all sheets transforms
+///
+/// This function registers transforms for all 46 sheet mutations.
+/// Each mutation has its own dedicated file.
 pub fn register_transforms(registry: &mut TransformRegistry) {
-    // Register existing core modules
-    insert_row::register_transforms(registry);
-    insert_col::register_transforms(registry);
-    remove_rows::register_transforms(registry);
-    remove_col::register_transforms(registry);
-    set_range_values::register_transforms(registry);
-    move_range::register_transforms(registry);
-    move_rows::register_transforms(registry);
-    move_columns::register_transforms(registry);
-    merge::register_transforms(registry);
-    protection::register_transforms(registry);
-    theme::register_transforms(registry);
-    numfmt::register_transforms(registry);
-    frozen::register_transforms(registry);
-    row_col_data::register_transforms(registry);
-    worksheet::register_transforms(registry);
-    workbook::register_transforms(registry);
+    // Register all individual mutation transforms (alphabetical order)
+    add_range_protection::register_transforms(registry);
+    add_range_theme::register_transforms(registry);
+    add_worksheet_merge::register_transforms(registry);
+    add_worksheet_protection::register_transforms(registry);
+    add_worksheet_range_theme::register_transforms(registry);
 
-    // Register new modules
-    visibility::register_transforms(registry);
-    dimensions::register_transforms(registry);
-    grid::register_transforms(registry);
-    tab::register_transforms(registry);
-    reorder::register_transforms(registry);
+    copy_worksheet_end::register_transforms(registry);
+
+    delete_range_protection::register_transforms(registry);
+    delete_worksheet_protection::register_transforms(registry);
+    delete_worksheet_range_theme::register_transforms(registry);
+
     empty::register_transforms(registry);
-    worksheet_protection::register_transforms(registry);
-    worksheet_style::register_transforms(registry);
-    range_theme_style::register_transforms(registry);
-    additional::register_transforms(registry);
 
-    // Register cross-module transforms for new modules with existing core mutations
-    visibility::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    dimensions::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    grid::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    tab::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    reorder::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    empty::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    worksheet_protection::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    worksheet_style::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    range_theme_style::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
-    additional::register_cross_module_transforms(registry, EXISTING_CORE_MUTATIONS);
+    insert_row_col::register_transforms(registry);
+    insert_sheet::register_transforms(registry);
 
-    // Register cross-module transforms between new modules
-    register_new_modules_cross_transforms(registry);
+    mark_dirty_auto_height::register_transforms(registry);
+    move_range::register_transforms(registry);
+    move_rows_cols::register_transforms(registry);
 
-    // Register cross-module transforms with other feature modules (data validation, conditional formatting, etc.)
-    register_cross_module_with_other_features(registry);
-}
+    numfmt::register_transforms(registry);
 
-/// Register cross-module transforms between all new module mutations
-fn register_new_modules_cross_transforms(registry: &mut TransformRegistry) {
-    // Visibility mutations
-    let visibility_mutations: &[MutationId] = &[
-        SetRowVisibleMutation::ID,
-        SetRowHiddenMutation::ID,
-        SetColVisibleMutation::ID,
-        SetColHiddenMutation::ID,
-    ];
+    register_range_theme::register_transforms(registry);
+    remove_range_theme::register_transforms(registry);
+    remove_row_col::register_transforms(registry);
+    remove_sheet::register_transforms(registry);
+    remove_worksheet_merge::register_transforms(registry);
+    reorder_range::register_transforms(registry);
 
-    // Dimension mutations
-    let dimension_mutations: &[MutationId] = &[
-        SetWorksheetRowHeightMutation::ID,
-        SetWorksheetRowIsAutoHeightMutation::ID,
-        SetWorksheetRowAutoHeightMutation::ID,
-        SetWorksheetColWidthMutation::ID,
-        SetWorksheetRowCountMutation::ID,
-        SetWorksheetColumnCountMutation::ID,
-    ];
+    set_col_data::register_transforms(registry);
+    set_col_visible::register_transforms(registry);
+    set_frozen::register_transforms(registry);
+    set_gridlines_color::register_transforms(registry);
+    set_range_protection::register_transforms(registry);
+    set_range_theme::register_transforms(registry);
+    set_range_values::register_transforms(registry);
+    set_row_data::register_transforms(registry);
+    set_row_visible::register_transforms(registry);
+    set_tab_color::register_transforms(registry);
+    set_workbook_name::register_transforms(registry);
+    set_worksheet_col_width::register_transforms(registry);
+    set_worksheet_column_count::register_transforms(registry);
+    set_worksheet_default_style::register_transforms(registry);
+    set_worksheet_hide::register_transforms(registry);
+    set_worksheet_name::register_transforms(registry);
+    set_worksheet_order::register_transforms(registry);
+    set_worksheet_permission_points::register_transforms(registry);
+    set_worksheet_protection::register_transforms(registry);
+    set_worksheet_right_to_left::register_transforms(registry);
+    set_worksheet_row_count::register_transforms(registry);
+    set_worksheet_row_height::register_transforms(registry);
 
-    // Grid mutations
-    let grid_mutations: &[MutationId] = &[
-        ToggleGridlinesMutation::ID,
-        SetGridlinesColorMutation::ID,
-    ];
+    toggle_gridlines::register_transforms(registry);
 
-    // Tab mutations
-    let tab_mutations: &[MutationId] = &[
-        SetTabColorMutation::ID,
-    ];
-
-    // Reorder mutations
-    let reorder_mutations: &[MutationId] = &[
-        ReorderRangeMutation::ID,
-    ];
-
-    // Empty mutations
-    let empty_mutations: &[MutationId] = &[
-        EmptyMutation::ID,
-    ];
-
-    // Worksheet protection mutations
-    let ws_protection_mutations: &[MutationId] = &[
-        AddWorksheetProtectionMutation::ID,
-        SetWorksheetProtectionMutation::ID,
-        DeleteWorksheetProtectionMutation::ID,
-        SetWorksheetPermissionPointsMutation::ID,
-    ];
-
-    // Worksheet style mutations
-    let ws_style_mutations: &[MutationId] = &[
-        SetWorksheetDefaultStyleMutation::ID,
-        SetWorksheetRightToLeftMutation::ID,
-    ];
-
-    // Range theme style mutations
-    let range_theme_style_mutations: &[MutationId] = &[
-        SetWorksheetRangeThemeStyleMutation::ID,
-        DeleteWorksheetRangeThemeStyleMutation::ID,
-        RegisterWorksheetRangeThemeStyleMutation::ID,
-        UnregisterWorksheetRangeThemeStyleMutation::ID,
-    ];
-
-    // Additional mutations
-    let additional_mutations: &[MutationId] = &[
-        RemoveWorksheetMergeMutation::ID,
-        AddRangeProtectionMutation::ID,
-        DeleteRangeProtectionMutation::ID,
-        AddRangeThemeMutation::ID,
-        RemoveRangeThemeMutation::ID,
-        SetColDataMutation::ID,
-        RemoveSheetMutation::ID,
-        SetWorksheetNameMutation::ID,
-        SetWorksheetOrderMutation::ID,
-        SetWorksheetHideMutation::ID,
-        CopyWorksheetEndMutation::ID,
-    ];
-
-    // All new module mutation groups
-    let all_groups: Vec<&[MutationId]> = vec![
-        visibility_mutations,
-        dimension_mutations,
-        grid_mutations,
-        tab_mutations,
-        reorder_mutations,
-        empty_mutations,
-        ws_protection_mutations,
-        ws_style_mutations,
-        range_theme_style_mutations,
-        additional_mutations,
-    ];
-
-    // Register identity transforms between all groups
-    for i in 0..all_groups.len() {
-        for j in (i + 1)..all_groups.len() {
-            for &m1 in all_groups[i] {
-                for &m2 in all_groups[j] {
-                    registry.register_identity(m1, m2);
-                }
-            }
-        }
-    }
-}
-
-/// Register cross-module transforms between all sheets-core mutations and other feature modules
-fn register_cross_module_with_other_features(registry: &mut TransformRegistry) {
-    // All new module mutations that need cross-registration with other features
-    let new_module_mutations: &[MutationId] = &[
-        // Visibility mutations
-        SetRowVisibleMutation::ID,
-        SetRowHiddenMutation::ID,
-        SetColVisibleMutation::ID,
-        SetColHiddenMutation::ID,
-        // Dimension mutations
-        SetWorksheetRowHeightMutation::ID,
-        SetWorksheetRowIsAutoHeightMutation::ID,
-        SetWorksheetRowAutoHeightMutation::ID,
-        SetWorksheetColWidthMutation::ID,
-        SetWorksheetRowCountMutation::ID,
-        SetWorksheetColumnCountMutation::ID,
-        // Grid mutations
-        ToggleGridlinesMutation::ID,
-        SetGridlinesColorMutation::ID,
-        // Tab mutations
-        SetTabColorMutation::ID,
-        // Reorder mutations
-        ReorderRangeMutation::ID,
-        // Empty mutations
-        EmptyMutation::ID,
-        // Worksheet protection mutations
-        AddWorksheetProtectionMutation::ID,
-        SetWorksheetProtectionMutation::ID,
-        DeleteWorksheetProtectionMutation::ID,
-        SetWorksheetPermissionPointsMutation::ID,
-        // Worksheet style mutations
-        SetWorksheetDefaultStyleMutation::ID,
-        SetWorksheetRightToLeftMutation::ID,
-        // Range theme style mutations
-        SetWorksheetRangeThemeStyleMutation::ID,
-        DeleteWorksheetRangeThemeStyleMutation::ID,
-        RegisterWorksheetRangeThemeStyleMutation::ID,
-        UnregisterWorksheetRangeThemeStyleMutation::ID,
-        // Additional mutations
-        RemoveWorksheetMergeMutation::ID,
-        AddRangeProtectionMutation::ID,
-        DeleteRangeProtectionMutation::ID,
-        AddRangeThemeMutation::ID,
-        RemoveRangeThemeMutation::ID,
-        SetColDataMutation::ID,
-        RemoveSheetMutation::ID,
-        SetWorksheetNameMutation::ID,
-        SetWorksheetOrderMutation::ID,
-        SetWorksheetHideMutation::ID,
-        CopyWorksheetEndMutation::ID,
-    ];
-
-    // All other feature module mutations
-    let all_other_modules: &[&[MutationId]] = &[
-        DATA_VALIDATION_MUTATIONS,
-        CONDITIONAL_FORMATTING_MUTATIONS,
-        FILTER_MUTATIONS,
-        HYPER_LINK_MUTATIONS,
-        NOTE_MUTATIONS,
-        TABLE_MUTATIONS,
-        PIVOT_TABLE_MUTATIONS,
-        THREAD_COMMENT_MUTATIONS,
-    ];
-
-    // Register identity transforms between new sheets-core mutations and all other modules
-    for &sheets_mutation in new_module_mutations {
-        for &other_module in all_other_modules {
-            for &other_mutation in other_module {
-                registry.register_identity(sheets_mutation, other_mutation);
-            }
-        }
-    }
+    unregister_range_theme_style::register_transforms(registry);
 }

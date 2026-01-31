@@ -1,12 +1,21 @@
 pub mod constants;
+
+// Core sheets transforms
 pub mod sheets;
-pub mod sheets_data_validation;
+
+// Feature plugin transforms (aligned with mutations directory)
+pub mod data_validation;
+pub mod docs;
+pub mod docs_hyper_link;
+pub mod engine_formula;
 pub mod sheets_conditional_formatting;
+pub mod sheets_drawing;
 pub mod sheets_filter;
 pub mod sheets_hyper_link;
 pub mod sheets_note;
-pub mod sheets_table;
+pub mod sheets_numfmt;
 pub mod sheets_pivot_table;
+pub mod sheets_table;
 pub mod thread_comment;
 
 use crate::registry::TransformRegistry;
@@ -18,31 +27,24 @@ use crate::registry::TransformRegistry;
 /// - Bidirectional: Single implementation with automatic swap
 /// - Symmetric: Same-type transforms
 /// - Identity: Non-interfering mutations
+///
+/// Module order matches mutations directory structure for consistency.
 pub fn register_all(registry: &mut TransformRegistry) {
-    // Register sheets core mutations
+    // Core sheets mutations
     sheets::register_transforms(registry);
 
-    // Register sheets-data-validation mutations
-    sheets_data_validation::register_transforms(registry);
-
-    // Register sheets-conditional-formatting mutations
+    // Feature plugin mutations (in alphabetical order, matching mutations/mod.rs)
+    data_validation::register_transforms(registry);
+    docs::register_transforms(registry);
+    docs_hyper_link::register_transforms(registry);
+    engine_formula::register_transforms(registry);
     sheets_conditional_formatting::register_transforms(registry);
-
-    // Register sheets-filter mutations
+    sheets_drawing::register_transforms(registry);
     sheets_filter::register_transforms(registry);
-
-    // Register sheets-hyper-link mutations
     sheets_hyper_link::register_transforms(registry);
-
-    // Register sheets-note mutations
     sheets_note::register_transforms(registry);
-
-    // Register sheets-table mutations
-    sheets_table::register_transforms(registry);
-
-    // Register sheets-pivot-table mutations
+    sheets_numfmt::register_transforms(registry);
     sheets_pivot_table::register_transforms(registry);
-
-    // Register thread-comment mutations
+    sheets_table::register_transforms(registry);
     thread_comment::register_transforms(registry);
 }
