@@ -42,7 +42,7 @@ chrono = { version = "0.4", features = [ "serde" ] }
 async-trait = "0.1"
 dotenvy = "0.15"
 migration = { path = "../../migration" }
-socketioxide = "0.18"
+socketioxide = { version = "0.18", features = [ "extensions" ] }
 aws-credential-types = "1"
 aws-sdk-s3 = { version = "1", features = [ "behavior-version-latest" ] }
 redis = { version = "0.25", features = [ "tokio-comp" ] }
@@ -63,6 +63,8 @@ opentelemetry_sdk = { version = "0.31.0", features = [ "rt-tokio" ] }
 opentelemetry-prometheus = "0.31.0"
 prometheus = "0.14"
 dashmap = "6.1"
+rand = "0.8"
+jsonwebtoken = "9"
 
 [dev-dependencies]
 rust_socketio = { version = "0.6", features = [ "async" ] }

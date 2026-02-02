@@ -25,6 +25,31 @@ import localforage from 'localforage';
 import { BehaviorSubject } from 'rxjs';
 import { COLLABORATION_PLUGIN_CONFIG_KEY } from '../controller/config.schema';
 
+/**
+ * Extract userId from JWT token without verification.
+ * This is safe for client-side usage since the server will verify the token.
+ * The userId is used only for local storage namespacing.
+ */
+function extractUserIdFromToken(token: string): string {
+    if (!token) {
+        return '';
+    }
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+            return '';
+        }
+        const payload = parts[1];
+        // Handle base64url encoding (replace - with + and _ with /)
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = JSON.parse(atob(base64));
+        // Try common JWT claim names for user ID
+        return decoded.uid || decoded.sub || decoded.user_id || decoded.userId || '';
+    } catch {
+        return '';
+    }
+}
+
 export interface IPendingMutations {
     unitId: string;
     mutations: IMutationWithOpId[];
@@ -62,7 +87,8 @@ export class PendingMutationSerivce extends Disposable implements IPendingMutati
     ) {
         super();
 
-        this._userId = this._configService.getConfig<ICollaborationConfig>(COLLABORATION_PLUGIN_CONFIG_KEY)!.userId;
+        const config = this._configService.getConfig<ICollaborationConfig>(COLLABORATION_PLUGIN_CONFIG_KEY)!;
+        this._userId = extractUserIdFromToken(config.accessToken);
 
         this._init();
     }

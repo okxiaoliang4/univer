@@ -20,6 +20,10 @@ pub struct Config {
     pub etcd_lease_ttl_seconds: u64,
     pub etcd_registration_ip: Option<String>,
     pub grpc_server_port: u16,
+    // Auth service configuration (etcd service discovery)
+    pub user_rpc_prefix: String,
+    pub document_rpc_prefix: String,
+    pub permission_cache_ttl_seconds: u64,
 }
 
 impl Config {
@@ -69,12 +73,21 @@ impl Config {
                 .unwrap_or_else(|_| "50051".to_string())
                 .parse()
                 .expect("GRPC_SERVER_PORT must be a valid u16"),
+            // Auth service configuration (etcd service discovery)
+            user_rpc_prefix: env::var("USER_RPC_PREFIX")
+                .unwrap_or_else(|_| "user.rpc".to_string()),
+            document_rpc_prefix: env::var("DOCUMENT_RPC_PREFIX")
+                .unwrap_or_else(|_| "document.rpc".to_string()),
+            permission_cache_ttl_seconds: env::var("PERMISSION_CACHE_TTL_SECONDS")
+                .unwrap_or_else(|_| "300".to_string())
+                .parse()
+                .expect("PERMISSION_CACHE_TTL_SECONDS must be a valid u64"),
         }
     }
 
     pub fn log_summary(&self) {
         info!(
-            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}",
+            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}",
             redact_url(&self.database_url),
             self.server_env,
             self.server_port,
@@ -91,7 +104,10 @@ impl Config {
             self.awareness_ttl_seconds,
             self.etcd_endpoints,
             self.etcd_lease_ttl_seconds,
-            self.etcd_registration_ip
+            self.etcd_registration_ip,
+            self.user_rpc_prefix,
+            self.document_rpc_prefix,
+            self.permission_cache_ttl_seconds
         );
     }
 }

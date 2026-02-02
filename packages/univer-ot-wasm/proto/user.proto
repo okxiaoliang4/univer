@@ -1,0 +1,351 @@
+syntax = "proto3";
+package user;
+option go_package = "./pbuser";
+import "google/protobuf/any.proto";
+
+message UserInfo {
+  string uid = 1;
+  string name = 2;
+  string email = 3;
+  string nick_name = 5;
+  string avatar = 6;
+  int32 gender = 7;
+  string birthday = 8;
+  string background_image = 9;
+  string home_page = 10;
+  string description = 11;
+  int32 status = 12;
+  int64 follow_count = 13;
+  int64 fans_count = 14;
+  int32 roles = 15;
+  string invitation_code = 16;
+  int32  area_agent = 17;
+  bool   password_set = 18;
+  string  settings = 19;
+}
+
+message AuthToken {
+  string  access_token = 1;
+  string  refresh_token = 2;
+}
+
+message GetSignUpCodeByEmailReq {
+  string  email = 1;
+}
+message GetSignUpCodeByEmailResp {
+  int64  effective_time = 1;
+}
+message AccountSignUpReq {
+  string  email = 1;
+  string  name = 2;
+  string  password = 3;
+  string  reg_code = 4;
+  optional string invitation_code = 5;
+  string  ip = 6;
+  string  domain = 7;
+  string   individual_agent = 8;
+}
+message AccountSignUpResp {
+  UserInfo user = 1;
+}
+
+message  PasswordResetLinkReq {
+  string  email = 1;
+}
+message  PasswordResetLinkResp {
+
+}
+
+message  PasswordResetLinkCheckReq {
+  string  email = 1;
+  string  link_token = 2;
+}
+message  PasswordResetLinkCheckResp {
+  string reset_token = 1;
+}
+message  PasswordResetLinkSetReq {
+  string  email = 1;
+  string  new_password = 2;
+  string  re_new_password = 3;
+  string  reset_token = 4;
+}
+message  PasswordResetLinkSetResp {
+
+}
+message  GetSignInCodeByEmailReq {
+  string  email = 1;
+}
+message  GetSignInCodeByEmailResp {
+  int64  effective_time = 1;
+}
+message AccountSignInReq {
+  oneof login_account {
+    string  name = 1;
+    string  email = 2;
+  }
+  string  password = 3;
+  string  code = 4;
+  string  ip = 5;
+  string  endpoint_info = 6;
+}
+message  AccountSignInWithEmailReq {
+  string  email = 1;
+  string  code = 2;
+  string  ip = 3;
+  string  endpoint_info = 4;
+}
+
+message AccountSignInTestReq {
+  oneof login_account {
+    string  name = 1;
+    string  email = 2;
+  }
+  string  password = 3;
+  string  ip = 4;
+  string  endpoint_info = 5;
+}
+
+message AccountSignInResp {
+  UserInfo user = 1;
+  AuthToken token = 2;
+}
+
+message AccountSignOutReq {
+  string  uid = 1;
+  string  ep_id = 2;
+}
+message  AccountSignOutRes {
+
+}
+
+message GitHubOAuthAuthorizeUrlReq {}
+message GitHubOAuthAuthorizeUrlResp {
+  string  url = 1;
+}
+message GitHubOAuthCallbackReq {
+  string  code = 1;
+  string  state = 2;
+}
+message GitHubOAuthCallbackResp {
+  UserInfo user = 1;
+}
+
+
+message GoogleOAuthAuthorizeUrlReq {}
+message GoogleOAuthAuthorizeUrlResp {
+  string  url = 1;
+}
+message GoogleOAuthCallbackReq {
+  string  code = 1;
+  string  state = 2;
+}
+message GoogleOAuthCallbackResp {
+  UserInfo user = 1;
+}
+
+message AppleOAuthAuthorizeUrlReq {}
+message AppleOAuthAuthorizeUrlResp {
+  string  url = 1;
+}
+message AppleOAuthCallbackReq {
+  string  code = 1;
+  string  state = 2;
+}
+message AppleOAuthCallbackResp {
+  UserInfo user = 1;
+}
+message  GetUserInfoByIdReq {
+  string  uid = 1;
+}
+message  GetUserInfoByEmailReq {
+  string email = 1;
+}
+message   GetUserInfoResp {
+  UserInfo user = 1;
+}
+message  UpdateUserInfoReq {
+  string  uid = 1;
+  optional  string nick_name = 2;
+  optional  string avatar = 3;
+  optional  int32 gender = 4;
+  optional string birthday = 5;
+  optional string background_image = 6;
+  optional string home_page = 7;
+  optional string description = 8;
+}
+message  UpdateUserInfoResp {}
+
+message  UpdateUserPasswordReq {
+  string  uid = 1;
+  string old_password = 2;
+  string new_password = 3;
+  string re_new_password = 4;
+}
+message  UpdateUserPasswordResp {}
+
+message  SetUserSettingsReq {
+  string  uid = 1;
+  string  settings = 2;
+}
+
+message  SetUserSettingsResp {
+
+}
+message SetSettingsConfigReq {
+  string  settings = 1;
+}
+message  SetSettingsConfigResp {
+
+}
+
+message SetInvitationCodeReq{
+  string  uid = 1;
+  string invitation_code = 2;
+}
+message SetInvitationCodeResp{}
+
+message GetUserInviteCodesReq{
+  string  uid = 1;
+}
+message InvitationCode {
+  string  code = 1;
+  string   invitee = 2;
+  string   invitee_email = 3;
+  string   invite_time = 4;
+}
+message GetUserInviteCodesResp{
+  string  uid = 1;
+  repeated InvitationCode codes = 2;
+}
+message FrontendOAuthCallbackReq {
+  int32   source = 1;  // 100 github 101 google  102 apple 103 microsoft
+  string  access_code = 2;
+  string  ip = 3;
+  string  domain = 4;
+  string  individual_agent = 5;
+  string  endpoint_info = 6;
+}
+message FrontendOAuthCallbackResp {
+  UserInfo user = 1;
+  AuthToken token = 2;
+}
+
+message  GetMultiUsersDataReq {
+  repeated string uids = 1;
+}
+
+message  GetMultiUsersDataResp {
+  repeated UserInfo users = 1;
+}
+
+message GetMultiUsersDataByEmailReq {
+  repeated string  emails = 1;
+}
+
+message GetMultiUsersDataByEmailResp {
+  repeated UserInfo users = 1;
+}
+
+message  RefreshAccessTokenReq {
+  string  uid = 1;
+  string  email = 2;
+  string  refresh_token = 3;
+}
+
+
+
+message  CheckAccessTokenReq {
+  string  uid = 1;
+  string  access_token = 2;
+  string  ep_id = 3;
+  string  invoker = 4;
+}
+
+message  CheckAccessTokenRes {
+
+}
+
+message  OnlineEndPointInfoReq {
+  string  uid = 1;
+}
+
+message  EndpointInfo {
+  string  ep_id = 1;
+  string  endpoint_info = 2;
+  string  ip = 3;
+  string  login_time = 4;
+}
+message  OnlineEndPointInfoRes {
+  repeated EndpointInfo endpoints = 1;
+}
+
+
+message  SetUserBanDurationReq {
+  string  uid = 1;
+  string  end_time = 2;
+}
+
+message  SetUserBanDurationResp{
+
+}
+
+message UpdateUserRolesReq {
+  string  uid = 1;
+  int32   roles = 2;
+}
+
+message UpdateUserRolesResp {
+
+}
+
+service User {
+  // auth
+  rpc RefreshAccessToken(RefreshAccessTokenReq) returns (AuthToken);
+  rpc CheckAccessToken(CheckAccessTokenReq) returns (CheckAccessTokenRes);
+  rpc GetUserOnlineEndPointInfo(OnlineEndPointInfoReq) returns (OnlineEndPointInfoRes);
+
+  // account
+  rpc GetSignUpCodeByEmail(GetSignUpCodeByEmailReq) returns (GetSignUpCodeByEmailResp);
+  rpc AccountSignUp(AccountSignUpReq) returns(AccountSignUpResp);
+  rpc GetSignInCodeByEmail(GetSignInCodeByEmailReq) returns (GetSignInCodeByEmailResp);
+  rpc AccountSignIn(AccountSignInReq) returns(AccountSignInResp);
+  rpc AccountSignInWithEmail(AccountSignInWithEmailReq) returns(AccountSignInResp);
+  rpc AccountSignInTest(AccountSignInTestReq) returns(AccountSignInResp);
+  rpc AccountSignOut(AccountSignOutReq) returns (AccountSignOutRes);
+
+  // password reset
+  rpc PasswordResetLinkRequest(PasswordResetLinkReq) returns(PasswordResetLinkResp);
+  rpc PasswordResetLinkCheck(PasswordResetLinkCheckReq) returns(PasswordResetLinkCheckResp);
+  rpc PasswordResetLinkSet(PasswordResetLinkSetReq) returns(PasswordResetLinkSetResp);
+  // github
+  rpc GitHubOAuthAuthorizeUrl(GitHubOAuthAuthorizeUrlReq) returns (GitHubOAuthAuthorizeUrlResp);
+  rpc GitHubOAuthCallback(GitHubOAuthCallbackReq) returns (GitHubOAuthCallbackResp);
+
+  // google
+  rpc GoogleOAuthAuthorizeUrl(GoogleOAuthAuthorizeUrlReq) returns (GoogleOAuthAuthorizeUrlResp);
+  rpc GoogleOAuthCallback(GoogleOAuthCallbackReq) returns (GoogleOAuthCallbackResp);
+
+  //apple
+  rpc AppleOAuthAuthorizeUrl(AppleOAuthAuthorizeUrlReq) returns (AppleOAuthAuthorizeUrlResp);
+  rpc AppleOAuthCallback(AppleOAuthCallbackReq) returns (AppleOAuthCallbackResp);
+
+  // frontend
+  rpc FrontendOAuthCallback(FrontendOAuthCallbackReq) returns (FrontendOAuthCallbackResp);
+
+  //user
+  rpc GetUserInfoById(GetUserInfoByIdReq) returns (GetUserInfoResp);
+  rpc GetUserInfoByEmail(GetUserInfoByEmailReq) returns (GetUserInfoResp);
+  rpc UpdateUserInfo(UpdateUserInfoReq) returns (UpdateUserInfoResp);
+  rpc UpdateUserPassword(UpdateUserPasswordReq) returns (UpdateUserPasswordResp);
+  rpc SetInvitationCode(SetInvitationCodeReq) returns (SetInvitationCodeResp);
+  rpc GetUserInviteCodes(GetUserInviteCodesReq) returns (GetUserInviteCodesResp);
+  rpc SetUserSettings(SetUserSettingsReq) returns (SetUserSettingsResp);
+  rpc SetSettingsConfig(SetSettingsConfigReq) returns (SetSettingsConfigResp);
+  rpc SetUserBanDuration(SetUserBanDurationReq) returns(SetUserBanDurationResp);
+  rpc UpdateUserRoles(UpdateUserRolesReq) returns(UpdateUserRolesResp);
+
+  // document
+  rpc GetMultiUsersData(GetMultiUsersDataReq) returns (GetMultiUsersDataResp);
+
+  rpc GetMultiUsersDataByEmail(GetMultiUsersDataByEmailReq) returns (GetMultiUsersDataByEmailResp);
+}

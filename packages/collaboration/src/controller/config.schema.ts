@@ -22,7 +22,6 @@ export const configSymbol = Symbol(COLLABORATION_PLUGIN_CONFIG_KEY);
 
 export interface ICollaborationConfig {
     wsUrl: string;
-    userId: string;
     accessToken: string;
     params?: Record<string, string | number | boolean>;
     override?: DependencyOverride;
@@ -30,6 +29,5 @@ export interface ICollaborationConfig {
 
 export const defaultPluginConfig: ICollaborationConfig = {
     wsUrl: 'ws://localhost:8080/ws',
-    userId: '',
     accessToken: '',
 };

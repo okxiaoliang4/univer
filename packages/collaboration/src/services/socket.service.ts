@@ -119,6 +119,10 @@ export class SocketService extends Disposable implements ISocketService {
             reconnection: true,
             autoConnect: true,
             query: config.params,
+            // Use Socket.IO auth mechanism for token authentication
+            auth: {
+                token: config.accessToken,
+            },
         });
 
         this._socket.on('connect', () => {
