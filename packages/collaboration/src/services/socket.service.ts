@@ -61,10 +61,9 @@ export interface IChangesetAck {
     status: string;
     serverRev?: number;
     /**
-     * The mutations after server-side OT transformation
-     * This is the "authoritative" result from server that clients should use to ensure consistency
+     * Operation IDs acknowledged by server
      */
-    mutations?: IMutationInfo[];
+    opIds?: string[];
     message?: string;
 }
 

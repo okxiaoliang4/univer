@@ -103,7 +103,7 @@ export class NoopNetworkService extends Disposable implements INetworkService {
     }
 
     async sendChangeset(_request: IChangesetRequest): Promise<IChangesetAck> {
-        return { status: 'ok', serverRev: 0 };
+        return { status: 'ok', serverRev: 0, opIds: [] };
     }
 
     async fetchOps(_docId: string, _startRev: number): Promise<IFetchOpsResult> {

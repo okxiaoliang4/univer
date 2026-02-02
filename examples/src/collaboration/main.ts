@@ -127,14 +127,10 @@ async function createNewInstance() {
 
     univer.registerPlugins([
         [UniverRPCMainThreadPlugin, { workerURL: worker }],
-        [CollaborationPlugin, {
-            wsUrl: 'ws://localhost:3000/ws',
-            accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
-        }],
         [
             CollaborationPlugin,
             {
-                wsUrl: 'ws://localhost:3000/ws',
+                wsUrl: 'ws://192.168.2.100:8800/ws',
                 accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
                 useRemote: true,
             },
@@ -195,10 +191,9 @@ async function createNewInstance() {
     const userManagerService = injector.get(UserManagerService);
     userManagerService.setCurrentUser(mockUser);
 
-    const docId = '3e4259ae-46b0-4867-8863-e57902a8454c';
-    const doc = await fetch(`http://localhost:3000/api/documents/${docId}`).then(
-        (res) => res.json()
-    );
+    const docId = '3e4259ae-46b0-4867-8863-e57902a84541';
+    const doc = await fetch(`http://192.168.2.100:8800/api/documents/${docId}`)
+        .then((res) => res.json());
 
     const docContent = await fetch(doc.signed_url).then((res) => res.json());
 

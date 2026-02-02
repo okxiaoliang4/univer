@@ -37,37 +37,41 @@ import {
     IUniverInstanceService,
     UniverInstanceType,
 } from '@univerjs/core';
-import { IRPCChannelService, toModule } from '@univerjs/rpc';
+import { fromModule, IRPCChannelService, toModule } from '@univerjs/rpc';
 import { BehaviorSubject } from 'rxjs';
-import { COLLABORATION_SERVICE_NAME } from '../common/types';
+import { COLLABORATION_CALLBACK_SERVICE_NAME, COLLABORATION_SERVICE_NAME } from '../common/types';
 import { CollaborationDocumentModel } from '../models/collaboration-document.model';
 import { INetworkService } from './network.service';
 import { IPendingMutationSerivce } from './offline-storage.service';
 import { ITransformService } from './transform.service';
 
 /**
- * Unified collaboration service interface
+ * Unified collaboration service interface (RPC interface for main → worker calls)
  *
  * This interface is isomorphic - it can be implemented by:
  * 1. A local service running in the same thread (main-only mode)
  * 2. A remote service exposed via RPC (worker mode)
  * 3. A proxy service that delegates to a remote via RPC (main thread client)
+ *
+ * RPC Serialization Notes:
+ * - Observable: NOT used over RPC - use callback service instead
+ * - For real-time state updates, worker calls ICollaborationCallbackService
  */
 export interface ICollaborationService {
     /**
-     * Observable for network connection status
+     * Get current connection status
      */
-    connectionStatus$: Observable<NetworkConnectionStatus>;
+    getConnectionStatus(): NetworkConnectionStatus;
 
     /**
-     * Get the sync state observable for a document
+     * Get current document sync state
      */
-    getDocumentState$(docId: string): Observable<IDocumentSyncState>;
+    getDocumentState(docId: string): IDocumentSyncState;
 
     /**
-     * Get the saved status observable for a document (true = no pending)
+     * Get current saved status for a document (true = no pending)
      */
-    getSavedStatus$(docId: string): Observable<boolean>;
+    getSavedStatus(docId: string): boolean;
 
     /**
      * Check if a document is currently synced
@@ -102,6 +106,36 @@ export const ICollaborationService = createIdentifier<ICollaborationService>(
 );
 
 // ============================================================================
+// Callback Interface (Worker calls Main Thread)
+// ============================================================================
+
+/**
+ * Collaboration callback service interface (runs in main thread, called by worker)
+ *
+ * This service receives state updates from the worker thread.
+ * The worker calls this when connection status or document state changes.
+ */
+export interface ICollaborationCallbackService {
+    /**
+     * Called by worker when connection status changes
+     */
+    onConnectionStatusChange(status: NetworkConnectionStatus): void;
+
+    /**
+     * Called by worker when document sync state changes
+     */
+    onDocumentStateChange(docId: string, state: IDocumentSyncState): void;
+
+    /**
+     * Called by worker when document saved status changes
+     */
+    onSavedStatusChange(docId: string, saved: boolean): void;
+}
+
+export const ICollaborationCallbackService =
+    createIdentifier<ICollaborationCallbackService>('univer.collaboration-callback.service');
+
+// ============================================================================
 // Main Thread Proxy Service (for useRemote: true mode)
 // ============================================================================
 
@@ -116,16 +150,30 @@ export const ICollaborationService = createIdentifier<ICollaborationService>(
  * - Network latency handling doesn't affect UI responsiveness
  * - Remote mutations are applied via ICommandService in remote context and
  *   auto-sync to main thread via Univer's DataSyncReplicaController
+ *
+ * It also implements ICollaborationCallbackService to receive state updates from worker.
  */
 export class CollaborationProxyService
     extends Disposable
-    implements ICollaborationService {
+    implements ICollaborationService, ICollaborationCallbackService {
     private _remoteService: ICollaborationService | null = null;
     private _init$ = new BehaviorSubject<boolean>(false);
 
+    // Local state maintained via callbacks from worker
     private readonly _connectionStatus$ =
         new BehaviorSubject<NetworkConnectionStatus>('disconnected');
 
+    private readonly _documentStateSubjects = new Map<
+        string,
+        BehaviorSubject<IDocumentSyncState>
+    >();
+
+    private readonly _savedStatusSubjects = new Map<
+        string,
+        BehaviorSubject<boolean>
+    >();
+
+    // Public observables for main thread consumers (NOT over RPC)
     readonly connectionStatus$ = this._connectionStatus$.asObservable();
 
     constructor(
@@ -133,7 +181,21 @@ export class CollaborationProxyService
         @ILogService private readonly _logger: ILogService
     ) {
         super();
+        this._registerCallbackService();
         this._initRemoteService();
+    }
+
+    /**
+     * Register this service as a callback for worker to call
+     */
+    private _registerCallbackService(): void {
+        this._rpcChannelService.registerChannel(
+            COLLABORATION_CALLBACK_SERVICE_NAME,
+            fromModule(this as ICollaborationCallbackService)
+        );
+        this._logger.log(
+            'CollaborationProxyService: Registered callback service'
+        );
     }
 
     private _initRemoteService(): void {
@@ -147,26 +209,6 @@ export class CollaborationProxyService
             );
             this._remoteService = toModule<ICollaborationService>(channel);
 
-            // Subscribe to connection status from remote
-            try {
-                const connectionStatus$ = this._remoteService.connectionStatus$;
-                if (
-                    connectionStatus$ &&
-                    typeof connectionStatus$.subscribe === 'function'
-                ) {
-                    this.disposeWithMe(
-                        connectionStatus$.subscribe((status) => {
-                            this._connectionStatus$.next(status);
-                        })
-                    );
-                }
-            } catch (subscriptionError) {
-                this._logger.warn(
-                    'CollaborationProxyService: Could not subscribe to connectionStatus$',
-                    subscriptionError
-                );
-            }
-
             this._logger.log(
                 'CollaborationProxyService: Connected to remote service'
             );
@@ -179,23 +221,82 @@ export class CollaborationProxyService
         }
     }
 
+    // ========================================================================
+    // ICollaborationCallbackService implementation (called by worker)
+    // ========================================================================
+
+    onConnectionStatusChange(status: NetworkConnectionStatus): void {
+        this._connectionStatus$.next(status);
+        this._logger.log(
+            `CollaborationProxyService: Connection status changed to ${status}`
+        );
+    }
+
+    onDocumentStateChange(docId: string, state: IDocumentSyncState): void {
+        let subject = this._documentStateSubjects.get(docId);
+        if (!subject) {
+            subject = new BehaviorSubject<IDocumentSyncState>(state);
+            this._documentStateSubjects.set(docId, subject);
+        } else {
+            subject.next(state);
+        }
+    }
+
+    onSavedStatusChange(docId: string, saved: boolean): void {
+        let subject = this._savedStatusSubjects.get(docId);
+        if (!subject) {
+            subject = new BehaviorSubject<boolean>(saved);
+            this._savedStatusSubjects.set(docId, subject);
+        } else {
+            subject.next(saved);
+        }
+    }
+
+    // ========================================================================
+    // ICollaborationService implementation (calls to worker)
+    // ========================================================================
+
+    getConnectionStatus(): NetworkConnectionStatus {
+        return this._connectionStatus$.value;
+    }
+
+    getDocumentState(docId: string): IDocumentSyncState {
+        const subject = this._documentStateSubjects.get(docId);
+        return subject?.value ?? {
+            state: 'synced',
+            serverRev: 0,
+            pendingCount: 0,
+            awaitingCount: 0,
+        };
+    }
+
+    getSavedStatus(docId: string): boolean {
+        const subject = this._savedStatusSubjects.get(docId);
+        return subject?.value ?? true;
+    }
+
+    // Observable getters for main thread consumers (NOT part of RPC interface)
     getDocumentState$(docId: string): Observable<IDocumentSyncState> {
-        if (!this._remoteService) {
-            return new BehaviorSubject<IDocumentSyncState>({
+        let subject = this._documentStateSubjects.get(docId);
+        if (!subject) {
+            subject = new BehaviorSubject<IDocumentSyncState>({
                 state: 'synced',
                 serverRev: 0,
                 pendingCount: 0,
                 awaitingCount: 0,
-            }).asObservable();
+            });
+            this._documentStateSubjects.set(docId, subject);
         }
-        return this._remoteService.getDocumentState$(docId);
+        return subject.asObservable();
     }
 
     getSavedStatus$(docId: string): Observable<boolean> {
-        if (!this._remoteService) {
-            return new BehaviorSubject<boolean>(true).asObservable();
+        let subject = this._savedStatusSubjects.get(docId);
+        if (!subject) {
+            subject = new BehaviorSubject<boolean>(true);
+            this._savedStatusSubjects.set(docId, subject);
         }
-        return this._remoteService.getSavedStatus$(docId);
+        return subject.asObservable();
     }
 
     isDocumentSynced(docId: string): boolean {
@@ -217,6 +318,10 @@ export class CollaborationProxyService
     override dispose(): void {
         super.dispose();
         this._connectionStatus$.complete();
+        this._documentStateSubjects.forEach((subject) => subject.complete());
+        this._documentStateSubjects.clear();
+        this._savedStatusSubjects.forEach((subject) => subject.complete());
+        this._savedStatusSubjects.clear();
     }
 }
 
@@ -232,7 +337,7 @@ export class CollaborationProxyService
  * - Listens to local mutations via ICommandService.onMutationExecutedForCollab
  * - Coordinates with network service for sending/receiving changesets
  * - Executes remote mutations locally (auto-syncs to main via Univer RPC)
- * - Exposes state observables for client/main thread monitoring
+ * - Notifies main thread of state changes via callback service
  */
 export class CollaborationService
     extends Disposable
@@ -265,18 +370,41 @@ export class CollaborationService
 
     private readonly _flushDelay = 100; // ms
 
-    readonly connectionStatus$ = this._connectionStatus$.asObservable();
+    // Callback service to notify main thread
+    private _callbackService: ICollaborationCallbackService | null = null;
 
     constructor(
         @ICommandService private readonly _commandService: ICommandService,
         @INetworkService private readonly _networkService: INetworkService,
         @ITransformService private readonly _transformService: ITransformService,
         @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
+        @IRPCChannelService private readonly _rpcChannelService: IRPCChannelService,
         @ILogService private readonly _logger: ILogService,
         @IPendingMutationSerivce private readonly _pendingMutationService: IPendingMutationSerivce
     ) {
         super();
+        this._initCallbackService();
         this._init();
+    }
+
+    /**
+     * Get reference to main thread callback service
+     */
+    private _initCallbackService(): void {
+        try {
+            const channel = this._rpcChannelService.requestChannel(
+                COLLABORATION_CALLBACK_SERVICE_NAME
+            );
+            this._callbackService = toModule<ICollaborationCallbackService>(channel);
+            this._logger.log(
+                'CollaborationService: Connected to callback service'
+            );
+        } catch (error) {
+            this._logger.error(
+                'CollaborationService: Failed to connect to callback service',
+                error
+            );
+        }
     }
 
     private _init(): void {
@@ -290,9 +418,17 @@ export class CollaborationService
             this._networkService.connectionStatus$.subscribe((status) => {
                 this._connectionStatus$.next(status);
 
+                // Notify main thread via callback
+                if (this._callbackService) {
+                    this._callbackService.onConnectionStatusChange(status);
+                }
+
                 if (status === 'connected') {
                     this._documentModels.forEach((model) => model.onNetworkConnected());
                     this._rejoinDocuments();
+                    // Schedule flush for all documents with pending mutations
+                    // This handles offline edits that need to be synced after reconnection
+                    this._flushPendingAfterReconnect();
                 } else if (status === 'disconnected') {
                     this._documentModels.forEach((model) =>
                         model.onNetworkDisconnected()
@@ -310,7 +446,6 @@ export class CollaborationService
                     );
                     await model.handleRemoteChangeset(
                         changeset.serverRev,
-                        changeset.mutations,
                         changeset.userId
                     );
                 }
@@ -486,10 +621,22 @@ export class CollaborationService
         this._savedStatusSubjects.set(docId, savedSubject);
 
         this.disposeWithMe(
-            model.state$.subscribe((state) => stateSubject.next(state))
+            model.state$.subscribe((state) => {
+                stateSubject.next(state);
+                // Notify main thread via callback
+                if (this._callbackService) {
+                    this._callbackService.onDocumentStateChange(docId, state);
+                }
+            })
         );
         this.disposeWithMe(
-            model.saved$.subscribe((saved) => savedSubject.next(saved))
+            model.saved$.subscribe((saved) => {
+                savedSubject.next(saved);
+                // Notify main thread via callback
+                if (this._callbackService) {
+                    this._callbackService.onSavedStatusChange(docId, saved);
+                }
+            })
         );
 
         if (this._networkService.isConnected()) {
@@ -607,29 +754,61 @@ export class CollaborationService
         this._flushTimers.set(docId, timer);
     }
 
-    // ==================== Public API ====================
+    /**
+     * Flush pending mutations after reconnection
+     *
+     * When reconnecting after being offline, the state machine goes:
+     * offline -> fetchMiss -> pending (if there are pending mutations)
+     *
+     * This method waits for fetchMiss to complete then triggers flush
+     * for all documents with pending mutations.
+     */
+    private _flushPendingAfterReconnect(): void {
+        // Wait for fetchMiss to complete (fetch ops + rejoin docs)
+        // The delay accounts for network latency of fetch operations
+        const reconnectFlushDelay = 500;
 
-    getDocumentState$(docId: string): Observable<IDocumentSyncState> {
-        let subject = this._documentStateSubjects.get(docId);
-        if (!subject) {
-            subject = new BehaviorSubject<IDocumentSyncState>({
-                state: 'synced',
-                serverRev: 0,
-                pendingCount: 0,
-                awaitingCount: 0,
+        setTimeout(() => {
+            if (!this._networkService.isConnected()) {
+                this._logger.log(
+                    'CollaborationService: Skipping flush after reconnect - disconnected again'
+                );
+                return;
+            }
+
+            this._documentModels.forEach((model, docId) => {
+                const pendingCount = model.getPendingMutations().length;
+                const awaitingCount = model.getAwaitingMutations().length;
+
+                if (pendingCount > 0 || awaitingCount > 0) {
+                    this._logger.log(
+                        `CollaborationService: Flushing ${docId} after reconnect (pending=${pendingCount}, awaiting=${awaitingCount})`
+                    );
+                    model.flush();
+                }
             });
-            this._documentStateSubjects.set(docId, subject);
-        }
-        return subject.asObservable();
+        }, reconnectFlushDelay);
     }
 
-    getSavedStatus$(docId: string): Observable<boolean> {
-        let subject = this._savedStatusSubjects.get(docId);
-        if (!subject) {
-            subject = new BehaviorSubject<boolean>(true);
-            this._savedStatusSubjects.set(docId, subject);
-        }
-        return subject.asObservable();
+    // ==================== Public API (ICollaborationService) ====================
+
+    getConnectionStatus(): NetworkConnectionStatus {
+        return this._connectionStatus$.value;
+    }
+
+    getDocumentState(docId: string): IDocumentSyncState {
+        const subject = this._documentStateSubjects.get(docId);
+        return subject?.value ?? {
+            state: 'synced',
+            serverRev: 0,
+            pendingCount: 0,
+            awaitingCount: 0,
+        };
+    }
+
+    getSavedStatus(docId: string): boolean {
+        const subject = this._savedStatusSubjects.get(docId);
+        return subject?.value ?? true;
     }
 
     isDocumentSynced(docId: string): boolean {

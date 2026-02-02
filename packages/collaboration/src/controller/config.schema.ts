@@ -44,7 +44,7 @@ export interface ICollaborationConfig {
 }
 
 export const defaultPluginConfig: ICollaborationConfig = {
-    wsUrl: 'ws://localhost:8080/ws',
+    wsUrl: 'ws://localhost:8800/ws',
     accessToken: '',
     isRemoteSide: false,
     useRemote: true,

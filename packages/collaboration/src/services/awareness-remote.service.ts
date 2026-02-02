@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import type { Observable } from 'rxjs';
 import type { IUserAwareness } from '../common/types';
 import {
     createIdentifier,
@@ -22,9 +21,9 @@ import {
     ILogService,
     Inject,
 } from '@univerjs/core';
-import { IRPCChannelService, toModule } from '@univerjs/rpc';
+import { fromModule, IRPCChannelService, toModule } from '@univerjs/rpc';
 import { BehaviorSubject, Subject } from 'rxjs';
-import { AWARENESS_REMOTE_SERVICE_NAME } from '../common/types';
+import { AWARENESS_CALLBACK_SERVICE_NAME, AWARENESS_REMOTE_SERVICE_NAME } from '../common/types';
 import { INetworkService } from './network.service';
 
 /**
@@ -34,18 +33,11 @@ import { INetworkService } from './network.service';
  * and communicates with the network service to broadcast updates.
  *
  * RPC Serialization Notes:
- * - Observable: Supported by Univer RPC
  * - Arrays/Objects: Supported
  * - Map/Set: NOT supported, use arrays instead
- * - Synchronous methods preferred over Promise when possible
+ * - Observable: NOT used over RPC - use callback service instead
  */
 export interface IAwarenessRemoteService {
-    /**
-     * Observable for awareness updates from other users
-     * Emits when remote users' awareness state changes
-     */
-    awarenessUpdate$: Observable<IUserAwareness>;
-
     /**
      * Initialize awareness for a document
      * @param docId Document identifier
@@ -59,17 +51,31 @@ export interface IAwarenessRemoteService {
      * @param awareness User awareness state
      */
     setLocalAwareness(docId: string, awareness: IUserAwareness): void;
-
-    /**
-     * Set remote user's awareness state (received from network)
-     * @param docId Document identifier
-     * @param awareness User awareness state
-     */
-    setRemoteAwareness(docId: string, awareness: IUserAwareness): void;
 }
 
 export const IAwarenessRemoteService =
     createIdentifier<IAwarenessRemoteService>('univer.awareness-remote.service');
+
+// ============================================================================
+// Callback Interface (Main Thread -> Worker calls back)
+// ============================================================================
+
+/**
+ * Awareness callback service interface (runs in main thread, called by worker)
+ *
+ * This service receives awareness updates from the worker thread.
+ * The worker calls this when it receives awareness updates from the network.
+ */
+export interface IAwarenessCallbackService {
+    /**
+     * Called by worker when remote awareness update is received from network
+     * @param awareness User awareness state
+     */
+    onRemoteAwarenessUpdate(awareness: IUserAwareness): void;
+}
+
+export const IAwarenessCallbackService =
+    createIdentifier<IAwarenessCallbackService>('univer.awareness-callback.service');
 
 // ============================================================================
 // Main Thread Proxy Service
@@ -80,10 +86,11 @@ export const IAwarenessRemoteService =
  *
  * This is a thin proxy to the AwarenessRemoteService running in worker.
  * It forwards all awareness operations via RPC.
+ * It also implements IAwarenessCallbackService to receive callbacks from worker.
  */
 export class AwarenessRemoteProxyService
     extends Disposable
-    implements IAwarenessRemoteService {
+    implements IAwarenessRemoteService, IAwarenessCallbackService {
     private _remoteService: IAwarenessRemoteService | null = null;
     private _init$ = new BehaviorSubject<boolean>(false);
 
@@ -96,7 +103,21 @@ export class AwarenessRemoteProxyService
         @Inject(ILogService) private readonly _logger: ILogService
     ) {
         super();
+        this._registerCallbackService();
         this._initRemoteService();
+    }
+
+    /**
+     * Register this service as a callback for worker to call
+     */
+    private _registerCallbackService(): void {
+        this._rpcChannelService.registerChannel(
+            AWARENESS_CALLBACK_SERVICE_NAME,
+            fromModule(this as IAwarenessCallbackService)
+        );
+        this._logger.log(
+            'AwarenessRemoteProxyService: Registered callback service'
+        );
     }
 
     private _initRemoteService(): void {
@@ -110,26 +131,6 @@ export class AwarenessRemoteProxyService
             );
             this._remoteService = toModule<IAwarenessRemoteService>(channel);
 
-            // Subscribe to awareness updates from remote
-            try {
-                const awarenessUpdate$ = this._remoteService.awarenessUpdate$;
-                if (
-                    awarenessUpdate$ &&
-                    typeof awarenessUpdate$.subscribe === 'function'
-                ) {
-                    this.disposeWithMe(
-                        awarenessUpdate$.subscribe((awareness) => {
-                            this._awarenessUpdate$.next(awareness);
-                        })
-                    );
-                }
-            } catch (subscriptionError) {
-                this._logger.warn(
-                    'AwarenessRemoteProxyService: Could not subscribe to awarenessUpdate$',
-                    subscriptionError
-                );
-            }
-
             this._logger.log(
                 'AwarenessRemoteProxyService: Connected to remote service'
             );
@@ -141,6 +142,21 @@ export class AwarenessRemoteProxyService
             );
         }
     }
+
+    // ========================================================================
+    // IAwarenessCallbackService implementation (called by worker)
+    // ========================================================================
+
+    onRemoteAwarenessUpdate(awareness: IUserAwareness): void {
+        this._awarenessUpdate$.next(awareness);
+        this._logger.log(
+            `AwarenessRemoteProxyService: Received awareness callback for ${awareness.docId} from user ${awareness.userId}`
+        );
+    }
+
+    // ========================================================================
+    // IAwarenessRemoteService implementation (calls to worker)
+    // ========================================================================
 
     async initAwareness(docId: string): Promise<IUserAwareness[]> {
         if (!this._init$.value || !this._remoteService) {
@@ -154,13 +170,6 @@ export class AwarenessRemoteProxyService
             return;
         }
         this._remoteService.setLocalAwareness(docId, awareness);
-    }
-
-    setRemoteAwareness(docId: string, awareness: IUserAwareness): void {
-        if (!this._init$.value || !this._remoteService) {
-            return;
-        }
-        this._remoteService.setRemoteAwareness(docId, awareness);
     }
 
     override dispose(): void {
@@ -180,7 +189,7 @@ export class AwarenessRemoteProxyService
  * Responsibilities:
  * - Manages awareness state per document
  * - Broadcasts local awareness to network
- * - Receives and forwards remote awareness updates
+ * - Receives and forwards remote awareness updates via callback to main thread
  * - Exposes RPC interface for main thread
  */
 export class AwarenessRemoteService
@@ -193,15 +202,38 @@ export class AwarenessRemoteService
         Map<string, IUserAwareness>
     >();
 
-    private readonly _awarenessUpdate$ = new Subject<IUserAwareness>();
-    readonly awarenessUpdate$ = this._awarenessUpdate$.asObservable();
+    // Callback service to notify main thread
+    private _callbackService: IAwarenessCallbackService | null = null;
 
     constructor(
         @Inject(INetworkService) private readonly _networkService: INetworkService,
+        @Inject(IRPCChannelService)
+        private readonly _rpcChannelService: IRPCChannelService,
         @Inject(ILogService) private readonly _logger: ILogService
     ) {
         super();
+        this._initCallbackService();
         this._initNetworkListeners();
+    }
+
+    /**
+     * Get reference to main thread callback service
+     */
+    private _initCallbackService(): void {
+        try {
+            const channel = this._rpcChannelService.requestChannel(
+                AWARENESS_CALLBACK_SERVICE_NAME
+            );
+            this._callbackService = toModule<IAwarenessCallbackService>(channel);
+            this._logger.log(
+                'AwarenessRemoteService: Connected to callback service'
+            );
+        } catch (error) {
+            this._logger.error(
+                'AwarenessRemoteService: Failed to connect to callback service',
+                error
+            );
+        }
     }
 
     private _initNetworkListeners(): void {
@@ -225,8 +257,10 @@ export class AwarenessRemoteService
         }
         docMap.set(userId, awareness);
 
-        // Forward to main thread subscribers
-        this._awarenessUpdate$.next(awareness);
+        // Notify main thread via callback (direct method call, not Observable)
+        if (this._callbackService) {
+            this._callbackService.onRemoteAwarenessUpdate(awareness);
+        }
 
         this._logger.log(
             `AwarenessRemoteService: Received awareness update for ${docId} from user ${userId}`
@@ -293,13 +327,8 @@ export class AwarenessRemoteService
         });
     }
 
-    setRemoteAwareness(docId: string, awareness: IUserAwareness): void {
-        this._handleRemoteAwareness(awareness);
-    }
-
     override dispose(): void {
         super.dispose();
-        this._awarenessUpdate$.complete();
         this._documentAwareness.clear();
     }
 }

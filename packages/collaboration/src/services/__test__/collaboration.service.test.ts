@@ -15,9 +15,10 @@
  */
 
 import type { IRPCChannelService } from '@univerjs/rpc';
-import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import type { ICollaborationCallbackService } from '../collaboration.service';
+import { firstValueFrom } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { COLLABORATION_SERVICE_NAME } from '../../common/types';
+import { COLLABORATION_CALLBACK_SERVICE_NAME, COLLABORATION_SERVICE_NAME } from '../../common/types';
 import { CollaborationProxyService } from '../collaboration.service';
 import { MockLogService } from './test-utils';
 
@@ -72,6 +73,7 @@ class MockRPCChannel {
  */
 class MockRPCChannelService implements IRPCChannelService {
     private _channels = new Map<string, MockRPCChannel>();
+    private _registeredCallbacks = new Map<string, unknown>();
 
     requestChannel<T>(name: string): T {
         const channel = this._channels.get(name);
@@ -81,8 +83,16 @@ class MockRPCChannelService implements IRPCChannelService {
         return channel as T;
     }
 
-    registerChannel(name: string, channel: unknown): void {
-        this._channels.set(name, channel as MockRPCChannel);
+    registerChannel(name: string, channel: unknown): { dispose: () => void } {
+        this._registeredCallbacks.set(name, channel);
+        return { dispose: () => this._registeredCallbacks.delete(name) };
+    }
+
+    /**
+     * Get a registered callback service (for testing)
+     */
+    getRegisteredCallback<T>(name: string): T | undefined {
+        return this._registeredCallbacks.get(name) as T | undefined;
     }
 
     /**
@@ -97,28 +107,22 @@ class MockRPCChannelService implements IRPCChannelService {
  * Mock remote service for testing CollaborationProxyService
  *
  * This simulates the CollaborationService running in a remote context (worker)
+ * Updated to use the new interface without Observable properties
  */
 function createMockRemoteService() {
     return {
-        connectionStatus$: new BehaviorSubject<
-            'connected' | 'disconnected' | 'connecting'
-        >('connected'),
-        docJoined$: new BehaviorSubject<string>(''),
-        docLeft$: new BehaviorSubject<string>(''),
-        getDocumentState$: vi.fn().mockReturnValue(
-            new BehaviorSubject({
-                state: 'synced',
-                serverRev: 0,
-                pendingCount: 0,
-                awaitingCount: 0,
-            }).asObservable()
-        ),
-        getSavedStatus$: vi.fn().mockReturnValue(of(true)),
+        getConnectionStatus: vi.fn().mockReturnValue('connected'),
+        getDocumentState: vi.fn().mockReturnValue({
+            state: 'synced',
+            serverRev: 0,
+            pendingCount: 0,
+            awaitingCount: 0,
+        }),
+        getSavedStatus: vi.fn().mockReturnValue(true),
         isDocumentSynced: vi.fn().mockReturnValue(true),
         getServerRev: vi.fn().mockReturnValue(5),
         flush: vi.fn(),
         reset: vi.fn(),
-        setAwareness: vi.fn().mockResolvedValue(undefined),
     };
 }
 
@@ -143,16 +147,36 @@ describe('CollaborationProxyService', () => {
         service.dispose();
     });
 
+    describe('callback service registration', () => {
+        it('should register callback service on construction', () => {
+            const callback = rpcService.getRegisteredCallback<ICollaborationCallbackService>(
+                COLLABORATION_CALLBACK_SERVICE_NAME
+            );
+            expect(callback).toBeDefined();
+        });
+    });
+
     describe('connection status', () => {
         it('should expose connection status observable', () => {
             expect(service.connectionStatus$).toBeDefined();
         });
 
-        it('should start with disconnected status before remote connects', async () => {
-            // Initial state should be disconnected before remote initialization completes
-            // Note: This tests the fallback behavior, not the RPC forwarding
+        it('should start with disconnected status before callback', async () => {
             const status = await firstValueFrom(service.connectionStatus$);
             expect(status).toBe('disconnected');
+        });
+
+        it('should update connection status when callback is invoked', async () => {
+            // Invoke the callback to simulate worker notification
+            service.onConnectionStatusChange('connected');
+
+            const status = await firstValueFrom(service.connectionStatus$);
+            expect(status).toBe('connected');
+        });
+
+        it('should return current connection status via getConnectionStatus', () => {
+            service.onConnectionStatusChange('connecting');
+            expect(service.getConnectionStatus()).toBe('connecting');
         });
     });
 
@@ -162,45 +186,66 @@ describe('CollaborationProxyService', () => {
             expect(state$).toBeDefined();
         });
 
-        it('should return default state when remote not ready', () => {
-            // Create a new service without remote
-            const noRemoteRpc = new MockRPCChannelService();
-            const noRemoteService = new CollaborationProxyService(
-                noRemoteRpc,
-                logService
-            );
+        it('should return default state before callback', async () => {
+            const state$ = service.getDocumentState$('test-doc');
+            const state = await firstValueFrom(state$);
+            expect(state.state).toBe('synced');
+            expect(state.serverRev).toBe(0);
+        });
 
-            const state$ = noRemoteService.getDocumentState$('test-doc');
-            state$.subscribe((state) => {
-                expect(state.state).toBe('synced');
-                expect(state.serverRev).toBe(0);
+        it('should update document state when callback is invoked', async () => {
+            const newState = {
+                state: 'pending' as const,
+                serverRev: 5,
+                pendingCount: 2,
+                awaitingCount: 0,
+            };
+
+            service.onDocumentStateChange('test-doc', newState);
+
+            const state = service.getDocumentState('test-doc');
+            expect(state.state).toBe('pending');
+            expect(state.serverRev).toBe(5);
+            expect(state.pendingCount).toBe(2);
+        });
+
+        it('should emit to observable when state changes', async () => {
+            const state$ = service.getDocumentState$('test-doc');
+
+            // Subscribe and collect values
+            const states: unknown[] = [];
+            const subscription = state$.subscribe((state) => states.push(state));
+
+            service.onDocumentStateChange('test-doc', {
+                state: 'awaiting',
+                serverRev: 3,
+                pendingCount: 0,
+                awaitingCount: 1,
             });
 
-            noRemoteService.dispose();
+            expect(states.length).toBe(2); // default + updated
+            expect((states[1] as { state: string }).state).toBe('awaiting');
+
+            subscription.unsubscribe();
         });
     });
 
     describe('saved status', () => {
-        it('should return observable for saved status', async () => {
-            // Wait a tick for async initialization
-            await new Promise((resolve) => setTimeout(resolve, 10));
-
+        it('should return observable for saved status', () => {
             const savedStatus$ = service.getSavedStatus$('test-doc');
             expect(savedStatus$).toBeDefined();
         });
 
-        it('should return true when remote not available', async () => {
-            const noRemoteRpc = new MockRPCChannelService();
-            const noRemoteService = new CollaborationProxyService(
-                noRemoteRpc,
-                logService
-            );
+        it('should return true by default', () => {
+            expect(service.getSavedStatus('test-doc')).toBe(true);
+        });
 
-            const savedStatus$ = noRemoteService.getSavedStatus$('test-doc');
-            const saved = await firstValueFrom(savedStatus$);
-            expect(saved).toBe(true);
+        it('should update saved status when callback is invoked', () => {
+            service.onSavedStatusChange('test-doc', false);
+            expect(service.getSavedStatus('test-doc')).toBe(false);
 
-            noRemoteService.dispose();
+            service.onSavedStatusChange('test-doc', true);
+            expect(service.getSavedStatus('test-doc')).toBe(true);
         });
     });
 

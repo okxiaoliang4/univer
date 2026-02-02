@@ -18,6 +18,8 @@ import type { IUser } from '@univerjs/core';
 import type { ISetSelectionsOperationParams } from '@univerjs/sheets';
 import type { Observable, Subscription } from 'rxjs';
 import type { IUserAwareness } from '../common/types';
+import type { AwarenessRemoteProxyService } from './awareness-remote.service';
+import type { CollaborationProxyService } from './collaboration.service';
 import {
     createIdentifier,
     Disposable,
@@ -150,31 +152,47 @@ export class AwarenessService extends Disposable implements IAwarenessService {
 
     /**
      * Listen to connection status changes for reconnection handling
+     *
+     * Note: We cast to CollaborationProxyService to access the connectionStatus$ observable
+     * which is only available on the main thread proxy (not part of RPC interface).
      */
     private _initConnectionListener(): void {
-        this.disposeWithMe(
-            this._collaborationService.connectionStatus$.subscribe((status) => {
-                if (status === 'connected') {
-                    // Connection established (initial or reconnect)
-                    this._onConnectionEstablished();
-                } else if (status === 'disconnected') {
-                    // Mark all units as not initialized (will re-init on reconnect)
-                }
-            })
-        );
+        // In main thread, ICollaborationService is implemented by CollaborationProxyService
+        // which has connectionStatus$ as a local observable
+        const proxyService = this._collaborationService as CollaborationProxyService;
+        if (proxyService.connectionStatus$) {
+            this.disposeWithMe(
+                proxyService.connectionStatus$.subscribe((status) => {
+                    if (status === 'connected') {
+                        // Connection established (initial or reconnect)
+                        this._onConnectionEstablished();
+                    } else if (status === 'disconnected') {
+                        // Mark all units as not initialized (will re-init on reconnect)
+                    }
+                })
+            );
+        }
     }
 
     /**
-     * Subscribe to awareness updates from remote (via RPC)
+     * Subscribe to awareness updates from remote (via RPC callback)
+     *
+     * Note: We cast to AwarenessRemoteProxyService to access the awarenessUpdate$ observable
+     * which is only available on the main thread proxy (not part of RPC interface).
      */
     private _initAwarenessSubscription(): void {
-        this._awarenessSubscription =
-            this._awarenessRemoteService.awarenessUpdate$.subscribe((awareness) => {
-                this._handleAwarenessUpdate(awareness);
+        // In main thread, IAwarenessRemoteService is implemented by AwarenessRemoteProxyService
+        // which has awarenessUpdate$ as a local observable fed by callbacks from worker
+        const proxyService = this._awarenessRemoteService as AwarenessRemoteProxyService;
+        if (proxyService.awarenessUpdate$) {
+            this._awarenessSubscription =
+                proxyService.awarenessUpdate$.subscribe((awareness) => {
+                    this._handleAwarenessUpdate(awareness);
+                });
+            this.disposeWithMe({
+                dispose: () => this._awarenessSubscription?.unsubscribe(),
             });
-        this.disposeWithMe({
-            dispose: () => this._awarenessSubscription?.unsubscribe(),
-        });
+        }
     }
 
     /**

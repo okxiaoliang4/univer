@@ -38,6 +38,38 @@ export interface IDocumentSyncContext {
     lastError?: string;
     /** Whether currently fetching missed operations */
     isFetching: boolean;
+    /**
+     * Start revision for fetching missed operations
+     *
+     * When SEND_SUCCESS returns with a version gap (serverRev > expectedRev),
+     * we need to fetch operations from expectedRev to serverRev-1.
+     * This field stores the starting revision for the fetch.
+     *
+     * Example: baseRev=5, serverRev=8
+     * - Our changeset was committed at rev 8
+     * - We missed ops at rev 6, 7
+     * - fetchFromRev = 6 (baseRev + 1)
+     * - We update serverRev to 8 immediately
+     * - fetchMiss fetches from 6, stops when reaching current serverRev
+     */
+    fetchFromRev?: number;
+    /**
+     * Maximum serverRev seen during fetchMiss state
+     *
+     * When in fetchMiss, we may receive RECEIVE_REMOTE events for new operations
+     * that arrived after we started fetching. We track the maximum serverRev seen
+     * so that after the current fetch completes, we can check if we need to
+     * fetch more operations.
+     */
+    maxSeenServerRevDuringFetch?: number;
+    /**
+     * Number of mutations in the sent changeset (for version gap handling)
+     *
+     * When SEND_SUCCESS with version gap, we store the mutation count to calculate
+     * the correct endRev for fetching. Our changeset spans revs
+     * (serverRev - sentMutationCount + 1) to serverRev.
+     */
+    sentMutationCount?: number;
 }
 
 /**
@@ -46,7 +78,16 @@ export interface IDocumentSyncContext {
 export type DocumentSyncEvent =
     | { type: 'LOCAL_OPERATION'; mutations: IMutationWithOpId[] }
     | { type: 'SEND_CHANGESET' }
-    | { type: 'SEND_SUCCESS'; serverRev: number; ackMutations?: IMutationInfo[] }
+    | {
+        type: 'SEND_SUCCESS';
+        serverRev: number;
+        /** True if server returned a revision higher than expected (missed ops between baseRev and serverRev) */
+        hasVersionGap?: boolean;
+        /** The expected revision (baseRev + 1), used with hasVersionGap to determine fetchFromRev */
+        expectedRev?: number;
+        /** Number of mutations in the changeset, used to calculate endRev for fetchMiss */
+        mutationCount?: number;
+    }
     | { type: 'SEND_FAILURE'; error: string }
     | { type: 'RECEIVE_REMOTE'; serverRev: number; mutations: IMutationInfo[]; userId: string }
     | { type: 'RECEIVE_ACK'; serverRev: number }
@@ -89,6 +130,9 @@ export function createInitialContext(docId: string, initialRev: number = 0): IDo
         pendingMutations: [],
         lastError: undefined,
         isFetching: false,
+        fetchFromRev: undefined,
+        maxSeenServerRevDuringFetch: undefined,
+        sentMutationCount: undefined,
     };
 }
 
@@ -104,6 +148,7 @@ export function createInitialContext(docId: string, initialRev: number = 0): IDo
  * - offline: Network disconnected
  * - conflict: Sync error that needs resolution
  */
+// eslint-disable-next-line max-lines-per-function
 export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
     return setup({
         types: {
@@ -125,9 +170,97 @@ export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
                 ],
                 pendingMutations: () => [],
             }),
+            /**
+             * Merge awaiting mutations back to pending for retry
+             *
+             * This is used when reconnecting after disconnect during awaiting state.
+             * Since the server may not have received the changeset, we need to
+             * move awaiting mutations back to pending and resend them.
+             */
+            mergeAwaitingToPending: assign({
+                pendingMutations: ({ context }) => {
+                    const merged = [
+                        ...context.awaitingMutations,
+                        ...context.pendingMutations,
+                    ];
+                    if (context.awaitingMutations.length > 0) {
+                        console.warn(`[StateMachine:${context.docId}] mergeAwaitingToPending: moving ${context.awaitingMutations.length} awaiting + ${context.pendingMutations.length} pending = ${merged.length} total pending`);
+                    }
+                    return merged;
+                },
+                awaitingMutations: () => [],
+            }),
             clearAwaiting: assign({
                 awaitingMutations: () => [],
             }),
+            /**
+             * Store the fetch start revision and mutation count for version gap handling
+             *
+             * When SEND_SUCCESS has a version gap (serverRev > expectedMaxRev):
+             * - expectedRev = baseRev + 1 = the first revision we need to fetch
+             * - serverRev = final revision of our changeset
+             * - mutationCount = number of mutations in our changeset
+             * - Our changeset spans revs (serverRev - mutationCount + 1) to serverRev
+             * - We need to fetch ops from expectedRev to (serverRev - mutationCount)
+             *
+             * Example: baseRev=302, 7 mutations, serverRev=312 (other clients committed 303-305)
+             * - expectedRev = 303
+             * - Our changeset is at revs 306-312
+             * - We need ops 303, 304, 305 (other clients' ops)
+             * - fetchFromRev = 303, endRev = 306 (= serverRev - mutationCount + 1)
+             */
+            storeFetchFromRev: assign({
+                fetchFromRev: ({ event }) => {
+                    if (event.type !== 'SEND_SUCCESS') return undefined;
+                    // expectedRev is baseRev + 1, which is where to start fetching
+                    return event.expectedRev;
+                },
+                sentMutationCount: ({ event }) => {
+                    if (event.type !== 'SEND_SUCCESS') return undefined;
+                    return event.mutationCount;
+                },
+            }),
+            clearFetchFromRev: assign({
+                fetchFromRev: () => undefined,
+                sentMutationCount: () => undefined,
+            }),
+            /**
+             * Track the maximum serverRev seen during fetchMiss
+             *
+             * When RECEIVE_REMOTE arrives during fetchMiss, we don't apply it immediately
+             * (the fetch will get those ops). Instead, we track the maximum serverRev so
+             * that after fetch completes, we can check if we need to fetch more.
+             */
+            updateMaxSeenServerRev: assign({
+                maxSeenServerRevDuringFetch: ({ context, event }) => {
+                    if (event.type !== 'RECEIVE_REMOTE') return context.maxSeenServerRevDuringFetch;
+                    const current = context.maxSeenServerRevDuringFetch ?? 0;
+                    const newRev = event.serverRev;
+                    if (newRev > current) {
+                        console.warn(
+                            `[StateMachine:${context.docId}] fetchMiss: new changeset_pushed arrived with rev ${newRev}, ` +
+                            `updating maxSeenServerRev from ${current} to ${newRev}`
+                        );
+                        return newRev;
+                    }
+                    return current;
+                },
+            }),
+            clearMaxSeenServerRev: assign({
+                maxSeenServerRevDuringFetch: () => undefined,
+            }),
+            /**
+             * Log version gap info from SEND_SUCCESS for debugging
+             * This is called before transitioning to fetchMiss
+             */
+            logVersionGap: ({ context, event }) => {
+                if (event.type !== 'SEND_SUCCESS' || !event.hasVersionGap) return;
+                console.warn(
+                    `[StateMachine:${context.docId}] SEND_SUCCESS with version gap detected: ` +
+                    `expected rev ${event.expectedRev}, got ${event.serverRev}. ` +
+                    `Will update serverRev to ${event.serverRev} and fetch ops from ${event.expectedRev} to ${event.serverRev - 1}.`
+                );
+            },
             updateServerRev: assign({
                 serverRev: ({ context, event }) => {
                     if (event.type === 'SEND_SUCCESS' || event.type === 'RECEIVE_ACK') {
@@ -195,6 +328,18 @@ export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
         },
         guards: {
             hasPending: ({ context }) => context.pendingMutations.length > 0,
+            /**
+             * Check if there are transformed pending mutations after fetchMiss completes.
+             * Used to decide whether to go to 'pending' or 'synced' state.
+             */
+            hasTransformedPending: ({ event }) => {
+                // Check if the event output has transformed local mutations
+                if (event && typeof event === 'object' && 'output' in event) {
+                    const output = (event as { output: { transformedLocal?: IMutationWithOpId[] } }).output;
+                    return (output.transformedLocal?.length ?? 0) > 0;
+                }
+                return false;
+            },
             hasAwaiting: ({ context }) => context.awaitingMutations.length > 0,
             hasPendingOrAwaiting: ({ context }) =>
                 context.pendingMutations.length > 0 || context.awaitingMutations.length > 0,
@@ -206,23 +351,119 @@ export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
                 if (event.type !== 'RECEIVE_REMOTE') return false;
                 return event.serverRev === context.serverRev + 1;
             },
+            /**
+             * Check if SEND_SUCCESS has a version gap
+             *
+             * This happens when the server returns a serverRev higher than expected,
+             * meaning other clients committed operations between our baseRev and serverRev.
+             * We need to fetch those missed operations after acknowledging our changeset.
+             */
+            hasVersionGapInSendSuccess: ({ event }) => {
+                if (event.type !== 'SEND_SUCCESS') return false;
+                return event.hasVersionGap === true;
+            },
+            /**
+             * Check if we need to fetch more operations after the current fetch completes
+             *
+             * This happens when new changeset_pushed events arrived during fetchMiss.
+             * We track the maximum serverRev seen, and if it's higher than our current
+             * serverRev, we need to continue fetching.
+             */
+            needsMoreFetching: ({ context }) => {
+                const maxSeen = context.maxSeenServerRevDuringFetch;
+                if (maxSeen && maxSeen > context.serverRev) {
+                    const isVersionGapMode = context.fetchFromRev !== undefined && context.fetchFromRev < context.serverRev;
+                    console.warn(
+                        `[StateMachine:${context.docId}] fetchMiss completed, serverRev=${context.serverRev}, ` +
+                        `but maxSeenServerRev=${maxSeen}. Need to continue fetching. ` +
+                        `Mode: ${isVersionGapMode ? `versionGap (will start from ${context.serverRev + 1})` : 'normal'}`
+                    );
+                    return true;
+                }
+                return false;
+            },
         },
         actors: {
             fetchAndApplyMissedOps: fromPromise(async ({ input }: {
-                input: { startRev: number };
-            }): Promise<{ finalRev: number; appliedCount: number }> => {
+                input: {
+                    startRev: number;
+                    /**
+                     * If set, stop applying operations at this revision (exclusive).
+                     *
+                     * This is used when we enter fetchMiss after SEND_SUCCESS with version gap.
+                     * Our own changeset was committed at endRev, so we only need ops
+                     * from startRev to endRev-1.
+                     *
+                     * Example: startRev=6, endRev=8
+                     * - Apply ops 6, 7
+                     * - Stop at 8 (our own changeset)
+                     */
+                    endRev?: number;
+                    /**
+                     * Local pending mutations that need to be transformed against fetched ops.
+                     *
+                     * When we have local pending ops and fetch remote ops, we need to:
+                     * 1. Transform local against each remote op
+                     * 2. Apply the transformed remote (m2Prime)
+                     * 3. Update local to transformed (m1Prime)
+                     *
+                     * Without this, the local pending would be based on an old state.
+                     */
+                    localMutations: IMutationWithOpId[];
+                };
+            }): Promise<{ finalRev: number; appliedCount: number; transformedLocal: IMutationWithOpId[] }> => {
                 const operations = await config.onFetchOps(input.startRev);
                 let finalRev = input.startRev;
+                let appliedCount = 0;
+                let currentLocal: IMutationInfo[] = [...input.localMutations];
 
-                // Apply each operation's mutations in order
+                // Apply each operation's mutations in order, transforming local against each
                 for (const op of operations) {
+                    // Stop at endRev (exclusive) - ops at endRev and above are either:
+                    // 1. Our own changeset (after SEND_SUCCESS with gap)
+                    // 2. New ops that arrived during fetch (will be handled in next iteration)
+                    if (input.endRev !== undefined && op.rev >= input.endRev) {
+                        console.warn(
+                            `[fetchAndApplyMissedOps] Stopping at rev ${op.rev} (endRev=${input.endRev})`
+                        );
+                        break;
+                    }
+
                     if (op.mutations && op.mutations.length > 0) {
-                        await config.onApplyRemote(op.mutations);
+                        if (currentLocal.length > 0) {
+                            // Transform local against remote
+                            // local' = transform(local, remote).m1Primes
+                            // remote' = transform(local, remote).m2Primes (what we apply locally)
+                            console.warn(
+                                `[fetchAndApplyMissedOps] Transforming ${currentLocal.length} local ops against rev ${op.rev} (${op.mutations.length} remote ops)`
+                            );
+                            const result = await config.onTransform(currentLocal, op.mutations);
+                            if (result.error) {
+                                throw new Error(`Transform error at rev ${op.rev}: ${result.error}`);
+                            }
+                            // Apply transformed remote (m2Primes)
+                            await config.onApplyRemote(result.m2Primes);
+                            // Update local to transformed version (m1Primes)
+                            currentLocal = result.m1Primes;
+                            console.warn(
+                                `[fetchAndApplyMissedOps] After transform: ${currentLocal.length} local ops remaining`
+                            );
+                        } else {
+                            // No local ops, apply remote directly
+                            await config.onApplyRemote(op.mutations);
+                        }
+                        appliedCount++;
                     }
                     finalRev = op.rev;
                 }
 
-                return { finalRev, appliedCount: operations.length };
+                // Preserve opIds from original mutations
+                const transformedLocal: IMutationWithOpId[] = currentLocal.map((m, i) => ({
+                    ...m,
+                    opId: input.localMutations[i]?.opId || `transformed-${i}`,
+                }));
+
+                return { finalRev, appliedCount, transformedLocal };
             }),
             transformAndApply: fromPromise(async ({ input }: {
                 input: { local: IMutationInfo[]; remote: IMutationInfo[] };
@@ -324,10 +565,25 @@ export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
             awaiting: {
                 entry: ['triggerSendChangeset'],
                 on: {
-                    SEND_SUCCESS: {
-                        target: 'synced',
-                        actions: ['clearAwaiting', 'updateServerRev'],
-                    },
+                    SEND_SUCCESS: [
+                        {
+                            // If there's a version gap, we need to fetch missed ops
+                            // Our changeset was accepted at serverRev, but we missed operations
+                            // between expectedRev and serverRev-1. We need to:
+                            // 1. Clear awaiting (our changeset was accepted)
+                            // 2. Update serverRev to ACK value (our commit is at this rev)
+                            // 3. Store fetchFromRev = expectedRev (where to start fetching)
+                            // 4. Go to fetchMiss to get ops from expectedRev to serverRev-1
+                            guard: 'hasVersionGapInSendSuccess',
+                            target: 'fetchMiss',
+                            actions: ['clearAwaiting', 'updateServerRev', 'storeFetchFromRev', 'logVersionGap'],
+                        },
+                        {
+                            // Normal case: no version gap, go to synced
+                            target: 'synced',
+                            actions: ['clearAwaiting', 'updateServerRev'],
+                        },
+                    ],
                     SEND_FAILURE: {
                         target: 'conflict',
                         actions: ['setError'],
@@ -368,10 +624,21 @@ export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
                     LOCAL_OPERATION: {
                         actions: ['addToPending'],
                     },
-                    SEND_SUCCESS: {
-                        target: 'pending',
-                        actions: ['clearAwaiting', 'updateServerRev'],
-                    },
+                    SEND_SUCCESS: [
+                        {
+                            // If there's a version gap, fetch missed ops first
+                            // We still have pending ops, so after fetchMiss we'll go to pending
+                            // Same as awaiting: update serverRev first, then fetch from expectedRev
+                            guard: 'hasVersionGapInSendSuccess',
+                            target: 'fetchMiss',
+                            actions: ['clearAwaiting', 'updateServerRev', 'storeFetchFromRev', 'logVersionGap'],
+                        },
+                        {
+                            // Normal case: no version gap, go to pending
+                            target: 'pending',
+                            actions: ['clearAwaiting', 'updateServerRev'],
+                        },
+                    ],
                     SEND_FAILURE: {
                         target: 'conflict',
                         actions: ['setError'],
@@ -405,46 +672,149 @@ export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
              *
              * This state fetches all missed operations and applies them in order.
              * After completion, transitions to pending (if local ops exist) or synced.
+             *
+             * IMPORTANT: When entering this state after reconnection, we must merge
+             * any awaitingMutations back to pendingMutations, because the server may
+             * not have received them (the ACK was lost due to disconnect).
+             *
+             * IMPORTANT: During fetchMiss, new changeset_pushed events may arrive.
+             * We don't apply them immediately (the fetch will get those ops eventually).
+             * Instead, we track the maximum serverRev seen. After fetch completes,
+             * if there are newer ops, we stay in fetchMiss and continue fetching.
              */
             fetchMiss: {
-                entry: ['setFetching'],
+                entry: ['setFetching', 'mergeAwaitingToPending', 'clearMaxSeenServerRev'],
                 exit: ['clearFetching'],
                 invoke: {
                     src: 'fetchAndApplyMissedOps',
-                    input: ({ context }) => ({
-                        startRev: context.serverRev,
-                    }),
+                    input: ({ context }) => {
+                        // Calculate endRev for version gap fetch:
+                        // Our changeset spans revs (serverRev - sentMutationCount + 1) to serverRev
+                        // We need to fetch ops BEFORE our changeset, so endRev = serverRev - sentMutationCount + 1
+                        //
+                        // Example: serverRev=312, sentMutationCount=7
+                        // - Our changeset is at revs 306-312
+                        // - endRev = 312 - 7 + 1 = 306 (stop before rev 306)
+                        const isInitialGapFetch = context.fetchFromRev !== undefined &&
+                            context.sentMutationCount !== undefined &&
+                            context.fetchFromRev < context.serverRev;
+
+                        const endRev = isInitialGapFetch
+                            ? context.serverRev - (context.sentMutationCount ?? 1) + 1
+                            : undefined;
+
+                        return {
+                            // If fetchFromRev is set (after SEND_SUCCESS with gap), start from there
+                            // Otherwise (regular FETCH_MISS), start from current serverRev
+                            startRev: context.fetchFromRev ?? context.serverRev,
+                            // Set endRev only for initial version gap fetch
+                            // - Initial gap fetch: stop before our changeset
+                            // - Continuation fetch: no limit (fetch all new ops)
+                            // - Normal fetch: no limit (fetch all)
+                            endRev,
+                            // Pass local pending mutations for transformation
+                            // These will be transformed against each fetched remote op
+                            localMutations: context.pendingMutations,
+                        };
+                    },
                     onDone: [
                         {
-                            guard: 'hasPendingOrAwaiting',
+                            // If new changeset_pushed arrived during fetch with higher rev,
+                            // stay in fetchMiss and continue fetching
+                            guard: 'needsMoreFetching',
+                            target: 'fetchMiss',
+                            actions: [
+                                assign({
+                                    // If we were in version gap mode (fetchFromRev < serverRev),
+                                    // set fetchFromRev = serverRev + 1 to skip our own changeset
+                                    // and fetch new ops that arrived during the initial fetch.
+                                    // For normal mode, keep fetchFromRev undefined.
+                                    fetchFromRev: ({ context }) =>
+                                        (context.fetchFromRev !== undefined && context.fetchFromRev < context.serverRev)
+                                            ? context.serverRev + 1
+                                            : undefined,
+                                    // For version gap continuation, keep serverRev (our ACK value)
+                                    // For normal mode, update to finalRev
+                                    serverRev: ({ context, event }) =>
+                                        (context.fetchFromRev !== undefined && context.fetchFromRev < context.serverRev)
+                                            ? context.serverRev // Keep ACK value during version gap handling
+                                            : event.output.finalRev,
+                                    // Update pending with transformed local mutations
+                                    pendingMutations: ({ event }) => event.output.transformedLocal,
+                                }),
+                                'clearMaxSeenServerRev',
+                            ],
+                        },
+                        {
+                            // Check if there are transformed pending mutations
+                            guard: 'hasTransformedPending',
                             target: 'pending',
                             actions: [
                                 assign({
-                                    serverRev: ({ event }) => event.output.finalRev,
+                                    // Initial version gap fetch (fetchFromRev < serverRev): keep ACK value
+                                    // Continuation fetch (fetchFromRev >= serverRev): use finalRev
+                                    // Normal fetch (no fetchFromRev): use finalRev
+                                    serverRev: ({ context, event }) =>
+                                        (context.fetchFromRev !== undefined && context.fetchFromRev < context.serverRev)
+                                            ? context.serverRev // Keep ACK value for initial gap fetch
+                                            : event.output.finalRev,
+                                    // Update pending with transformed local mutations
+                                    pendingMutations: ({ event }) => event.output.transformedLocal,
                                 }),
+                                'clearFetchFromRev',
+                                'clearMaxSeenServerRev',
                                 'clearError',
                             ],
-                            // Note: pending/awaiting ops should already be transformed
-                            // against each fetched op as they were applied
                         },
                         {
+                            // No transformed pending, go to synced
                             target: 'synced',
                             actions: [
                                 assign({
-                                    serverRev: ({ event }) => event.output.finalRev,
+                                    // Initial version gap fetch (fetchFromRev < serverRev): keep ACK value
+                                    // Continuation fetch (fetchFromRev >= serverRev): use finalRev
+                                    // Normal fetch (no fetchFromRev): use finalRev
+                                    serverRev: ({ context, event }) =>
+                                        (context.fetchFromRev !== undefined && context.fetchFromRev < context.serverRev)
+                                            ? context.serverRev // Keep ACK value for initial gap fetch
+                                            : event.output.finalRev,
+                                    // Clear pending
+                                    pendingMutations: () => [],
                                 }),
+                                'clearFetchFromRev',
+                                'clearMaxSeenServerRev',
                                 'clearError',
                             ],
                         },
                     ],
                     onError: {
                         target: 'conflict',
-                        actions: [assign({ lastError: ({ event }) => String(event.error) })],
+                        actions: [
+                            assign({ lastError: ({ event }) => String(event.error) }),
+                            'clearFetchFromRev',
+                            'clearMaxSeenServerRev',
+                        ],
                     },
                 },
                 on: {
                     LOCAL_OPERATION: {
                         actions: ['addToPending'],
+                    },
+                    /**
+                     * When RECEIVE_REMOTE arrives during fetchMiss:
+                     * - Don't apply the mutations (the fetch will get them)
+                     * - Track the serverRev so we know if more fetching is needed
+                     */
+                    RECEIVE_REMOTE: {
+                        actions: ['updateMaxSeenServerRev'],
+                    },
+                    /**
+                     * When another FETCH_MISS is triggered during fetchMiss:
+                     * - Just stay in fetchMiss (we're already fetching)
+                     * - The current fetch will continue, and if needed, we'll re-fetch
+                     */
+                    FETCH_MISS: {
+                        // Stay in fetchMiss, no action needed
                     },
                     NETWORK_DISCONNECTED: 'offline',
                 },
@@ -473,13 +843,22 @@ export function createDocumentSyncMachine(config: IDocumentSyncMachineConfig) {
 
             /**
              * Conflict: Sync error that needs resolution
+             *
+             * IMPORTANT: We still accept LOCAL_OPERATION in conflict state to prevent
+             * user edits from being lost. The user might not realize there's a conflict
+             * and continue editing. These edits are buffered in pendingMutations and
+             * will be synced once the conflict is resolved.
              */
             conflict: {
                 on: {
+                    LOCAL_OPERATION: {
+                        // Buffer user edits even during conflict - don't lose user work!
+                        actions: ['addToPending'],
+                    },
                     RESOLVE_CONFLICT: 'fetchMiss',
                     RESET: {
                         target: 'synced',
-                        actions: ['clearError', 'clearAwaiting', assign({ pendingMutations: () => [] })],
+                        actions: ['clearError', 'clearAwaiting', 'clearFetchFromRev', assign({ pendingMutations: () => [] })],
                     },
                     NETWORK_DISCONNECTED: 'offline',
                 },

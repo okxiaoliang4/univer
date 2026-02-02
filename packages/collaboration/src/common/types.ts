@@ -58,7 +58,6 @@ export interface IChangesetPushed {
     docId: string;
     serverRev: number;
     userId: string;
-    mutations: IMutationInfo[];
 }
 
 /**
@@ -77,7 +76,7 @@ export interface IChangesetRequest {
 export interface IChangesetAck {
     status: 'ok' | 'error';
     serverRev?: number;
-    mutations?: IMutationInfo[];
+    opIds?: string[];
     message?: string;
 }
 
@@ -166,6 +165,14 @@ export interface IUserAwareness {
 export const COLLABORATION_SERVICE_NAME = 'univer.collaboration.service';
 export const UNDO_REDO_TRANSFORM_SERVICE_NAME = 'univer.collaboration.undo-redo-transform.service';
 export const AWARENESS_REMOTE_SERVICE_NAME = 'univer.awareness-remote.service';
+/**
+ * RPC channel name for awareness callback (main thread service called by worker)
+ */
+export const AWARENESS_CALLBACK_SERVICE_NAME = 'univer.awareness-callback.service';
+/**
+ * RPC channel name for collaboration callback (main thread service called by worker)
+ */
+export const COLLABORATION_CALLBACK_SERVICE_NAME = 'univer.collaboration-callback.service';
 
 /**
  * @deprecated Use COLLABORATION_SERVICE_NAME instead

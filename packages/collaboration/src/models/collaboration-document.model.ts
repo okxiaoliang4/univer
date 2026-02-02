@@ -219,14 +219,44 @@ export class CollaborationDocumentModel extends Disposable implements IDisposabl
      * is dispatched back to the state machine via SEND_SUCCESS/SEND_FAILURE events.
      * This approach allows the network call to complete even if the state changes
      * (e.g., when a LOCAL_OPERATION arrives while awaiting ACK).
+     *
+     * IMPORTANT: If the server returns a serverRev > baseRev + 1, it means
+     * there are missed operations between baseRev and serverRev. We need to:
+     * 1. First acknowledge the success (our changeset was committed)
+     * 2. Then fetch and apply the missed operations
      */
     private async _sendChangesetAsync(mutations: IMutationWithOpId[], baseRev: number): Promise<void> {
         try {
             const result = await this._networkOps.sendChangeset(this.docId, mutations, baseRev);
             if (result.status === 'ok') {
+                const serverRev = result.serverRev ?? baseRev + mutations.length;
+                // When sending N mutations, the expected final rev is baseRev + N
+                // (each mutation consumes one revision: 303, 304, 305, ... for 7 mutations from baseRev=302)
+                const expectedMaxRev = baseRev + mutations.length;
+                // The first revision we need to fetch if there's a gap
+                const expectedFirstRev = baseRev + 1;
+
+                // Check for version gap: if serverRev > expectedMaxRev, there are ops from other clients
+                // that were committed between our baseRev and our changeset
+                const hasVersionGap = serverRev > expectedMaxRev;
+                if (hasVersionGap) {
+                    console.warn(
+                        `[DocumentModel:${this.docId}] SEND_SUCCESS with version gap: ` +
+                        `expected max rev ${expectedMaxRev} (baseRev=${baseRev} + ${mutations.length} mutations), got ${serverRev}. ` +
+                        `Need to fetch ops ${expectedFirstRev} to ${serverRev - mutations.length}.`
+                    );
+                }
+
+                // Send SEND_SUCCESS with version gap info
+                // The state machine will handle the gap by transitioning to fetchMiss if needed
+                // - expectedRev: the first revision we need to fetch (baseRev + 1)
+                // - mutationCount: used to calculate where our changeset starts (serverRev - mutationCount + 1)
                 this._sendEvent({
                     type: 'SEND_SUCCESS',
-                    serverRev: result.serverRev ?? baseRev + 1,
+                    serverRev,
+                    hasVersionGap,
+                    expectedRev: expectedFirstRev,
+                    mutationCount: mutations.length,
                 });
             } else {
                 this._sendEvent({
@@ -302,17 +332,44 @@ export class CollaborationDocumentModel extends Disposable implements IDisposabl
     }
 
     /**
-     * Handle remote changeset from server
+     * Handle remote changeset notification from server
      *
-     * This is called when we receive a broadcast from the server about
-     * another client's changes. We need to transform our pending operations
-     * against the remote operations to maintain consistency.
+     * This is called when we receive a `changeset_pushed` broadcast from the server.
+     * The broadcast only contains serverRev (no mutations), indicating that a new
+     * revision is available on the server.
+     *
+     * We check if this creates a version gap and trigger fetchOps to get the
+     * actual mutations from the server.
+     *
+     * @param serverRev The new server revision
+     * @param userId The user who made the change (for logging)
      */
-    async handleRemoteChangeset(serverRev: number, mutations: IMutationInfo[], userId: string): Promise<void> {
-        console.warn(`[DocumentModel:${this.docId}] handleRemoteChangeset called: serverRev=${serverRev}, mutations=${mutations.length}, userId=${userId}`);
-        // Enqueue for ordered processing
-        await this._enqueueAndProcessRemote(serverRev, mutations, userId);
-        console.warn(`[DocumentModel:${this.docId}] handleRemoteChangeset complete: serverRev=${serverRev}`);
+    async handleRemoteChangeset(serverRev: number, userId: string): Promise<void> {
+        const snapshot = this._actor.getSnapshot();
+        const context = snapshot.context;
+        const currentState = typeof snapshot.value === 'string'
+            ? snapshot.value
+            : Object.keys(snapshot.value)[0];
+
+        console.warn(
+            `[DocumentModel:${this.docId}] handleRemoteChangeset: serverRev=${serverRev}, userId=${userId}, ` +
+            `localRev=${context.serverRev}, state=${currentState}`
+        );
+
+        // Always trigger fetch when we receive a changeset_pushed notification
+        // The state machine will handle it appropriately based on current state
+        if (serverRev > context.serverRev) {
+            // There are new operations on the server, need to fetch them
+            console.warn(
+                `[DocumentModel:${this.docId}] New revision available: server=${serverRev}, local=${context.serverRev}. ` +
+                'Triggering FETCH_MISS to get mutations.'
+            );
+            this._sendEvent({ type: 'FETCH_MISS' });
+        } else {
+            console.warn(
+                `[DocumentModel:${this.docId}] Ignoring changeset_pushed: serverRev=${serverRev} <= localRev=${context.serverRev}`
+            );
+        }
     }
 
     /**
@@ -465,11 +522,25 @@ export class CollaborationDocumentModel extends Disposable implements IDisposabl
 
     /**
      * Trigger sending pending mutations to server
+     *
+     * This will only send if there are pending mutations AND the state machine
+     * is in a state that can handle SEND_CHANGESET (pending or awaitingWithPending).
      */
     flush(): void {
         const snapshot = this._actor.getSnapshot();
-        if (snapshot.context.pendingMutations.length > 0) {
+        const context = snapshot.context;
+        const currentState = typeof snapshot.value === 'string'
+            ? snapshot.value
+            : Object.keys(snapshot.value)[0];
+
+        console.warn(`[DocumentModel:${this.docId}] flush() called: state=${currentState}, pending=${context.pendingMutations.length}, awaiting=${context.awaitingMutations.length}`);
+
+        if (context.pendingMutations.length > 0) {
             this._sendEvent({ type: 'SEND_CHANGESET' });
+        } else if (context.awaitingMutations.length > 0) {
+            // This shouldn't happen normally because fetchMiss entry action merges awaiting to pending.
+            // But log a warning if it does happen.
+            console.warn(`[DocumentModel:${this.docId}] flush(): No pending but has ${context.awaitingMutations.length} awaiting mutations. State: ${currentState}. This may indicate a state machine issue.`);
         }
     }
 

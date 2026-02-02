@@ -125,7 +125,7 @@ export class SocketNetworkService
             });
 
             this._socket.on('connect', () => {
-                this._logger.log('SocketNetworkService: Connected');
+                this._logger.log(`SocketNetworkService: Connected, socket.id=${this._socket?.id}`);
                 this._connectionStatus$.next('connected');
                 resolve();
             });
@@ -177,11 +177,17 @@ export class SocketNetworkService
     joinDoc(docId: string): Promise<IJoinDocAck> {
         return new Promise((resolve, reject) => {
             if (!this._socket?.connected) {
+                this._logger.error('SocketNetworkService: joinDoc failed - socket not connected');
                 reject(new Error('Socket not connected'));
                 return;
             }
 
+            this._logger.log(`SocketNetworkService: >>> Sending join_doc, docId=${docId}, socket.id=${this._socket.id}`);
+            const startTime = Date.now();
+
             this._socket.emit('join_doc', { docId }, (ack: IJoinDocAck) => {
+                const elapsed = Date.now() - startTime;
+                this._logger.log(`SocketNetworkService: <<< Received join_doc ACK after ${elapsed}ms: ${JSON.stringify(ack)}`);
                 if (ack.status === 'ok') {
                     this._logger.log(
                         `SocketNetworkService: Joined doc ${docId}, version: ${ack.version}`
@@ -252,14 +258,20 @@ export class SocketNetworkService
     fetchOps(docId: string, startRev: number): Promise<IFetchOpsResult> {
         return new Promise((resolve, reject) => {
             if (!this._socket?.connected) {
+                this._logger.error('SocketNetworkService: fetchOps failed - socket not connected');
                 reject(new Error('Socket not connected'));
                 return;
             }
+
+            this._logger.log(`SocketNetworkService: >>> Sending fetch_ops, docId=${docId}, startRev=${startRev}, socket.id=${this._socket.id}`);
+            const startTime = Date.now();
 
             this._socket.emit(
                 'fetch_ops',
                 { docId, startRev },
                 (ack: IFetchOpsResult) => {
+                    const elapsed = Date.now() - startTime;
+                    this._logger.log(`SocketNetworkService: <<< Received fetch_ops ACK after ${elapsed}ms: status=${ack.status}, ops=${ack.operations?.length ?? 0}`);
                     if (ack.status === 'ok') {
                         this._logger.log(
                             `SocketNetworkService: Fetched ${ack.operations?.length ?? 0} ops for doc ${docId} since rev ${startRev}`

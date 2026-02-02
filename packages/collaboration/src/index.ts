@@ -15,17 +15,20 @@
  */
 
 export type { IDocumentSyncState, IUserAwareness, NetworkConnectionStatus } from './common/types';
+export { AWARENESS_CALLBACK_SERVICE_NAME, COLLABORATION_CALLBACK_SERVICE_NAME } from './common/types';
 export type { ICollaborationConfig } from './controller/config.schema';
 export { CollaborationPlugin } from './plugin';
 export {
     AwarenessRemoteProxyService,
     AwarenessRemoteService,
+    IAwarenessCallbackService,
     IAwarenessRemoteService,
 } from './services/awareness-remote.service';
 export { IAwarenessService } from './services/awareness.service';
 export {
     CollaborationProxyService,
     CollaborationService,
+    ICollaborationCallbackService,
     ICollaborationService,
 } from './services/collaboration.service';
 export { CollaborationUndoRedoService } from './services/undo-redo.service';

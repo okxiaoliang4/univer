@@ -116,12 +116,13 @@ export class TransformService extends Disposable implements ITransformService {
             return composed;
         } finally {
             // Clean up WASM memory
+            // Note: m1Info and m2Info are NOT freed here because the Rust function takes
+            // ownership via Vec<WasmMutationInfo> (by value).
+            // Attempting to free consumed objects causes "null pointer passed to rust" errors.
             for (const mutation of resultInfoList) {
                 mutation.free();
             }
             composeResult?.free?.();
-            m1Info?.free();
-            m2Info?.free();
         }
     }
 
@@ -159,13 +160,13 @@ export class TransformService extends Disposable implements ITransformService {
             return output;
         } finally {
             // Clean up WASM memory
+            // Note: Input array is NOT freed here because the Rust function takes
+            // ownership via Vec<WasmMutationInfo> (by value).
+            // Attempting to free consumed objects causes "null pointer passed to rust" errors.
             for (const mutation of resultInfoList) {
                 mutation.free();
             }
             composeResult?.free?.();
-            for (const mutation of input) {
-                mutation.free();
-            }
         }
     }
 
@@ -305,6 +306,9 @@ export class TransformService extends Disposable implements ITransformService {
             return result;
         } finally {
             // Clean up WASM memory
+            // Note: Input arrays (m1InfoList, m2InfoList) are NOT freed here because
+            // the Rust function takes ownership via Vec<WasmMutationInfo> (by value).
+            // Attempting to free consumed objects causes "null pointer passed to rust" errors.
             for (const m of resultM1InfoList) {
                 m.free();
             }
@@ -312,12 +316,6 @@ export class TransformService extends Disposable implements ITransformService {
                 m.free();
             }
             transformListResult?.free?.();
-            for (const m of m1InfoList) {
-                m.free();
-            }
-            for (const m of m2InfoList) {
-                m.free();
-            }
         }
     }
 
