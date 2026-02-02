@@ -13,14 +13,14 @@
 // limitations under the License.
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use std::collections::HashMap;
 
 // ========== OtherFormulaMarkDirtyMutation ==========
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OtherFormulaMarkDirtyParams {
     #[serde(flatten)]
-    pub params: Value, // IOtherFormulaMarkDirtyParams
+    pub params: HashMap<String, HashMap<String, HashMap<String, bool>>>, // IOtherFormulaMarkDirtyParams unitId -> subUnitId -> formulaId -> bool
 }
 
 pub struct OtherFormulaMarkDirtyMutation;

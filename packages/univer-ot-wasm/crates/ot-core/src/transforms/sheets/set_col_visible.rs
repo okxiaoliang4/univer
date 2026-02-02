@@ -1,6 +1,8 @@
-use crate::mutations::sheets::{SetColVisibleMutation, SetColHiddenMutation};
+use crate::mutations::sheets::{SetColVisibleMutation, SetColHiddenMutation, InsertColMutation, RemoveColMutation};
 use crate::registry::{MutationId, TransformRegistry};
-use crate::utils::transform_helpers::{lww_transform, identity_transform};
+use crate::utils::generic_params::GenericRangesParams;
+use crate::utils::transform_helpers::lww_transform;
+use crate::utils::shared_transforms as shared;
 
 pub const SET_COL_VISIBLE_ID: MutationId = SetColVisibleMutation::ID;
 pub const SET_COL_HIDDEN_ID: MutationId = SetColHiddenMutation::ID;
@@ -13,19 +15,18 @@ pub const SET_COL_HIDDEN_ID: MutationId = SetColHiddenMutation::ID;
 ///
 /// These mutations control column visibility (show/hide).
 /// Transform strategy: Last-Write-Wins (LWW) at worksheet level.
-/// Identity with each other (visible vs hidden are complementary operations).
+///
+/// Shift transforms: Column visibility ranges must be adjusted when columns are inserted/removed.
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Self-transforms: LWW
     registry.register_symmetric_ref(SET_COL_VISIBLE_ID, lww_transform());
     registry.register_symmetric_ref(SET_COL_HIDDEN_ID, lww_transform());
 
-    // Bidirectional: identity (complementary operations)
-    registry.register_bidirectional_ref(SET_COL_VISIBLE_ID, SET_COL_HIDDEN_ID, identity_transform());
-}
+    // Shift transforms for SetColVisible (col-only operations)
+    registry.register_bidirectional_ref(InsertColMutation::ID, SET_COL_VISIBLE_ID, shared::insert_col_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, SET_COL_VISIBLE_ID, shared::remove_col_shift::<GenericRangesParams>());
 
-pub fn register_cross_module_transforms(registry: &mut TransformRegistry, other_mutations: &[MutationId]) {
-    for &other_id in other_mutations {
-        registry.register_identity(SET_COL_VISIBLE_ID, other_id);
-        registry.register_identity(SET_COL_HIDDEN_ID, other_id);
-    }
+    // Shift transforms for SetColHidden (col-only operations)
+    registry.register_bidirectional_ref(InsertColMutation::ID, SET_COL_HIDDEN_ID, shared::insert_col_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, SET_COL_HIDDEN_ID, shared::remove_col_shift::<GenericRangesParams>());
 }

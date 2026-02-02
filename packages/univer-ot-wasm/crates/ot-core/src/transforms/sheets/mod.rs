@@ -1,5 +1,9 @@
 // All sheet mutations - one file per mutation (46 modules)
 // Files are named to match mutations/sheets/*.rs (without _mutation suffix)
+//
+// NOTE: The registry automatically falls back to identity transform when no
+// transform is registered. Therefore, we only need to register transforms that
+// actually modify mutations (shift, LWW, etc.), not identity transforms.
 
 // A
 pub mod add_range_protection;
@@ -27,9 +31,6 @@ pub mod insert_sheet;
 pub mod mark_dirty_auto_height;
 pub mod move_range;
 pub mod move_rows_cols;
-
-// N
-pub mod numfmt;
 
 // R
 pub mod register_range_theme;
@@ -73,10 +74,15 @@ use crate::registry::TransformRegistry;
 
 /// Register all sheets transforms
 ///
-/// This function registers transforms for all 46 sheet mutations.
-/// Each mutation has its own dedicated file.
+/// This function registers transforms for all sheet mutations.
+/// Each mutation has its own dedicated file for symmetric transforms.
+///
+/// NOTE: We only register transforms that modify mutations (shift, LWW, etc.).
+/// Identity transforms are NOT registered - the registry automatically falls back
+/// to identity when no transform is found.
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register all individual mutation transforms (alphabetical order)
+    // Each file registers symmetric transforms and specific bidirectional transforms
     add_range_protection::register_transforms(registry);
     add_range_theme::register_transforms(registry);
     add_worksheet_merge::register_transforms(registry);
@@ -97,8 +103,6 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     mark_dirty_auto_height::register_transforms(registry);
     move_range::register_transforms(registry);
     move_rows_cols::register_transforms(registry);
-
-    numfmt::register_transforms(registry);
 
     register_range_theme::register_transforms(registry);
     remove_range_theme::register_transforms(registry);
@@ -133,4 +137,7 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     toggle_gridlines::register_transforms(registry);
 
     unregister_range_theme_style::register_transforms(registry);
+
+    // NOTE: No need for register_identity calls!
+    // The registry automatically falls back to identity transform when no transform is found.
 }

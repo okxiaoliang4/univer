@@ -48,8 +48,8 @@ static IDENTITY_TRANSFORM: Lazy<TransformFnRef> = Lazy::new(|| {
 /// in your transform registrations.
 ///
 /// # Example
-/// ```rust
-/// use crate::utils::transform_helpers::lww_transform;
+/// ```ignore
+/// use ot_core::utils::transform_helpers::lww_transform;
 ///
 /// registry.register_symmetric_ref(MUTATION_ID, lww_transform());
 /// ```
@@ -64,8 +64,8 @@ pub fn lww_transform() -> TransformFnRef {
 /// in your transform registrations.
 ///
 /// # Example
-/// ```rust
-/// use crate::utils::transform_helpers::identity_transform;
+/// ```ignore
+/// use ot_core::utils::transform_helpers::identity_transform;
 ///
 /// registry.register_symmetric_ref(MUTATION_ID, identity_transform());
 /// registry.register_bidirectional_ref(M1_ID, M2_ID, identity_transform());

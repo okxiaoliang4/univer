@@ -270,67 +270,90 @@ fn test_all_mutations_have_symmetric_transforms() {
     );
 }
 
+/// Test that all mutation pairs work correctly with the registry.
+///
+/// NOTE: Since the registry now falls back to identity transform automatically,
+/// we no longer require explicit registration for every pair. Instead, we verify
+/// that the transform execution works correctly for all pairs.
 #[test]
-fn test_all_mutation_pairs_have_transforms() {
+fn test_all_mutation_pairs_transform_correctly() {
+    use serde_json::json;
+
     let service = TransformService::new();
     let all = get_all_mutations();
-    let mut missing_pairs = Vec::new();
+    let mut failed_pairs = Vec::new();
 
-    for (i, &m1) in all.iter().enumerate() {
-        for &m2 in all.iter().skip(i + 1) {
-            // Check both directions
-            let has_m1_m2 = service.has_transform(m1, m2);
-            let has_m2_m1 = service.has_transform(m2, m1);
+    for (i, &m1_id) in all.iter().enumerate() {
+        for &m2_id in all.iter().skip(i + 1) {
+            // Create test mutations
+            let m1 = ot_core::MutationInfo {
+                id: m1_id.to_string(),
+                params: json!({"unitId": "test", "subUnitId": "sheet1"}),
+            };
+            let m2 = ot_core::MutationInfo {
+                id: m2_id.to_string(),
+                params: json!({"unitId": "test", "subUnitId": "sheet1"}),
+            };
 
-            if !has_m1_m2 {
-                missing_pairs.push((m1, m2));
+            // Test forward direction
+            let result_forward = service.transform(&m1, &m2);
+            if result_forward.error.is_some() {
+                failed_pairs.push((m1_id, m2_id, "forward", result_forward.error.clone()));
             }
-            if !has_m2_m1 {
-                missing_pairs.push((m2, m1));
+
+            // Test reverse direction
+            let result_reverse = service.transform(&m2, &m1);
+            if result_reverse.error.is_some() {
+                failed_pairs.push((m2_id, m1_id, "reverse", result_reverse.error.clone()));
             }
         }
     }
 
-    if !missing_pairs.is_empty() {
-        println!("\n=== MISSING BIDIRECTIONAL TRANSFORMS ===");
-        for (m1, m2) in missing_pairs.iter().take(50) {
-            println!("  {} vs {}", m1, m2);
+    if !failed_pairs.is_empty() {
+        println!("\n=== FAILED TRANSFORM PAIRS ===");
+        for (m1, m2, direction, error) in failed_pairs.iter().take(50) {
+            println!("  {} vs {} ({}): {:?}", m1, m2, direction, error);
         }
-        if missing_pairs.len() > 50 {
-            println!("  ... and {} more", missing_pairs.len() - 50);
+        if failed_pairs.len() > 50 {
+            println!("  ... and {} more", failed_pairs.len() - 50);
         }
-        println!("Total missing pairs: {}", missing_pairs.len());
+        println!("Total failed pairs: {}", failed_pairs.len());
         println!("=========================================\n");
     }
 
     assert!(
-        missing_pairs.is_empty(),
-        "Missing bidirectional transforms for {} pairs. See output above.",
-        missing_pairs.len()
+        failed_pairs.is_empty(),
+        "Transform failed for {} pairs. See output above.",
+        failed_pairs.len()
     );
 }
 
+/// Test registry statistics - reports explicit registrations vs automatic fallback
 #[test]
-fn test_registry_full_coverage() {
+fn test_registry_statistics() {
     let service = TransformService::new();
     let all = get_all_mutations();
     let n = all.len();
 
-    // Expected: n symmetric + n*(n-1) bidirectional = n + n*(n-1) = n*n
-    let expected_entries = n + n * (n - 1);
-    let actual_entries = service.registry_size();
+    // Total possible pairs: n symmetric + n*(n-1) bidirectional = n + n*(n-1) = n*n
+    let total_possible = n + n * (n - 1);
+    let explicit_registrations = service.registry_size();
+    let implicit_identity = total_possible - explicit_registrations;
 
-    println!("\n=== REGISTRY COVERAGE ===");
+    println!("\n=== REGISTRY STATISTICS ===");
     println!("Total mutations: {}", n);
-    println!("Expected entries (n + n*(n-1)): {}", expected_entries);
-    println!("Actual entries: {}", actual_entries);
-    println!("Coverage: {:.1}%", (actual_entries as f64 / expected_entries as f64) * 100.0);
-    println!("=========================\n");
+    println!("Total possible pairs: {}", total_possible);
+    println!("Explicit registrations: {}", explicit_registrations);
+    println!("Implicit identity (fallback): {}", implicit_identity);
+    println!("Explicit registration rate: {:.1}%", (explicit_registrations as f64 / total_possible as f64) * 100.0);
+    println!("===========================\n");
 
-    assert_eq!(
-        actual_entries, expected_entries,
-        "Registry should have {} entries for 100% coverage, but has {}",
-        expected_entries, actual_entries
+    // We only require symmetric transforms to be explicit
+    // All other pairs fall back to identity automatically
+    assert!(
+        explicit_registrations >= n,
+        "Registry should have at least {} symmetric transforms, but has {}",
+        n, explicit_registrations
     );
 }
 

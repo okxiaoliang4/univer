@@ -124,40 +124,6 @@ impl TransformRegistry {
         }
     }
 
-    // ========================================================================
-    // Legacy Registration Methods (for backward compatibility)
-    // ========================================================================
-
-    /// Register a bidirectional transform with automatic swap (legacy version)
-    ///
-    /// This wraps legacy TransformFn into TransformFnRef for internal storage.
-    /// New code should prefer `register_bidirectional_ref`.
-    pub fn register_bidirectional(
-        &mut self,
-        m1_id: MutationId,
-        m2_id: MutationId,
-        forward: TransformFn,
-    ) {
-        // Wrap legacy TransformFn into TransformFnRef
-        let forward_ref: TransformFnRef = Arc::new(move |m1: &MutationInfo, m2: &MutationInfo| {
-            let result = forward(m1, m2);
-            TransformResultRef {
-                m1_prime: match result.m1_prime {
-                    Some(m) => MutationOutcome::Modified(m),
-                    None => MutationOutcome::Removed,
-                },
-                m2_prime: match result.m2_prime {
-                    Some(m) => MutationOutcome::Modified(m),
-                    None => MutationOutcome::Removed,
-                },
-                error: result.error,
-            }
-        });
-
-        // Use the optimized registration internally
-        self.register_bidirectional_ref(m1_id, m2_id, forward_ref);
-    }
-
     /// Register a symmetric transform (legacy version)
     ///
     /// Wraps legacy TransformFn into TransformFnRef for internal storage.
@@ -268,19 +234,8 @@ mod tests {
     fn test_bidirectional_registration() {
         let mut registry = TransformRegistry::new();
 
-        // Register a simple transform
-        let forward_fn = Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
-            TransformResult {
-                m1_prime: Some(MutationInfo {
-                    id: m1.id.clone(),
-                    params: json!({"transformed": "forward"}),
-                }),
-                m2_prime: Some(m2.clone()),
-                error: None,
-            }
-        });
-
-        registry.register_bidirectional("mutation.a", "mutation.b", forward_fn);
+        // Register a simple identity transform
+        registry.register_identity("mutation.a", "mutation.b");
 
         // Test forward direction
         let m1 = MutationInfo {

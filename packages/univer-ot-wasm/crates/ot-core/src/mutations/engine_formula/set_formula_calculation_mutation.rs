@@ -20,7 +20,7 @@ use serde_json::Value;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFormulaCalculationStartMutationParams {
     #[serde(flatten)]
-    pub params: Value, // ISetFormulaCalculationStartMutationParams
+    pub params: Value, // TODO: 类型 ISetFormulaCalculationStartMutation
 }
 
 pub struct SetFormulaCalculationStartMutation;
@@ -39,7 +39,7 @@ impl SetFormulaCalculationStartMutation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetTriggerFormulaCalculationStartMutationParams {
     #[serde(flatten)]
-    pub params: Value, // ISetTriggerFormulaCalculationStartMutationParams
+    pub params: Value, // TODO: 类型 ISetFormulaCalculationStartMutation
 }
 
 pub struct SetTriggerFormulaCalculationStartMutation;
@@ -58,7 +58,7 @@ impl SetTriggerFormulaCalculationStartMutation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFormulaStringBatchCalculationMutationParams {
     #[serde(flatten)]
-    pub params: Value, // ISetFormulaStringBatchCalculationMutationParams
+    pub params: Value, // ISetFormulaStringBatchCalculationMutation
 }
 
 pub struct SetFormulaStringBatchCalculationMutation;
@@ -77,7 +77,7 @@ impl SetFormulaStringBatchCalculationMutation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFormulaStringBatchCalculationResultMutationParams {
     #[serde(flatten)]
-    pub params: Value, // ISetFormulaStringBatchCalculationResultMutationParams
+    pub params: Value, // ISetFormulaStringBatchCalculationResultMutation
 }
 
 pub struct SetFormulaStringBatchCalculationResultMutation;
@@ -96,7 +96,7 @@ impl SetFormulaStringBatchCalculationResultMutation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFormulaCalculationStopMutationParams {
     #[serde(flatten)]
-    pub params: Value, // ISetFormulaCalculationStopMutationParams
+    pub params: Value, // ISetFormulaCalculationStopMutation
 }
 
 pub struct SetFormulaCalculationStopMutation;

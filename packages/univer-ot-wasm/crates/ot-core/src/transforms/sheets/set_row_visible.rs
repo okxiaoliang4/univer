@@ -1,7 +1,8 @@
-use crate::mutations::sheets::{SetRowVisibleMutation, SetRowHiddenMutation};
-use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
-use crate::utils::transform_helpers::{lww_transform, identity_transform};
-use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
+use crate::mutations::sheets::{SetRowVisibleMutation, SetRowHiddenMutation, InsertRowMutation, RemoveRowMutation};
+use crate::registry::{MutationId, TransformRegistry};
+use crate::utils::generic_params::GenericRangesParams;
+use crate::utils::transform_helpers::lww_transform;
+use crate::utils::shared_transforms as shared;
 
 pub const SET_ROW_VISIBLE_ID: MutationId = SetRowVisibleMutation::ID;
 pub const SET_ROW_HIDDEN_ID: MutationId = SetRowHiddenMutation::ID;
@@ -14,19 +15,18 @@ pub const SET_ROW_HIDDEN_ID: MutationId = SetRowHiddenMutation::ID;
 ///
 /// These mutations control row visibility (show/hide).
 /// Transform strategy: Last-Write-Wins (LWW) at worksheet level.
-/// Identity with each other (visible vs hidden are complementary operations).
+///
+/// Shift transforms: Row visibility ranges must be adjusted when rows are inserted/removed.
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Self-transforms: LWW
     registry.register_symmetric_ref(SET_ROW_VISIBLE_ID, lww_transform());
     registry.register_symmetric_ref(SET_ROW_HIDDEN_ID, lww_transform());
 
-    // Bidirectional: identity (complementary operations)
-    registry.register_bidirectional_ref(SET_ROW_VISIBLE_ID, SET_ROW_HIDDEN_ID, identity_transform());
-}
+    // Shift transforms for SetRowVisible (row-only operations)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, SET_ROW_VISIBLE_ID, shared::insert_row_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, SET_ROW_VISIBLE_ID, shared::remove_row_shift::<GenericRangesParams>());
 
-pub fn register_cross_module_transforms(registry: &mut TransformRegistry, other_mutations: &[MutationId]) {
-    for &other_id in other_mutations {
-        registry.register_identity(SET_ROW_VISIBLE_ID, other_id);
-        registry.register_identity(SET_ROW_HIDDEN_ID, other_id);
-    }
+    // Shift transforms for SetRowHidden (row-only operations)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, SET_ROW_HIDDEN_ID, shared::insert_row_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, SET_ROW_HIDDEN_ID, shared::remove_row_shift::<GenericRangesParams>());
 }

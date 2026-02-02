@@ -1,22 +1,13 @@
 use crate::mutations::sheets_table::{
     AddSheetTableMutation, SetSheetTableMutation, SetSheetTableFilterMutation, DeleteSheetTableMutation,
 };
-use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
+use crate::registry::{MutationId, TransformRegistry};
 use crate::utils::transform_helpers::{lww_transform, identity_transform};
-use crate::types::{MutationInfo, TransformResultRef};
-use crate::transforms::constants::*;
 
 pub const ADD_TABLE_ID: MutationId = AddSheetTableMutation::ID;
 pub const SET_TABLE_ID: MutationId = SetSheetTableMutation::ID;
 pub const SET_TABLE_FILTER_ID: MutationId = SetSheetTableFilterMutation::ID;
 pub const DELETE_TABLE_ID: MutationId = DeleteSheetTableMutation::ID;
-
-const LOCAL_TABLE_MUTATIONS: &[MutationId] = &[
-    ADD_TABLE_ID,
-    SET_TABLE_ID,
-    SET_TABLE_FILTER_ID,
-    DELETE_TABLE_ID,
-];
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Register symmetric transforms for table mutations
@@ -33,25 +24,5 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_bidirectional_ref(SET_TABLE_ID, DELETE_TABLE_ID, identity_transform());
     registry.register_bidirectional_ref(SET_TABLE_FILTER_ID, DELETE_TABLE_ID, identity_transform());
 
-    // Register with all other modules (using constants)
-    for &table_id in LOCAL_TABLE_MUTATIONS {
-        for &sheet_id in ALL_SHEETS_CORE_MUTATIONS {
-            registry.register_identity(table_id, sheet_id);
-        }
-        for &dv_id in DATA_VALIDATION_MUTATIONS {
-            registry.register_identity(table_id, dv_id);
-        }
-        for &cf_id in CONDITIONAL_FORMATTING_MUTATIONS {
-            registry.register_identity(table_id, cf_id);
-        }
-        for &filter_id in FILTER_MUTATIONS {
-            registry.register_identity(table_id, filter_id);
-        }
-        for &hl_id in HYPER_LINK_MUTATIONS {
-            registry.register_identity(table_id, hl_id);
-        }
-        for &note_id in NOTE_MUTATIONS {
-            registry.register_identity(table_id, note_id);
-        }
-    }
+    // NOTE: No register_identity calls needed - registry falls back to identity automatically
 }

@@ -147,7 +147,6 @@ pub use numfmt_mutation::*;
 
 // Re-export transform parameter types from types module
 pub use types::{
-    SetRangeValuesMutationParams,
     InsertRowMutationParams,
     InsertColMutationParams,
     RemoveRowsMutationParams,

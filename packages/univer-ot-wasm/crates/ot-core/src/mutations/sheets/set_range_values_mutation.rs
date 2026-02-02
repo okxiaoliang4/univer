@@ -1,17 +1,18 @@
+use crate::{IObjectMatrixPrimitiveType, SubUnitParams};
 use serde::{Deserialize, Serialize};
-use crate::types::{ICellData, IObjectMatrixPrimitiveType, ICopyToOptionsData};
 
+/// Set range values mutation parameters (transform version)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SetRangeValuesMutationParams {
-    pub sub_unit_id: String,
-    pub unit_id: String,
+    #[serde(flatten)]
+    pub sub_unit_params: SubUnitParams,
+
+    #[serde(rename = "cellValue", alias = "cell_value")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cell_value: Option<IObjectMatrixPrimitiveType>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<ICopyToOptionsData>,
 }
 
+/// SetRangeValues mutation definition
 pub struct SetRangeValuesMutation;
 
 impl SetRangeValuesMutation {

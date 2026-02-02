@@ -13,14 +13,24 @@
 // limitations under the License.
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+use crate::IRange;
 
 // ========== SetFeatureCalculationMutation ==========
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IFeatureCalculationManagerParam {
+  pub unit_id: String,
+  pub sub_unit_id: String,
+  pub dependency_ranges: Vec<IRange>,
+  // getDirtyData
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetFeatureCalculationMutationParams {
-    #[serde(flatten)]
-    pub params: Value, // ISetFeatureCalculationMutation
+  pub feature_id: String,
+  pub calculation_param: IFeatureCalculationManagerParam,
 }
 
 pub struct SetFeatureCalculationMutation;
@@ -37,9 +47,11 @@ impl SetFeatureCalculationMutation {
 // ========== RemoveFeatureCalculationMutation ==========
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RemoveFeatureCalculationMutationParams {
-    #[serde(flatten)]
-    pub params: Value, // IRemoveFeatureCalculationMutationParam
+  pub feature_ids: Vec<String>,
+  pub unit_id: String,
+  pub sub_unit_id: String,
 }
 
 pub struct RemoveFeatureCalculationMutation;

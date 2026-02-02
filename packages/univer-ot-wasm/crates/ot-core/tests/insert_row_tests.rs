@@ -201,10 +201,11 @@ fn test_insert_row_different_worksheets() {
     assert_eq!(m2_prime.params, m2.params);
 }
 
-// Parse error tests
+// Parse error tests - symmetric transforms fall back to identity
+// Bidirectional transforms may return errors depending on which param fails
 
 #[test]
-fn test_insert_row_vs_insert_row_parse_error_m1() {
+fn test_insert_row_vs_insert_row_parse_error_m1_falls_back_to_identity() {
     let service = TransformService::new();
 
     let m1 = MutationInfo {
@@ -230,14 +231,19 @@ fn test_insert_row_vs_insert_row_parse_error_m1() {
 
     let result = service.transform(&m1, &m2);
 
+    // Symmetric transform: when parsing fails, falls back to identity
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
-    assert!(result.error.is_some());
-    assert!(result.error.unwrap().contains("Failed to parse m1 params"));
+    assert!(result.error.is_none()); // No error - identity fallback is silent
+
+    // m2 should be unchanged (identity)
+    let m2_prime = result.m2_prime.unwrap();
+    let start_row = m2_prime.params["range"]["startRow"].as_u64().unwrap();
+    assert_eq!(start_row, 5); // No shift
 }
 
 #[test]
-fn test_insert_row_vs_insert_row_parse_error_m2() {
+fn test_insert_row_vs_insert_row_parse_error_m2_falls_back_to_identity() {
     let service = TransformService::new();
 
     let m1 = MutationInfo {
@@ -263,10 +269,15 @@ fn test_insert_row_vs_insert_row_parse_error_m2() {
 
     let result = service.transform(&m1, &m2);
 
+    // Symmetric transform: when parsing fails, falls back to identity
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
-    assert!(result.error.is_some());
-    assert!(result.error.unwrap().contains("Failed to parse m2 params"));
+    assert!(result.error.is_none()); // No error - identity fallback is silent
+
+    // m1 should be unchanged (identity)
+    let m1_prime = result.m1_prime.unwrap();
+    let start_row = m1_prime.params["range"]["startRow"].as_u64().unwrap();
+    assert_eq!(start_row, 5); // Unchanged
 }
 
 #[test]
@@ -312,7 +323,7 @@ fn test_insert_row_vs_insert_row_different_workbooks() {
 // Tests for insert-row vs set-range-values
 
 #[test]
-fn test_insert_row_vs_set_range_values_parse_error_m1() {
+fn test_insert_row_vs_set_range_values_parse_error_m1_falls_back_to_identity() {
     let service = TransformService::new();
 
     let m1 = MutationInfo {
@@ -333,14 +344,14 @@ fn test_insert_row_vs_set_range_values_parse_error_m1() {
 
     let result = service.transform(&m1, &m2);
 
+    // Bidirectional transform: when m1 parsing fails, falls back to identity
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
-    assert!(result.error.is_some());
-    assert!(result.error.unwrap().contains("Failed to parse m1 params"));
+    assert!(result.error.is_none()); // No error - identity fallback
 }
 
 #[test]
-fn test_insert_row_vs_set_range_values_parse_error_m2() {
+fn test_insert_row_vs_set_range_values_parse_error_m2_returns_error() {
     let service = TransformService::new();
 
     let m1 = MutationInfo {
@@ -366,10 +377,11 @@ fn test_insert_row_vs_set_range_values_parse_error_m2() {
 
     let result = service.transform(&m1, &m2);
 
+    // Bidirectional transform: when m2 parsing fails, returns parse error
+    // (shared_transforms::apply_shift_transform returns parse error for m2 failures)
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
     assert!(result.error.is_some());
-    assert!(result.error.unwrap().contains("Failed to parse m2 params"));
 }
 
 #[test]

@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use crate::types::{IRange, ICellData};
 
 // ========== SetArrayFormulaDataMutation ==========
 
@@ -24,9 +25,9 @@ use serde_json::Value;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetArrayFormulaDataMutationParams {
-    pub array_formula_range: Value,      // IArrayFormulaRangeType
-    pub array_formula_cell_data: Value,   // IArrayFormulaUnitCellType
-    pub array_formula_embedded: Value,    // IArrayFormulaEmbeddedMap
+    pub array_formula_range: HashMap<String, HashMap<String, HashMap<String, IRange>>>,      // IArrayFormulaRangeType
+    pub array_formula_cell_data: HashMap<String, HashMap<String, HashMap<String, Option<ICellData>>>>,   // IArrayFormulaUnitCellType
+    pub array_formula_embedded: HashMap<String, HashMap<String, HashMap<String, bool>>>,    // IArrayFormulaEmbeddedMap
 }
 
 pub struct SetArrayFormulaDataMutation;

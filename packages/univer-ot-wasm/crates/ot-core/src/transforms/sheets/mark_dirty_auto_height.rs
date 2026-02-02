@@ -1,23 +1,26 @@
-use crate::mutations::sheets::SetWorksheetRowAutoHeightMutation;
-use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
+//! Transforms for MarkDirtyRowAutoHeightMutation
+//!
+//! This mutation has `ranges: Vec<IRange>` field that needs shift transforms.
+
+use crate::mutations::sheets::{MarkDirtyRowAutoHeightMutation, InsertRowMutation, RemoveRowMutation};
+use crate::registry::{MutationId, TransformRegistry};
+use crate::utils::generic_params::GenericRangesParams;
 use crate::utils::transform_helpers::lww_transform;
-use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
+use crate::utils::shared_transforms as shared;
 
-pub const MUTATION_ID: MutationId = SetWorksheetRowAutoHeightMutation::ID;
+pub const MUTATION_ID: MutationId = MarkDirtyRowAutoHeightMutation::ID;
 
-/// Register transforms for SetWorksheetRowAutoHeightMutation (mark-dirty-auto-height)
+/// Register transforms for MarkDirtyRowAutoHeightMutation
 ///
-/// Mutation ID: sheet.mutation.mark-dirty-auto-height
+/// Mutation ID: sheet.operation.mark-dirty-row-auto-height
 ///
-/// SetWorksheetRowAutoHeightMutation marks rows as needing auto-height recalculation.
+/// MarkDirtyRowAutoHeightMutation marks rows as needing auto-height recalculation.
 /// Transform strategy: Last-Write-Wins (LWW) at worksheet level.
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Self-transform: LWW
     registry.register_symmetric_ref(MUTATION_ID, lww_transform());
-}
 
-pub fn register_cross_module_transforms(registry: &mut TransformRegistry, other_mutations: &[MutationId]) {
-    for &other_id in other_mutations {
-        registry.register_identity(MUTATION_ID, other_id);
-    }
+    // Shift transforms for MarkDirtyRowAutoHeight (row-only operations)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, MUTATION_ID, shared::insert_row_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, MUTATION_ID, shared::remove_row_shift::<GenericRangesParams>());
 }

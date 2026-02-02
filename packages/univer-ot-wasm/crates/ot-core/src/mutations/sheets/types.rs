@@ -4,6 +4,15 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::OnceLock;
+use crate::registry::TransformFnRef;
+use crate::utils::transform_factory::{
+    HasWorksheetParams, HasCellValue,
+    create_insert_row_vs_cell_value_transform,
+    create_remove_row_vs_cell_value_transform,
+    create_insert_col_vs_cell_value_transform,
+    create_remove_col_vs_cell_value_transform,
+};
 
 // ============================================================================
 // Re-exports from crate::types
@@ -254,17 +263,6 @@ pub struct ColumnData {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hd: Option<u32>,
-}
-
-/// Set range values mutation parameters (transform version)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SetRangeValuesMutationParams {
-    #[serde(flatten)]
-    pub sub_unit_params: SubUnitParams,
-
-    #[serde(rename = "cellValue", alias = "cell_value")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cell_value: Option<ObjectMatrixPrimitiveType>,
 }
 
 /// Insert row mutation parameters (transform version)

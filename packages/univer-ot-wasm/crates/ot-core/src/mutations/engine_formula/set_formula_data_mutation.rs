@@ -23,11 +23,13 @@ use serde_json::Value;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetFormulaDataMutationParams {
-    pub formula_data: Value, // IFormulaData - complex nested type
+    #[serde(flatten)]
+    pub params: Value, // ISetFormulaDataMutationParams
 }
 
 pub struct SetFormulaDataMutation;
 
+// NOTE: onlyLocal 所以这个不需要做转换处理，本身协同就不会遇到这个mutation
 impl SetFormulaDataMutation {
     pub const ID: &'static str = "formula.mutation.set-formula-data";
 

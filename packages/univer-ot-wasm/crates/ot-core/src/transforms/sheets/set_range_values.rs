@@ -1,27 +1,57 @@
+//! Transforms for SetRangeValuesMutation
+//!
+//! Cell values (cellValue HashMap) need to be adjusted when rows/columns are inserted or removed.
+//! Uses shared Generic transforms for position shifting.
+
 use crate::mutations::sheets::{
-    SetRangeValuesMutation, AddWorksheetMergeMutation, SetRangeProtectionMutation,
-    SetRangeThemeMutation, InsertSheetMutation, SetWorkbookNameMutation,
-    SetRangeValuesMutationParams,
+    SetRangeValuesMutation, InsertRowMutation, InsertColMutation,
+    RemoveRowMutation, RemoveColMutation, SetRangeValuesMutationParams,
 };
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
+use crate::utils::generic_params::GenericCellValueParams;
 use crate::utils::params::same_worksheet;
+use crate::utils::shared_transforms as shared;
 use std::sync::Arc;
 
 pub const MUTATION_ID: MutationId = SetRangeValuesMutation::ID;
 
 /// Register all transforms for set-range-values mutation
 pub fn register_transforms(registry: &mut TransformRegistry) {
-    // Self-transform (set-range-values vs set-range-values)
+    // Self-transform (set-range-values vs set-range-values) - LWW strategy
     registry.register_symmetric_ref(MUTATION_ID, create_self_transform());
 
-    // Identity transforms with non-interfering mutations
-    // Note: transforms with insert-row/col, remove-rows/col are registered in those files
-    registry.register_identity(MUTATION_ID, AddWorksheetMergeMutation::ID);
-    registry.register_identity(MUTATION_ID, SetRangeProtectionMutation::ID);
-    registry.register_identity(MUTATION_ID, SetRangeThemeMutation::ID);
-    registry.register_identity(MUTATION_ID, InsertSheetMutation::ID);
-    registry.register_identity(MUTATION_ID, SetWorkbookNameMutation::ID);
+    // ========================================================================
+    // Shift transforms using shared Generic transforms
+    // ========================================================================
+
+    // InsertRow vs SetRangeValues: shift cell row keys
+    registry.register_bidirectional_ref(
+        InsertRowMutation::ID,
+        MUTATION_ID,
+        shared::insert_row_shift::<GenericCellValueParams>(),
+    );
+
+    // RemoveRows vs SetRangeValues: shift cell row keys, remove cells in deleted rows
+    registry.register_bidirectional_ref(
+        RemoveRowMutation::ID,
+        MUTATION_ID,
+        shared::remove_row_shift::<GenericCellValueParams>(),
+    );
+
+    // InsertCol vs SetRangeValues: shift cell column keys
+    registry.register_bidirectional_ref(
+        InsertColMutation::ID,
+        MUTATION_ID,
+        shared::insert_col_shift::<GenericCellValueParams>(),
+    );
+
+    // RemoveCol vs SetRangeValues: shift cell column keys, remove cells in deleted cols
+    registry.register_bidirectional_ref(
+        RemoveColMutation::ID,
+        MUTATION_ID,
+        shared::remove_col_shift::<GenericCellValueParams>(),
+    );
 }
 
 /// Helper to create identity transform result (zero-copy!)
@@ -37,6 +67,7 @@ fn parse_error<'a>(m1: &'a MutationInfo, m2: &'a MutationInfo, msg: &str) -> Tra
 }
 
 /// Create the symmetric transform for set-range-values vs set-range-values
+/// Implements Last-Write-Wins (LWW) conflict resolution
 fn create_self_transform() -> TransformFnRef {
     Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
         // Quick worksheet check BEFORE parsing (avoids clone for different worksheets)
@@ -101,7 +132,6 @@ fn create_self_transform() -> TransformFnRef {
             }
 
             // m2 keeps all its cells (LWW - it wins on conflicts)
-            // Note: m2_prime_params already has a clone of m2_params, which includes the original cell_value
         }
 
         TransformResultRef {

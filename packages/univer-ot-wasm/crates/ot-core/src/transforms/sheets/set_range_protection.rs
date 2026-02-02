@@ -1,13 +1,21 @@
+//! Transforms for SetRangeProtectionMutation
+//!
+//! This mutation has `rule: IRangeProtectionRule` which has `ranges: Vec<IRange>`.
+//! These ranges need shift transforms when rows/columns are inserted/removed.
+
 use crate::mutations::sheets::{
-    SetRangeProtectionMutation, InsertRowMutation, InsertColMutation, RemoveRowMutation,
-    RemoveColMutation, SetRangeValuesMutation, MoveRangeMutation, MoveRowsMutation, MoveColsMutation,
-    AddWorksheetMergeMutation, SetRangeThemeMutation, SetFrozenMutation, SetRowDataMutation,
-    InsertSheetMutation, SetWorkbookNameMutation,
+    SetRangeProtectionMutation, SetRangeProtectionMutationParams,
+    InsertRowMutation, InsertRowMutationParams,
+    InsertColMutation, InsertColMutationParams,
+    RemoveRowMutation, RemoveRowsMutationParams,
+    RemoveColMutation, RemoveColMutationParams,
 };
-use crate::mutations::sheets_numfmt::SetNumfmtMutation;
-use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
-use crate::utils::transform_helpers::identity_transform;
+use crate::registry::{MutationId, TransformRegistry, TransformFnRef};
 use crate::types::{MutationInfo, TransformResultRef};
+use crate::utils::params::same_worksheet;
+use crate::utils::shift_operations::ShiftOperation;
+use crate::utils::shared_transforms::apply_shift_transform;
+use std::sync::{Arc, OnceLock};
 
 pub const MUTATION_ID: MutationId = SetRangeProtectionMutation::ID;
 
@@ -16,31 +24,116 @@ pub const MUTATION_ID: MutationId = SetRangeProtectionMutation::ID;
 /// Mutation ID: sheet.mutation.set-range-protection
 ///
 /// SetRangeProtectionMutation sets protection settings for a range.
-/// Transform strategy: Identity (protection operations don't conflict).
+/// Transform strategy: Identity for self-transforms (protection operations don't conflict).
+///
+/// Shift transforms: Protection ranges must be adjusted when rows/columns are inserted/removed.
 pub fn register_transforms(registry: &mut TransformRegistry) {
     // Self-transform: identity
-    registry.register_symmetric_ref(MUTATION_ID, identity_transform());
 
-    // Identity transforms with non-interfering mutations
-    registry.register_identity(MUTATION_ID, InsertRowMutation::ID);
-    registry.register_identity(MUTATION_ID, InsertColMutation::ID);
-    registry.register_identity(MUTATION_ID, RemoveRowMutation::ID);
-    registry.register_identity(MUTATION_ID, RemoveColMutation::ID);
-    registry.register_identity(MUTATION_ID, SetRangeValuesMutation::ID);
-    registry.register_identity(MUTATION_ID, MoveRangeMutation::ID);
-    registry.register_identity(MUTATION_ID, MoveRowsMutation::ID);
-    registry.register_identity(MUTATION_ID, MoveColsMutation::ID);
-    registry.register_identity(MUTATION_ID, AddWorksheetMergeMutation::ID);
-    registry.register_identity(MUTATION_ID, SetRangeThemeMutation::ID);
-    registry.register_identity(MUTATION_ID, SetNumfmtMutation::ID);
-    registry.register_identity(MUTATION_ID, SetFrozenMutation::ID);
-    registry.register_identity(MUTATION_ID, SetRowDataMutation::ID);
-    registry.register_identity(MUTATION_ID, InsertSheetMutation::ID);
-    registry.register_identity(MUTATION_ID, SetWorkbookNameMutation::ID);
+
+    // Shift transforms for SetRangeProtection (single rule with ranges)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, MUTATION_ID, insert_row_vs_set_range_protection());
+    registry.register_bidirectional_ref(InsertColMutation::ID, MUTATION_ID, insert_col_vs_set_range_protection());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, MUTATION_ID, remove_row_vs_set_range_protection());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, MUTATION_ID, remove_col_vs_set_range_protection());
 }
 
-pub fn register_cross_module_transforms(registry: &mut TransformRegistry, other_mutations: &[MutationId]) {
-    for &other_id in other_mutations {
-        registry.register_identity(MUTATION_ID, other_id);
-    }
+// ============================================================================
+// Local Transform Functions for SetRangeProtection
+// ============================================================================
+
+/// Transform: InsertRow vs SetRangeProtection (single rule with ranges)
+fn insert_row_vs_set_range_protection() -> TransformFnRef {
+    static TRANSFORM: OnceLock<TransformFnRef> = OnceLock::new();
+    TRANSFORM.get_or_init(|| {
+        Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
+            if let Some(false) = same_worksheet(&m1.params, &m2.params) {
+                return TransformResultRef::identity(m1, m2);
+            }
+
+            let m1_params: InsertRowMutationParams = match serde_json::from_value(m1.params.clone()) {
+                Ok(p) => p,
+                Err(_) => return TransformResultRef::identity(m1, m2),
+            };
+
+            let shift_op = ShiftOperation::InsertRows {
+                start: m1_params.range.start_row,
+                count: m1_params.range.end_row - m1_params.range.start_row + 1,
+            };
+
+            apply_shift_transform::<SetRangeProtectionMutationParams>(m1, m2, &m1_params.sub_unit_params, shift_op)
+        })
+    }).clone()
+}
+
+/// Transform: RemoveRow vs SetRangeProtection (single rule with ranges)
+fn remove_row_vs_set_range_protection() -> TransformFnRef {
+    static TRANSFORM: OnceLock<TransformFnRef> = OnceLock::new();
+    TRANSFORM.get_or_init(|| {
+        Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
+            if let Some(false) = same_worksheet(&m1.params, &m2.params) {
+                return TransformResultRef::identity(m1, m2);
+            }
+
+            let m1_params: RemoveRowsMutationParams = match serde_json::from_value(m1.params.clone()) {
+                Ok(p) => p,
+                Err(_) => return TransformResultRef::identity(m1, m2),
+            };
+
+            let shift_op = ShiftOperation::RemoveRows {
+                start: m1_params.range.start_row,
+                end: m1_params.range.end_row,
+            };
+
+            apply_shift_transform::<SetRangeProtectionMutationParams>(m1, m2, &m1_params.sub_unit_params, shift_op)
+        })
+    }).clone()
+}
+
+/// Transform: InsertCol vs SetRangeProtection (single rule with ranges)
+fn insert_col_vs_set_range_protection() -> TransformFnRef {
+    static TRANSFORM: OnceLock<TransformFnRef> = OnceLock::new();
+    TRANSFORM.get_or_init(|| {
+        Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
+            if let Some(false) = same_worksheet(&m1.params, &m2.params) {
+                return TransformResultRef::identity(m1, m2);
+            }
+
+            let m1_params: InsertColMutationParams = match serde_json::from_value(m1.params.clone()) {
+                Ok(p) => p,
+                Err(_) => return TransformResultRef::identity(m1, m2),
+            };
+
+            let shift_op = ShiftOperation::InsertCols {
+                start: m1_params.range.start_column,
+                count: m1_params.range.end_column - m1_params.range.start_column + 1,
+            };
+
+            apply_shift_transform::<SetRangeProtectionMutationParams>(m1, m2, &m1_params.sub_unit_params, shift_op)
+        })
+    }).clone()
+}
+
+/// Transform: RemoveCol vs SetRangeProtection (single rule with ranges)
+fn remove_col_vs_set_range_protection() -> TransformFnRef {
+    static TRANSFORM: OnceLock<TransformFnRef> = OnceLock::new();
+    TRANSFORM.get_or_init(|| {
+        Arc::new(|m1: &MutationInfo, m2: &MutationInfo| {
+            if let Some(false) = same_worksheet(&m1.params, &m2.params) {
+                return TransformResultRef::identity(m1, m2);
+            }
+
+            let m1_params: RemoveColMutationParams = match serde_json::from_value(m1.params.clone()) {
+                Ok(p) => p,
+                Err(_) => return TransformResultRef::identity(m1, m2),
+            };
+
+            let shift_op = ShiftOperation::RemoveCols {
+                start: m1_params.range.start_column,
+                end: m1_params.range.end_column,
+            };
+
+            apply_shift_transform::<SetRangeProtectionMutationParams>(m1, m2, &m1_params.sub_unit_params, shift_op)
+        })
+    }).clone()
 }

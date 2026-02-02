@@ -25,6 +25,7 @@ pub struct SetImageFormulaDataMutationParams {
 
 pub struct SetImageFormulaDataMutation;
 
+// NOTE: onlyLocal 所以这个不需要做转换处理，本身协同就不会遇到这个mutation
 impl SetImageFormulaDataMutation {
     pub const ID: &'static str = "formula.mutation.set-image-formula-data";
 
