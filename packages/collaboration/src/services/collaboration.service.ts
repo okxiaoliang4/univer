@@ -59,14 +59,23 @@ import { ITransformService } from './transform.service';
  */
 export interface ICollaborationService {
     /**
-     * Get current connection status
+     * Observable for connection status changes
      */
-    getConnectionStatus(): NetworkConnectionStatus;
+    connectionStatus$: Observable<NetworkConnectionStatus>;
 
     /**
      * Get current document sync state
      */
     getDocumentState(docId: string): IDocumentSyncState;
+
+    /**
+     * Get observable for document sync state changes
+     *
+     * Note: This Observable is NOT transferred over RPC. In worker mode,
+     * the main thread proxy maintains its own local BehaviorSubject that
+     * receives updates via ICollaborationCallbackService.onDocumentStateChange().
+     */
+    getDocumentState$(docId: string): Observable<IDocumentSyncState>;
 
     /**
      * Get current saved status for a document (true = no pending)
@@ -351,6 +360,8 @@ export class CollaborationService
 
     private readonly _connectionStatus$ =
         new BehaviorSubject<NetworkConnectionStatus>('disconnected');
+
+    readonly connectionStatus$ = this._connectionStatus$.asObservable();
 
     private readonly _documentStateSubjects = new Map<
         string,
@@ -809,6 +820,20 @@ export class CollaborationService
     getSavedStatus(docId: string): boolean {
         const subject = this._savedStatusSubjects.get(docId);
         return subject?.value ?? true;
+    }
+
+    getDocumentState$(docId: string): Observable<IDocumentSyncState> {
+        let subject = this._documentStateSubjects.get(docId);
+        if (!subject) {
+            subject = new BehaviorSubject<IDocumentSyncState>({
+                state: 'synced',
+                serverRev: 0,
+                pendingCount: 0,
+                awaitingCount: 0,
+            });
+            this._documentStateSubjects.set(docId, subject);
+        }
+        return subject.asObservable();
     }
 
     isDocumentSynced(docId: string): boolean {
