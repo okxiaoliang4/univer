@@ -209,7 +209,7 @@ fn test_set_row_data_vs_set_row_data_lww() {
 // ============================================================================
 
 #[test]
-fn test_insert_row_vs_set_row_data_parse_error_m2() {
+fn test_insert_row_vs_set_row_data_parse_error_m2_falls_back_to_identity() {
     let service = TransformService::new();
 
     let m1 = MutationInfo {
@@ -235,8 +235,8 @@ fn test_insert_row_vs_set_row_data_parse_error_m2() {
 
     let result = service.transform(&m1, &m2);
 
-    // With parse error, should return identity with error message
+    // With parse error, falls back to identity for resilience
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
-    assert!(result.error.is_some());
+    assert!(result.error.is_none()); // Falls back to identity, no error
 }

@@ -336,6 +336,12 @@ impl Shiftable for GenericRangeParams {
     }
 }
 
+impl Shiftable for GenericRowColParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+      shift_row_col(&mut self.row, &mut self.col, op)
+    }
+}
+
 /// Helper: Apply shift operation to a Vec<IRange>, returns true if any ranges remain
 pub fn shift_ranges_vec(ranges: &mut Vec<IRange>, op: &ShiftOperation) -> bool {
     match op {
@@ -360,6 +366,580 @@ pub fn shift_ranges_vec(ranges: &mut Vec<IRange>, op: &ShiftOperation) -> bool {
             !ranges.is_empty()
         }
         _ => true,
+    }
+}
+
+/// Helper: Apply shift operation to a single row/col position
+/// Returns Some(new_position) if the position should be kept, None if removed
+pub fn shift_row_col(row: &mut i32, col: &mut i32, op: &ShiftOperation) -> ShiftResult {
+    match op {
+        ShiftOperation::InsertRows { start, count } => {
+            if *row >= *start {
+                *row += *count;
+                ShiftResult::Modified
+            } else {
+                ShiftResult::Unchanged
+            }
+        }
+        ShiftOperation::RemoveRows { start, end } => {
+            if *row >= *start && *row <= *end {
+                ShiftResult::Removed
+            } else if *row > *end {
+                *row -= end - start + 1;
+                ShiftResult::Modified
+            } else {
+                ShiftResult::Unchanged
+            }
+        }
+        ShiftOperation::InsertCols { start, count } => {
+            if *col >= *start {
+                *col += *count;
+                ShiftResult::Modified
+            } else {
+                ShiftResult::Unchanged
+            }
+        }
+        ShiftOperation::RemoveCols { start, end } => {
+            if *col >= *start && *col <= *end {
+                ShiftResult::Removed
+            } else if *col > *end {
+                *col -= end - start + 1;
+                ShiftResult::Modified
+            } else {
+                ShiftResult::Unchanged
+            }
+        }
+        _ => ShiftResult::Unchanged,
+    }
+}
+
+// ============================================================================
+// Shiftable Implementations for HyperLink Mutations
+// ============================================================================
+
+use crate::mutations::sheets_hyper_link::{
+    AddHyperLinkMutationParams, UpdateHyperLinkRefMutationParams, UpdateRichHyperLinkMutationParams,
+};
+
+impl WorksheetParams for AddHyperLinkMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for AddHyperLinkMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => shift_row_col(&mut self.link.row, &mut self.link.column, op),
+        }
+    }
+}
+
+impl WorksheetParams for UpdateHyperLinkRefMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for UpdateHyperLinkRefMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => shift_row_col(&mut self.row, &mut self.column, op),
+        }
+    }
+}
+
+impl WorksheetParams for UpdateRichHyperLinkMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for UpdateRichHyperLinkMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => shift_row_col(&mut self.row, &mut self.col, op),
+        }
+    }
+}
+
+// ============================================================================
+// Shiftable Implementations for Conditional Formatting Mutations
+// ============================================================================
+
+use crate::mutations::sheets_conditional_formatting::{
+    AddConditionalRuleMutationParams, SetConditionalRuleMutationParams,
+};
+
+impl WorksheetParams for AddConditionalRuleMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for AddConditionalRuleMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => {
+                if shift_ranges_vec(&mut self.rule.ranges, op) {
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Removed
+                }
+            }
+        }
+    }
+}
+
+impl WorksheetParams for SetConditionalRuleMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for SetConditionalRuleMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => {
+                if shift_ranges_vec(&mut self.rule.ranges, op) {
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Removed
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Shiftable Implementations for Data Validation Mutations
+// ============================================================================
+
+use crate::mutations::data_validation::{
+    AddDataValidationMutationParams, RuleOrRules, IDataValidationRule,
+    UpdateDataValidationMutationParams, IUpdateRulePayload,
+    IRange as DataValidationIRange,
+};
+
+/// Helper to shift a data validation IRange (has same structure as types::IRange)
+fn shift_data_validation_range(range: &mut DataValidationIRange, op: &ShiftOperation) -> bool {
+    match op {
+        ShiftOperation::InsertRows { start, count } => {
+            if range.end_row >= *start {
+                if range.start_row >= *start {
+                    range.start_row += *count;
+                }
+                range.end_row += *count;
+            }
+            true
+        }
+        ShiftOperation::RemoveRows { start, end } => {
+            let remove_count = end - start + 1;
+            if range.start_row >= *start && range.end_row <= *end {
+                return false;
+            }
+            if range.start_row > *end {
+                range.start_row -= remove_count;
+                range.end_row -= remove_count;
+            } else if range.end_row >= *start {
+                if range.start_row < *start {
+                    range.end_row = (*start - 1).max(range.start_row);
+                } else {
+                    range.start_row = *start;
+                    range.end_row = *start;
+                }
+            }
+            true
+        }
+        ShiftOperation::InsertCols { start, count } => {
+            if range.end_column >= *start {
+                if range.start_column >= *start {
+                    range.start_column += *count;
+                }
+                range.end_column += *count;
+            }
+            true
+        }
+        ShiftOperation::RemoveCols { start, end } => {
+            let remove_count = end - start + 1;
+            if range.start_column >= *start && range.end_column <= *end {
+                return false;
+            }
+            if range.start_column > *end {
+                range.start_column -= remove_count;
+                range.end_column -= remove_count;
+            } else if range.end_column >= *start {
+                if range.start_column < *start {
+                    range.end_column = (*start - 1).max(range.start_column);
+                } else {
+                    range.start_column = *start;
+                    range.end_column = *start;
+                }
+            }
+            true
+        }
+        _ => true,
+    }
+}
+
+/// Helper to shift ranges in a data validation rule
+fn shift_data_validation_rule(rule: &mut IDataValidationRule, op: &ShiftOperation) -> bool {
+    rule.ranges.retain_mut(|range| shift_data_validation_range(range, op));
+    !rule.ranges.is_empty()
+}
+
+impl WorksheetParams for AddDataValidationMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for AddDataValidationMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => {
+                match &mut self.rule {
+                    RuleOrRules::Single(rule) => {
+                        if shift_data_validation_rule(rule, op) {
+                            ShiftResult::Modified
+                        } else {
+                            ShiftResult::Removed
+                        }
+                    }
+                    RuleOrRules::Multiple(rules) => {
+                        // Remove rules whose ranges are all deleted
+                        rules.retain_mut(|rule| shift_data_validation_rule(rule, op));
+                        if rules.is_empty() {
+                            ShiftResult::Removed
+                        } else {
+                            ShiftResult::Modified
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl WorksheetParams for UpdateDataValidationMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for UpdateDataValidationMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => {
+                // Only shift if the payload contains ranges
+                match &mut self.payload {
+                    IUpdateRulePayload::Range { payload } => {
+                        payload.retain_mut(|range| shift_data_validation_range(range, op));
+                        if payload.is_empty() {
+                            ShiftResult::Removed
+                        } else {
+                            ShiftResult::Modified
+                        }
+                    }
+                    IUpdateRulePayload::All { payload } => {
+                        payload.ranges.retain_mut(|range| shift_data_validation_range(range, op));
+                        if payload.ranges.is_empty() {
+                            ShiftResult::Removed
+                        } else {
+                            ShiftResult::Modified
+                        }
+                    }
+                    // Setting and Options payloads don't have position data
+                    _ => ShiftResult::Unchanged,
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Shiftable Implementations for Sheet Table Mutations
+// ============================================================================
+
+use crate::mutations::sheets_table::{
+    AddSheetTableParams, SetSheetTableMutationParams,
+    types::ITableRange,
+};
+
+/// Shift an ITableRange (similar to IRange)
+fn shift_table_range(range: &mut ITableRange, op: &ShiftOperation) -> bool {
+    match op {
+        ShiftOperation::InsertRows { start, count } => {
+            if range.end_row >= *start {
+                if range.start_row >= *start {
+                    range.start_row += *count;
+                }
+                range.end_row += *count;
+            }
+            true
+        }
+        ShiftOperation::RemoveRows { start, end } => {
+            let remove_count = end - start + 1;
+            // Range completely within removed area
+            if range.start_row >= *start && range.end_row <= *end {
+                return false;
+            }
+            // Range after removed area
+            if range.start_row > *end {
+                range.start_row -= remove_count;
+                range.end_row -= remove_count;
+            }
+            // Range overlaps with removed area
+            else if range.end_row >= *start {
+                if range.start_row < *start {
+                    // Range starts before removal
+                    range.end_row = (*start - 1).max(range.start_row);
+                } else {
+                    // Range starts within removal
+                    range.start_row = *start;
+                    range.end_row = *start;
+                }
+            }
+            true
+        }
+        ShiftOperation::InsertCols { start, count } => {
+            if range.end_column >= *start {
+                if range.start_column >= *start {
+                    range.start_column += *count;
+                }
+                range.end_column += *count;
+            }
+            true
+        }
+        ShiftOperation::RemoveCols { start, end } => {
+            let remove_count = end - start + 1;
+            // Range completely within removed area
+            if range.start_column >= *start && range.end_column <= *end {
+                return false;
+            }
+            // Range after removed area
+            if range.start_column > *end {
+                range.start_column -= remove_count;
+                range.end_column -= remove_count;
+            }
+            // Range overlaps with removed area
+            else if range.end_column >= *start {
+                if range.start_column < *start {
+                    range.end_column = (*start - 1).max(range.start_column);
+                } else {
+                    range.start_column = *start;
+                    range.end_column = *start;
+                }
+            }
+            true
+        }
+        _ => true,
+    }
+}
+
+impl WorksheetParams for AddSheetTableParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for AddSheetTableParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => {
+                if shift_table_range(&mut self.range, op) {
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Removed
+                }
+            }
+        }
+    }
+}
+
+impl WorksheetParams for SetSheetTableMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for SetSheetTableMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => {
+                // Only shift if config has update_range
+                if let Some(ref mut update_range) = self.config.update_range {
+                    if shift_table_range(&mut update_range.new_range, op) {
+                        ShiftResult::Modified
+                    } else {
+                        ShiftResult::Removed
+                    }
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Shiftable Implementations for Thread Comment Mutations
+// ============================================================================
+
+use crate::mutations::thread_comment::{
+    AddCommentMutationParams, UpdateCommentRefMutationParams,
+};
+
+/// Parse a cell reference string like "A1" to (row, col)
+/// Returns None if parsing fails
+fn parse_cell_ref(ref_str: &str) -> Option<(i32, i32)> {
+    let ref_str = ref_str.trim();
+    if ref_str.is_empty() {
+        return None;
+    }
+
+    let mut col_str = String::new();
+    let mut row_str = String::new();
+
+    for ch in ref_str.chars() {
+        if ch.is_ascii_alphabetic() {
+            col_str.push(ch.to_ascii_uppercase());
+        } else if ch.is_ascii_digit() {
+            row_str.push(ch);
+        } else {
+            // Invalid character
+            return None;
+        }
+    }
+
+    if col_str.is_empty() || row_str.is_empty() {
+        return None;
+    }
+
+    // Convert column letters to 0-based index (A=0, B=1, ..., Z=25, AA=26, ...)
+    let mut col: i32 = 0;
+    for ch in col_str.chars() {
+        col = col * 26 + (ch as i32 - 'A' as i32 + 1);
+    }
+    col -= 1; // Convert to 0-based
+
+    // Parse row number and convert to 0-based
+    let row: i32 = row_str.parse().ok()?;
+    let row = row - 1; // Convert to 0-based
+
+    Some((row, col))
+}
+
+/// Convert (row, col) back to cell reference string
+fn to_cell_ref(row: i32, col: i32) -> String {
+    let mut col_str = String::new();
+    let mut c = col + 1; // Convert to 1-based for calculation
+
+    while c > 0 {
+        let remainder = ((c - 1) % 26) as u8;
+        col_str.insert(0, (b'A' + remainder) as char);
+        c = (c - 1) / 26;
+    }
+
+    format!("{}{}", col_str, row + 1) // Row is 1-based in reference
+}
+
+/// Shift a cell reference string
+fn shift_cell_ref(ref_str: &mut String, op: &ShiftOperation) -> ShiftResult {
+    let (mut row, mut col) = match parse_cell_ref(ref_str) {
+        Some(pos) => pos,
+        None => return ShiftResult::Unchanged,
+    };
+
+    let result = shift_row_col(&mut row, &mut col, op);
+
+    if result == ShiftResult::Modified {
+        *ref_str = to_cell_ref(row, col);
+    }
+
+    result
+}
+
+impl WorksheetParams for AddCommentMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for AddCommentMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => shift_cell_ref(&mut self.comment.ref_field, op),
+        }
+    }
+}
+
+impl WorksheetParams for UpdateCommentRefMutationParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl Shiftable for UpdateCommentRefMutationParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    return ShiftResult::Removed;
+                }
+                ShiftResult::Unchanged
+            }
+            _ => shift_cell_ref(&mut self.payload.ref_field, op),
+        }
     }
 }
 

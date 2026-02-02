@@ -327,7 +327,7 @@ fn test_insert_col_vs_set_range_values_parse_error_m1_falls_back_to_identity() {
 }
 
 #[test]
-fn test_insert_col_vs_set_range_values_parse_error_m2_returns_error() {
+fn test_insert_col_vs_set_range_values_parse_error_m2_falls_back_to_identity() {
     let service = TransformService::new();
 
     let m1 = MutationInfo {
@@ -353,12 +353,11 @@ fn test_insert_col_vs_set_range_values_parse_error_m2_returns_error() {
 
     let result = service.transform(&m1, &m2);
 
-    // When m2 can't be parsed, the bidirectional transform returns a parse error
-    // because we need to know when mutation data is malformed
-    // (Note: the shared_transforms::apply_shift_transform returns parse error for m2 failures)
+    // When m2 can't be parsed, the bidirectional transform falls back to identity
+    // This is more resilient - if we can't understand the params, we don't modify them
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
-    assert!(result.error.is_some()); // Parse error for m2
+    assert!(result.error.is_none()); // Falls back to identity, no error
 }
 
 #[test]

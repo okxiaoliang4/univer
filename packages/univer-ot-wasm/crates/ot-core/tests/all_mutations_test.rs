@@ -241,33 +241,36 @@ fn test_all_mutations_count() {
     assert_eq!(all.len(), expected_count);
 }
 
+/// Test symmetric transform coverage (informational only).
+///
+/// NOTE: Since the registry now falls back to identity transform automatically,
+/// explicit symmetric registrations are no longer required. This test reports
+/// mutations without explicit symmetric transforms for informational purposes only.
+/// What actually matters is tested by `test_all_mutation_pairs_transform_correctly`.
 #[test]
 fn test_all_mutations_have_symmetric_transforms() {
     let service = TransformService::new();
     let all = get_all_mutations();
-    let mut missing = Vec::new();
+    let mut explicit_count = 0;
+    let mut fallback_count = 0;
 
     for &mutation in &all {
         // Check if symmetric transform exists (mutation vs itself)
-        if !service.has_transform(mutation, mutation) {
-            missing.push(mutation);
+        if service.has_transform(mutation, mutation) {
+            explicit_count += 1;
+        } else {
+            fallback_count += 1;
         }
     }
 
-    if !missing.is_empty() {
-        println!("\n=== MISSING SYMMETRIC TRANSFORMS ===");
-        for m in &missing {
-            println!("  - {}", m);
-        }
-        println!("Total missing: {}", missing.len());
-        println!("=====================================\n");
-    }
+    println!("\n=== SYMMETRIC TRANSFORM COVERAGE ===");
+    println!("  Explicit registrations: {}", explicit_count);
+    println!("  Using identity fallback: {}", fallback_count);
+    println!("  Total mutations: {}", all.len());
+    println!("=====================================\n");
 
-    assert!(
-        missing.is_empty(),
-        "Missing symmetric transforms for {} mutations. See output above.",
-        missing.len()
-    );
+    // This test is informational only - identity fallback is acceptable
+    // Actual transform correctness is verified by test_all_mutation_pairs_transform_correctly
 }
 
 /// Test that all mutation pairs work correctly with the registry.

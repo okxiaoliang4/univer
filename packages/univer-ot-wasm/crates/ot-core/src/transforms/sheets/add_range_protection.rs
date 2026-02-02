@@ -3,12 +3,13 @@
 //! This mutation has `rules: Vec<IRangeProtectionRule>` where each rule has `ranges: Vec<IRange>`.
 //! These ranges need shift transforms when rows/columns are inserted/removed.
 
+use crate::mutations::{MoveColsMutation, MoveRangeMutation, MoveRowsMutation, RemoveSheetMutation};
 use crate::mutations::sheets::{
     AddRangeProtectionMutation, AddRangeProtectionMutationParams,
     InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation,
 };
 use crate::registry::TransformRegistry;
-use crate::utils::shared_transforms::{insert_col_shift, insert_row_shift, remove_col_shift, remove_row_shift};
+use crate::utils::shared_transforms::{insert_col_shift, insert_row_shift, move_cols_shift, move_range_shift, move_rows_shift, remove_col_shift, remove_row_shift, remove_sheet_shift};
 
 /// Register transforms for AddRangeProtectionMutation
 ///
@@ -24,4 +25,8 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_bidirectional_ref(InsertColMutation::ID, AddRangeProtectionMutation::ID, insert_col_shift::<AddRangeProtectionMutationParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, AddRangeProtectionMutation::ID, remove_row_shift::<AddRangeProtectionMutationParams>());
     registry.register_bidirectional_ref(RemoveColMutation::ID, AddRangeProtectionMutation::ID, remove_col_shift::<AddRangeProtectionMutationParams>());
+    registry.register_bidirectional_ref(MoveColsMutation::ID, AddRangeProtectionMutation::ID, move_cols_shift::<AddRangeProtectionMutationParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, AddRangeProtectionMutation::ID, move_rows_shift::<AddRangeProtectionMutationParams>());
+    registry.register_bidirectional_ref(MoveRangeMutation::ID, AddRangeProtectionMutation::ID, move_range_shift::<AddRangeProtectionMutationParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, AddRangeProtectionMutation::ID, remove_sheet_shift::<AddRangeProtectionMutationParams>());
 }

@@ -1,10 +1,8 @@
-use crate::mutations::AddRangeProtectionMutationParams;
-use crate::mutations::sheets::AddWorksheetProtectionMutation;
-use crate::registry::{MutationId, TransformRegistry};
+use crate::mutations::{AddRangeProtectionMutationParams, AddWorksheetProtectionMutation};
+use crate::mutations::{InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation, MoveColsMutation, MoveRowsMutation, MoveRangeMutation, RemoveSheetMutation};
+use crate::registry::TransformRegistry;
 use crate::utils::{ShiftOperation, ShiftResult, Shiftable, WorksheetParams, shift_ranges_vec};
-
-pub const MUTATION_ID: MutationId = AddWorksheetProtectionMutation::ID;
-
+use crate::utils::shared_transforms::{insert_col_shift, insert_row_shift, remove_col_shift, remove_row_shift, move_cols_shift, move_rows_shift, move_range_shift, remove_sheet_shift};
 
 impl WorksheetParams for AddRangeProtectionMutationParams {
   fn unit_id(&self) -> &str { &self.unit_id }
@@ -56,13 +54,13 @@ impl Shiftable for AddRangeProtectionMutationParams {
   }
 }
 
-/// Register transforms for AddWorksheetProtectionMutation
-///
-/// Mutation ID: sheet.mutation.add-worksheet-protection
-///
-/// AddWorksheetProtectionMutation adds protection to a worksheet.
-/// Transform strategy: Identity (add operations don't conflict).
-pub fn register_transforms(_registry: &mut TransformRegistry) {
-    // Symmetric: AddWorksheetProtection vs AddWorksheetProtection (identity - concurrent adds don't conflict)
-
+pub fn register_transforms(registry: &mut TransformRegistry) {
+  registry.register_bidirectional_ref(InsertRowMutation::ID, AddWorksheetProtectionMutation::ID, insert_row_shift::<AddRangeProtectionMutationParams>());
+  registry.register_bidirectional_ref(InsertColMutation::ID, AddWorksheetProtectionMutation::ID, insert_col_shift::<AddRangeProtectionMutationParams>());
+  registry.register_bidirectional_ref(RemoveRowMutation::ID, AddWorksheetProtectionMutation::ID, remove_row_shift::<AddRangeProtectionMutationParams>());
+  registry.register_bidirectional_ref(RemoveColMutation::ID, AddWorksheetProtectionMutation::ID, remove_col_shift::<AddRangeProtectionMutationParams>());
+  registry.register_bidirectional_ref(MoveColsMutation::ID, AddWorksheetProtectionMutation::ID, move_cols_shift::<AddRangeProtectionMutationParams>());
+  registry.register_bidirectional_ref(MoveRowsMutation::ID, AddWorksheetProtectionMutation::ID, move_rows_shift::<AddRangeProtectionMutationParams>());
+  registry.register_bidirectional_ref(MoveRangeMutation::ID, AddWorksheetProtectionMutation::ID, move_range_shift::<AddRangeProtectionMutationParams>());
+  registry.register_bidirectional_ref(RemoveSheetMutation::ID, AddWorksheetProtectionMutation::ID, remove_sheet_shift::<AddRangeProtectionMutationParams>());
 }

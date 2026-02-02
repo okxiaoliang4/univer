@@ -1,22 +1,24 @@
-//! Transforms for SetWorksheetRangeThemeStyleMutation
-//!
-//! This mutation has a single `range: IRange` field that needs shift transforms.
-
-use crate::mutations::sheets::{SetWorksheetRangeThemeStyleMutation, InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation};
-use crate::registry::{MutationId, TransformRegistry};
-use crate::utils::generic_params::GenericRangeParams;
+use crate::mutations::sheets::{
+  SetWorksheetRangeThemeStyleMutation, InsertRowMutation, InsertColMutation,
+  RemoveRowMutation, RemoveColMutation,
+  MoveColsMutation, MoveRangeMutation, MoveRowsMutation, RemoveSheetMutation
+};
+use crate::registry::{TransformRegistry};
+use crate::utils::GenericRangesParams;
+use crate::utils::shared_transforms::{insert_col_shift, insert_row_shift, remove_col_shift, remove_row_shift, move_cols_shift, move_rows_shift, move_range_shift, remove_sheet_shift};
 use crate::utils::transform_helpers::lww_transform;
-use crate::utils::shared_transforms as shared;
 
-pub const MUTATION_ID: MutationId = SetWorksheetRangeThemeStyleMutation::ID;
 
 pub fn register_transforms(registry: &mut TransformRegistry) {
-    // Self-transform: LWW strategy
-    registry.register_symmetric_ref(MUTATION_ID, lww_transform());
+// Register symmetric LWW transform for SetWorksheetRangeThemeStyle
+registry.register_symmetric_ref(SetWorksheetRangeThemeStyleMutation::ID, lww_transform());
 
-    // Shift transforms for SetWorksheetRangeThemeStyle (single range)
-    registry.register_bidirectional_ref(InsertRowMutation::ID, MUTATION_ID, shared::insert_row_shift::<GenericRangeParams>());
-    registry.register_bidirectional_ref(InsertColMutation::ID, MUTATION_ID, shared::insert_col_shift::<GenericRangeParams>());
-    registry.register_bidirectional_ref(RemoveRowMutation::ID, MUTATION_ID, shared::remove_row_shift::<GenericRangeParams>());
-    registry.register_bidirectional_ref(RemoveColMutation::ID, MUTATION_ID, shared::remove_col_shift::<GenericRangeParams>());
+registry.register_bidirectional_ref(InsertRowMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, insert_row_shift::<GenericRangesParams>());
+registry.register_bidirectional_ref(InsertColMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, insert_col_shift::<GenericRangesParams>());
+registry.register_bidirectional_ref(RemoveRowMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, remove_row_shift::<GenericRangesParams>());
+registry.register_bidirectional_ref(RemoveColMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, remove_col_shift::<GenericRangesParams>());
+registry.register_bidirectional_ref(MoveColsMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, move_cols_shift::<GenericRangesParams>());
+registry.register_bidirectional_ref(MoveRowsMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, move_rows_shift::<GenericRangesParams>());
+registry.register_bidirectional_ref(MoveRangeMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, move_range_shift::<GenericRangesParams>());
+registry.register_bidirectional_ref(RemoveSheetMutation::ID, SetWorksheetRangeThemeStyleMutation::ID, remove_sheet_shift::<GenericRangesParams>());
 }

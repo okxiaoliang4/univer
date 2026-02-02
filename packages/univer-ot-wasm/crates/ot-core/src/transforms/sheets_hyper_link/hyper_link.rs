@@ -1,8 +1,12 @@
+use crate::mutations::sheets::{InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation};
 use crate::mutations::sheets_hyper_link::{
-    AddHyperLinkMutation, RemoveHyperLinkMutation, UpdateHyperLinkMutation,
-    UpdateHyperLinkRefMutation, UpdateRichHyperLinkMutation,
+    AddHyperLinkMutation, AddHyperLinkMutationParams,
+    RemoveHyperLinkMutation, UpdateHyperLinkMutation,
+    UpdateHyperLinkRefMutation, UpdateHyperLinkRefMutationParams,
+    UpdateRichHyperLinkMutation, UpdateRichHyperLinkMutationParams,
 };
 use crate::registry::{MutationId, TransformRegistry};
+use crate::utils::shared_transforms as shared;
 use crate::utils::transform_helpers::{lww_transform, identity_transform};
 
 pub const ADD_HYPER_LINK_ID: MutationId = AddHyperLinkMutation::ID;
@@ -31,5 +35,23 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_bidirectional_ref(UPDATE_HYPER_LINK_ID, UPDATE_RICH_HYPER_LINK_ID, identity_transform());
     registry.register_bidirectional_ref(UPDATE_HYPER_LINK_REF_ID, UPDATE_RICH_HYPER_LINK_ID, identity_transform());
 
-    // NOTE: No register_identity calls needed - registry falls back to identity automatically
+    // Shift transforms for AddHyperLink (has link.row, link.column)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, ADD_HYPER_LINK_ID, shared::insert_row_shift::<AddHyperLinkMutationParams>());
+    registry.register_bidirectional_ref(InsertColMutation::ID, ADD_HYPER_LINK_ID, shared::insert_col_shift::<AddHyperLinkMutationParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, ADD_HYPER_LINK_ID, shared::remove_row_shift::<AddHyperLinkMutationParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, ADD_HYPER_LINK_ID, shared::remove_col_shift::<AddHyperLinkMutationParams>());
+
+    // Shift transforms for UpdateHyperLinkRef (has row, column)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, UPDATE_HYPER_LINK_REF_ID, shared::insert_row_shift::<UpdateHyperLinkRefMutationParams>());
+    registry.register_bidirectional_ref(InsertColMutation::ID, UPDATE_HYPER_LINK_REF_ID, shared::insert_col_shift::<UpdateHyperLinkRefMutationParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, UPDATE_HYPER_LINK_REF_ID, shared::remove_row_shift::<UpdateHyperLinkRefMutationParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, UPDATE_HYPER_LINK_REF_ID, shared::remove_col_shift::<UpdateHyperLinkRefMutationParams>());
+
+    // Shift transforms for UpdateRichHyperLink (has row, col)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, UPDATE_RICH_HYPER_LINK_ID, shared::insert_row_shift::<UpdateRichHyperLinkMutationParams>());
+    registry.register_bidirectional_ref(InsertColMutation::ID, UPDATE_RICH_HYPER_LINK_ID, shared::insert_col_shift::<UpdateRichHyperLinkMutationParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, UPDATE_RICH_HYPER_LINK_ID, shared::remove_row_shift::<UpdateRichHyperLinkMutationParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, UPDATE_RICH_HYPER_LINK_ID, shared::remove_col_shift::<UpdateRichHyperLinkMutationParams>());
+
+    // NOTE: RemoveHyperLink and UpdateHyperLink don't have position fields, no shift needed
 }

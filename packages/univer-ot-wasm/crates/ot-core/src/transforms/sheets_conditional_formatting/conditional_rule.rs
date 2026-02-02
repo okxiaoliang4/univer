@@ -1,8 +1,11 @@
+use crate::mutations::sheets::{InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation};
 use crate::mutations::sheets_conditional_formatting::{
-    AddConditionalRuleMutation, DeleteConditionalRuleMutation, SetConditionalRuleMutation,
+    AddConditionalRuleMutation, AddConditionalRuleMutationParams,
+    DeleteConditionalRuleMutation, SetConditionalRuleMutation, SetConditionalRuleMutationParams,
     MoveConditionalRuleMutation,
 };
 use crate::registry::{MutationId, TransformRegistry};
+use crate::utils::shared_transforms as shared;
 use crate::utils::transform_helpers::{lww_transform, identity_transform};
 
 pub const ADD_RULE_ID: MutationId = AddConditionalRuleMutation::ID;
@@ -29,5 +32,17 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Move rule
     registry.register_symmetric_ref(MOVE_RULE_ID, identity_transform());
 
-    // NOTE: No register_identity calls needed - registry falls back to identity automatically
+    // Shift transforms for AddConditionalRule (has rule.ranges)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, ADD_RULE_ID, shared::insert_row_shift::<AddConditionalRuleMutationParams>());
+    registry.register_bidirectional_ref(InsertColMutation::ID, ADD_RULE_ID, shared::insert_col_shift::<AddConditionalRuleMutationParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, ADD_RULE_ID, shared::remove_row_shift::<AddConditionalRuleMutationParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, ADD_RULE_ID, shared::remove_col_shift::<AddConditionalRuleMutationParams>());
+
+    // Shift transforms for SetConditionalRule (has rule.ranges)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, SET_RULE_ID, shared::insert_row_shift::<SetConditionalRuleMutationParams>());
+    registry.register_bidirectional_ref(InsertColMutation::ID, SET_RULE_ID, shared::insert_col_shift::<SetConditionalRuleMutationParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, SET_RULE_ID, shared::remove_row_shift::<SetConditionalRuleMutationParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, SET_RULE_ID, shared::remove_col_shift::<SetConditionalRuleMutationParams>());
+
+    // NOTE: DeleteConditionalRule and MoveConditionalRule don't have position fields, no shift needed
 }

@@ -291,9 +291,9 @@ fn test_remove_col_vs_set_range_values_parse_error_m1_falls_back_to_identity() {
     assert!(result.error.is_none()); // No error - identity fallback
 }
 
-// Bidirectional transforms: m2 parse errors return actual parse errors
+// Bidirectional transforms: m2 parse errors fall back to identity for resilience
 #[test]
-fn test_remove_col_vs_set_range_values_parse_error_m2_returns_error() {
+fn test_remove_col_vs_set_range_values_parse_error_m2_falls_back_to_identity() {
     let service = TransformService::new();
 
     let m1 = MutationInfo {
@@ -319,10 +319,10 @@ fn test_remove_col_vs_set_range_values_parse_error_m2_returns_error() {
 
     let result = service.transform(&m1, &m2);
 
-    // Bidirectional transform: m2 parse failure returns error
+    // Bidirectional transform: m2 parse failure falls back to identity
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
-    assert!(result.error.is_some()); // Parse error for m2
+    assert!(result.error.is_none()); // Falls back to identity, no error
 }
 
 // ============================================================================

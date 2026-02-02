@@ -1,7 +1,11 @@
+use crate::mutations::sheets::{InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation};
 use crate::mutations::data_validation::{
-    AddDataValidationMutation, RemoveDataValidationMutation, UpdateDataValidationMutation,
+    AddDataValidationMutation, AddDataValidationMutationParams,
+    RemoveDataValidationMutation,
+    UpdateDataValidationMutation, UpdateDataValidationMutationParams,
 };
 use crate::registry::{MutationId, TransformRegistry};
+use crate::utils::shared_transforms as shared;
 use crate::utils::transform_helpers::{lww_transform, identity_transform};
 
 pub const ADD_RULE_ID: MutationId = AddDataValidationMutation::ID;
@@ -21,5 +25,18 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Update rule transforms
     registry.register_symmetric_ref(UPDATE_RULE_ID, lww_transform());
 
-    // NOTE: No register_identity calls needed - registry falls back to identity automatically
+    // Shift transforms for AddDataValidation (has rule.ranges)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, ADD_RULE_ID, shared::insert_row_shift::<AddDataValidationMutationParams>());
+    registry.register_bidirectional_ref(InsertColMutation::ID, ADD_RULE_ID, shared::insert_col_shift::<AddDataValidationMutationParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, ADD_RULE_ID, shared::remove_row_shift::<AddDataValidationMutationParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, ADD_RULE_ID, shared::remove_col_shift::<AddDataValidationMutationParams>());
+
+    // Shift transforms for UpdateDataValidation (has payload.ranges in Range/All variants)
+    registry.register_bidirectional_ref(InsertRowMutation::ID, UPDATE_RULE_ID, shared::insert_row_shift::<UpdateDataValidationMutationParams>());
+    registry.register_bidirectional_ref(InsertColMutation::ID, UPDATE_RULE_ID, shared::insert_col_shift::<UpdateDataValidationMutationParams>());
+    registry.register_bidirectional_ref(RemoveRowMutation::ID, UPDATE_RULE_ID, shared::remove_row_shift::<UpdateDataValidationMutationParams>());
+    registry.register_bidirectional_ref(RemoveColMutation::ID, UPDATE_RULE_ID, shared::remove_col_shift::<UpdateDataValidationMutationParams>());
+
+
+    // NOTE: RemoveDataValidation only has rule_id, no position fields
 }
