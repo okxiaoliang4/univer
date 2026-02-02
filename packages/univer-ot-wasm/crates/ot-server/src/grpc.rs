@@ -103,7 +103,6 @@ impl OtRpcService for OtGrpcService {
             doc_id: req.doc_id.clone(),
             server_rev: applied.server_rev,
             user_id: applied.user_id.clone(),
-            mutations: applied.mutations.clone(),
         };
 
         match serde_json::to_value(&pushed) {

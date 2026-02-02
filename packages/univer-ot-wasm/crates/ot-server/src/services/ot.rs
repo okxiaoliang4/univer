@@ -28,6 +28,7 @@ pub struct ChangesetApplied {
     #[serde(rename = "serverRev")]
     pub server_rev: i64,
     pub mutations: Vec<MutationInfo>,
+    pub op_ids: Vec<String>,
     #[serde(rename = "userId")]
     pub user_id: String,
 }
@@ -97,6 +98,11 @@ impl OTService {
                         None, // No limit needed as range is bounded by changeset_size
                     )
                     .await?;
+                let ack_op_ids = changeset
+                    .mutations
+                    .iter()
+                    .map(|mutation| mutation.op_id.clone())
+                    .collect();
                 return Ok(ChangesetApplied {
                     server_rev: existing_rev + changeset_size - 1,
                     mutations: existing_mutations
@@ -106,6 +112,7 @@ impl OTService {
                             params: op.params,
                         })
                         .collect(),
+                    op_ids: ack_op_ids,
                     user_id: changeset.user_id,
                 });
             }
@@ -188,6 +195,7 @@ impl OTService {
 
         // Store all transformed operations (m1_primes) into database
         let mut transformed_mutations = Vec::new();
+        let mut applied_op_ids = Vec::new();
         let mut next_rev = current_version + 1;
         let now = chrono::Utc::now();
 
@@ -206,7 +214,7 @@ impl OTService {
                 mutation_id: Set(m1_prime.id.clone()),
                 params: Set(params),
                 client_id: Set(changeset.client_id.clone()),
-                op_id: Set(op_id),
+                op_id: Set(op_id.clone()),
                 created_at: Set(now.into()),
                 ..Default::default()
             };
@@ -214,6 +222,7 @@ impl OTService {
             operation.insert(&txn).await?;
             let _ = self.op_queue_service.enqueue_doc(&doc_id.to_string()).await;
             transformed_mutations.push(m1_prime);
+            applied_op_ids.push(op_id);
             next_rev += 1;
         }
 
@@ -243,6 +252,7 @@ impl OTService {
         Ok(ChangesetApplied {
             server_rev: new_version,
             mutations: transformed_mutations,
+            op_ids: applied_op_ids,
             user_id: changeset.user_id,
         })
     }

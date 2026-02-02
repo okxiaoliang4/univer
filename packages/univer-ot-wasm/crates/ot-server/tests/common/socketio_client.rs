@@ -28,7 +28,8 @@ pub struct ChangesetAck {
     pub status: String,
     #[serde(rename = "serverRev")]
     pub server_rev: Option<i64>,
-    pub mutations: Option<Vec<serde_json::Value>>,
+    #[serde(rename = "opIds")]
+    pub op_ids: Option<Vec<String>>,
     pub message: Option<String>,
 }
 

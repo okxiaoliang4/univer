@@ -20,9 +20,9 @@ pub struct ChangesetAck {
     pub status: String, // "ok" | "error"
     #[serde(rename = "serverRev")]
     pub server_rev: Option<i64>,
-    /// The mutations after server-side OT transformation
-    /// This is the "authoritative" result that clients should use to ensure consistency
-    pub mutations: Option<Vec<MutationInfo>>,
+    /// Operation IDs acknowledged by server
+    #[serde(rename = "opIds")]
+    pub op_ids: Option<Vec<String>>,
     pub message: Option<String>,
 }
 
@@ -35,7 +35,6 @@ pub struct ChangesetPushed {
     pub server_rev: i64,
     #[serde(rename = "userId")]
     pub user_id: String,
-    pub mutations: Vec<MutationInfo>,
 }
 
 /// Request structure for join_doc event

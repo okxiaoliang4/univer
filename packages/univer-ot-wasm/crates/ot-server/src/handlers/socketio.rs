@@ -92,7 +92,8 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
     // Setup handlers for /ws namespace
     let state_clone = state.clone();
     io.ns("/ws", move |socket: SocketRef, Data(auth): Data<AuthRequest>| async move {
-        info!("Socket connected to /ws namespace: {:?}", socket.id);
+        info!(">>> [CONNECT] Socket connected to /ws namespace: socket_id={:?}", socket.id);
+        info!(">>> [CONNECT] Auth token present: {}", !auth.token.is_empty());
 
         // Extract auth token from handshake auth data or fallback to query string
         let token = if !auth.token.is_empty() {
@@ -143,14 +144,26 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
             move |socket: SocketRef, Data::<JoinDocRequest>(req), ack: AckSender| {
                 let state = state.clone();
                 async move {
-                    match handle_join_doc(&socket, &state, req).await {
+                    info!(">>> [join_doc] Received request: socket_id={}, doc_id={}", socket.id, req.doc_id);
+                    match handle_join_doc(&socket, &state, req.clone()).await {
                         Ok(ack_data) => {
-                            if let Ok(json) = serde_json::to_value(&ack_data) {
-                                let _ = ack.send(&json);
+                            info!(">>> [join_doc] Success: doc_id={}, version={:?}", req.doc_id, ack_data.version);
+                            match serde_json::to_value(&ack_data) {
+                                Ok(json) => {
+                                    info!(">>> [join_doc] Sending ACK: {:?}", json);
+                                    if let Err(e) = ack.send(&json) {
+                                        error!(">>> [join_doc] Failed to send ACK: {:?}", e);
+                                    } else {
+                                        info!(">>> [join_doc] ACK sent successfully");
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(">>> [join_doc] Failed to serialize ACK: {}", e);
+                                }
                             }
                         }
                         Err(e) => {
-                            error!("Error joining doc: {}", e);
+                            error!(">>> [join_doc] Error: doc_id={}, error={}", req.doc_id, e);
                             let error_ack = JoinDocAck {
                                 status: "error".to_string(),
                                 version: None,
@@ -158,7 +171,9 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
                                 message: Some(e.to_string()),
                             };
                             if let Ok(json) = serde_json::to_value(&error_ack) {
-                                let _ = ack.send(&json);
+                                if let Err(e) = ack.send(&json) {
+                                    error!(">>> [join_doc] Failed to send error ACK: {:?}", e);
+                                }
                             }
                         }
                     }
@@ -224,7 +239,7 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
                             let error_ack = ChangesetAck {
                                 status: "error".to_string(),
                                 server_rev: None,
-                                mutations: None,
+                                op_ids: None,
                                 message: Some(e.to_string()),
                             };
                             if let Ok(json) = serde_json::to_value(&error_ack) {
@@ -243,21 +258,36 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
             move |socket: SocketRef, Data::<FetchOpsRequest>(req), ack: AckSender| {
                 let state = state.clone();
                 async move {
-                    match handle_fetch_ops(&socket, &state, req).await {
+                    info!(">>> [fetch_ops] Received request: socket_id={}, doc_id={}, start_rev={}", socket.id, req.doc_id, req.start_rev);
+                    match handle_fetch_ops(&socket, &state, req.clone()).await {
                         Ok(ack_data) => {
-                            if let Ok(json) = serde_json::to_value(&ack_data) {
-                                let _ = ack.send(&json);
+                            let ops_count = ack_data.operations.as_ref().map(|o| o.len()).unwrap_or(0);
+                            info!(">>> [fetch_ops] Success: doc_id={}, ops_count={}", req.doc_id, ops_count);
+                            match serde_json::to_value(&ack_data) {
+                                Ok(json) => {
+                                    info!(">>> [fetch_ops] Sending ACK with {} operations", ops_count);
+                                    if let Err(e) = ack.send(&json) {
+                                        error!(">>> [fetch_ops] Failed to send ACK: {:?}", e);
+                                    } else {
+                                        info!(">>> [fetch_ops] ACK sent successfully");
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(">>> [fetch_ops] Failed to serialize ACK: {}", e);
+                                }
                             }
                         }
                         Err(e) => {
-                            error!("Error fetching ops: {}", e);
+                            error!(">>> [fetch_ops] Error: doc_id={}, error={}", req.doc_id, e);
                             let error_ack = FetchOpsAck {
                                 status: "error".to_string(),
                                 operations: None,
                                 message: Some(e.to_string()),
                             };
                             if let Ok(json) = serde_json::to_value(&error_ack) {
-                                let _ = ack.send(&json);
+                                if let Err(e) = ack.send(&json) {
+                                    error!(">>> [fetch_ops] Failed to send error ACK: {:?}", e);
+                                }
                             }
                         }
                     }
@@ -287,6 +317,8 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
                 handle_disconnect(&socket, &state).await;
             }
         });
+
+        info!(">>> [CONNECT] All event handlers registered for socket: {:?}", socket.id);
     });
 }
 
@@ -516,7 +548,6 @@ async fn handle_changeset(
         doc_id: req.doc_id.clone(),
         server_rev: result.server_rev,
         user_id: result.user_id.clone(),
-        mutations: result.mutations.clone(),
     };
 
     // Start timing for broadcast latency
@@ -556,8 +587,7 @@ async fn handle_changeset(
     Ok(ChangesetAck {
         status: "ok".to_string(),
         server_rev: Some(result.server_rev),
-        // Return the transformed mutations so client can verify/sync with server state
-        mutations: Some(result.mutations.clone()),
+        op_ids: Some(result.op_ids.clone()),
         message: None,
     })
 }
