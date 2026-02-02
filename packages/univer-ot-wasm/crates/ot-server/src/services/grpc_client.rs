@@ -110,13 +110,13 @@ impl GrpcClientService {
     }
 
     /// Verify an access token by calling the user service
-    pub async fn verify_token(&self, token: &str) -> Result<()> {
+    pub async fn verify_token(&self, uid: &str, token: &str) -> Result<()> {
         if token.is_empty() {
             return Err(anyhow!("Token is empty"));
         }
 
         let request = tonic::Request::new(user_proto::CheckAccessTokenReq {
-            uid: String::new(),
+            uid: uid.to_string(),
             access_token: token.to_string(),
             ep_id: String::new(),
             invoker: "ot-server".to_string(),

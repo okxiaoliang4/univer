@@ -82,11 +82,11 @@ impl AuthService {
             return Err(anyhow!("Token is empty"));
         }
 
-        // Verify token with user service
-        self.grpc_client.verify_token(token).await?;
-
-        // Decode JWT payload to extract user info
         let user_info = self.decode_token_payload(token)?;
+
+        // Verify token with user service
+        self.grpc_client.verify_token(&user_info.uid, token).await?;
+
         info!("Token verified successfully for user: {}", user_info.uid);
 
         Ok(user_info)
