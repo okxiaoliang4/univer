@@ -14,109 +14,279 @@
  * limitations under the License.
  */
 
-import type { IChangeset, IOperationInfo } from '../socket.service';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CollaborationService } from '../collaboration.service';
-import {
-    createInsertRowMutation,
-    createSetRangeValuesMutation,
-    MockLogService,
-    MockOfflineStorageService,
-    MockSocketService,
-    TEST_UNIT_ID,
-} from './test-utils';
+import type { IRPCChannelService } from '@univerjs/rpc';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { COLLABORATION_SERVICE_NAME } from '../../common/types';
+import { CollaborationProxyService } from '../collaboration.service';
+import { MockLogService } from './test-utils';
 
-describe('CollaborationService', () => {
-    let socketService: MockSocketService;
-    let offlineStorage: MockOfflineStorageService;
+/**
+ * Mock RPC channel that simulates the channel interface expected by toModule()
+ *
+ * When toModule() creates a Proxy, it:
+ * - Calls channel.subscribe(propName, args) for observable properties (ending with $)
+ * - Calls channel.call(propName, args) for regular methods
+ */
+class MockRPCChannel {
+    constructor(private readonly _service: Record<string, unknown>) {}
+
+    /**
+     * Called by toModule() for observable properties (properties ending with $)
+     * This includes both plain observable properties and methods that return observables.
+     */
+    subscribe(propName: string, args: unknown[]): unknown {
+        const prop = this._service[propName];
+
+        // If it's a function (method that returns observable), call it with args
+        if (typeof prop === 'function') {
+            return prop.apply(this._service, args);
+        }
+
+        // If it's a BehaviorSubject or similar, return its observable
+        if (
+            prop &&
+            typeof (prop as { asObservable?: () => unknown }).asObservable ===
+                'function'
+        ) {
+            return (prop as { asObservable: () => unknown }).asObservable();
+        }
+
+        return prop;
+    }
+
+    /**
+     * Called by toModule() for regular method calls
+     */
+    call(propName: string, args: unknown[]): unknown {
+        const method = this._service[propName];
+        if (typeof method === 'function') {
+            return method.apply(this._service, args);
+        }
+        return method;
+    }
+}
+
+/**
+ * Mock RPC channel service for testing
+ */
+class MockRPCChannelService implements IRPCChannelService {
+    private _channels = new Map<string, MockRPCChannel>();
+
+    requestChannel<T>(name: string): T {
+        const channel = this._channels.get(name);
+        if (!channel) {
+            throw new Error(`Channel ${name} not found`);
+        }
+        return channel as T;
+    }
+
+    registerChannel(name: string, channel: unknown): void {
+        this._channels.set(name, channel as MockRPCChannel);
+    }
+
+    /**
+     * Set a service as a channel (wraps it in MockRPCChannel)
+     */
+    setService(name: string, service: Record<string, unknown>): void {
+        this._channels.set(name, new MockRPCChannel(service));
+    }
+}
+
+/**
+ * Mock remote service for testing CollaborationProxyService
+ *
+ * This simulates the CollaborationService running in a remote context (worker)
+ */
+function createMockRemoteService() {
+    return {
+        connectionStatus$: new BehaviorSubject<
+            'connected' | 'disconnected' | 'connecting'
+        >('connected'),
+        docJoined$: new BehaviorSubject<string>(''),
+        docLeft$: new BehaviorSubject<string>(''),
+        getDocumentState$: vi.fn().mockReturnValue(
+            new BehaviorSubject({
+                state: 'synced',
+                serverRev: 0,
+                pendingCount: 0,
+                awaitingCount: 0,
+            }).asObservable()
+        ),
+        getSavedStatus$: vi.fn().mockReturnValue(of(true)),
+        isDocumentSynced: vi.fn().mockReturnValue(true),
+        getServerRev: vi.fn().mockReturnValue(5),
+        flush: vi.fn(),
+        reset: vi.fn(),
+        setAwareness: vi.fn().mockResolvedValue(undefined),
+    };
+}
+
+describe('CollaborationProxyService', () => {
+    let rpcService: MockRPCChannelService;
     let logService: MockLogService;
-    let service: CollaborationService;
+    let mockRemoteService: ReturnType<typeof createMockRemoteService>;
+    let service: CollaborationProxyService;
 
     beforeEach(() => {
-        socketService = new MockSocketService();
-        socketService.createSocket('ws://test');
-        socketService.setSocketState(true);
-        offlineStorage = new MockOfflineStorageService();
+        rpcService = new MockRPCChannelService();
         logService = new MockLogService();
-        service = new CollaborationService(socketService, logService, offlineStorage);
+        mockRemoteService = createMockRemoteService();
+
+        // Register the mock remote service using the correct channel name
+        rpcService.setService(COLLABORATION_SERVICE_NAME, mockRemoteService);
+
+        service = new CollaborationProxyService(rpcService, logService);
     });
 
     afterEach(() => {
         service.dispose();
     });
 
-    it('stores pending mutations when socket is disconnected', async () => {
-        socketService.setSocketState(false);
-        const changeset: IChangeset = {
-            unitId: TEST_UNIT_ID,
-            baseRev: 0,
-            userId: 'user-1',
-            mutations: [createSetRangeValuesMutation()],
-        };
+    describe('connection status', () => {
+        it('should expose connection status observable', () => {
+            expect(service.connectionStatus$).toBeDefined();
+        });
 
-        await expect(service.sendChangeset(changeset)).rejects.toThrow('Socket not connected');
-        const stored = await offlineStorage.loadPendingMutations(TEST_UNIT_ID);
-        expect(stored?.mutations).toHaveLength(1);
+        it('should start with disconnected status before remote connects', async () => {
+            // Initial state should be disconnected before remote initialization completes
+            // Note: This tests the fallback behavior, not the RPC forwarding
+            const status = await firstValueFrom(service.connectionStatus$);
+            expect(status).toBe('disconnected');
+        });
     });
 
-    it('flushes changeset and updates version on ack ok', async () => {
-        socketService.nextJoinAck = { status: 'ok', version: 1 };
-        socketService.nextChangesetAck = { status: 'ok', serverRev: 2 };
-        const changeset: IChangeset = {
-            unitId: TEST_UNIT_ID,
-            baseRev: 1,
-            userId: 'user-1',
-            mutations: [createSetRangeValuesMutation()],
-        };
+    describe('document state', () => {
+        it('should return document state observable', () => {
+            const state$ = service.getDocumentState$('test-doc');
+            expect(state$).toBeDefined();
+        });
 
-        await service.sendChangeset(changeset);
-        await service.flush(TEST_UNIT_ID);
+        it('should return default state when remote not ready', () => {
+            // Create a new service without remote
+            const noRemoteRpc = new MockRPCChannelService();
+            const noRemoteService = new CollaborationProxyService(
+                noRemoteRpc,
+                logService
+            );
 
-        expect(service.getDocRev(TEST_UNIT_ID)).toBe(2);
-        expect(offlineStorage.clearCalls).toContain(TEST_UNIT_ID);
+            const state$ = noRemoteService.getDocumentState$('test-doc');
+            state$.subscribe((state) => {
+                expect(state.state).toBe('synced');
+                expect(state.serverRev).toBe(0);
+            });
+
+            noRemoteService.dispose();
+        });
     });
 
-    it('requeues mutations and saves offline on ack error', async () => {
-        socketService.nextJoinAck = { status: 'ok', version: 1 };
-        socketService.nextChangesetAck = { status: 'error', message: 'fail' };
-        const changeset: IChangeset = {
-            unitId: TEST_UNIT_ID,
-            baseRev: 1,
-            userId: 'user-1',
-            mutations: [createSetRangeValuesMutation()],
-        };
+    describe('saved status', () => {
+        it('should return observable for saved status', async () => {
+            // Wait a tick for async initialization
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
-        await service.sendChangeset(changeset);
-        await expect(service.flush(TEST_UNIT_ID)).rejects.toThrow('Changeset failed');
+            const savedStatus$ = service.getSavedStatus$('test-doc');
+            expect(savedStatus$).toBeDefined();
+        });
 
-        expect(service.getPendingMutations(TEST_UNIT_ID)).toHaveLength(1);
-        const stored = await offlineStorage.loadPendingMutations(TEST_UNIT_ID);
-        expect(stored?.mutations).toHaveLength(1);
+        it('should return true when remote not available', async () => {
+            const noRemoteRpc = new MockRPCChannelService();
+            const noRemoteService = new CollaborationProxyService(
+                noRemoteRpc,
+                logService
+            );
+
+            const savedStatus$ = noRemoteService.getSavedStatus$('test-doc');
+            const saved = await firstValueFrom(savedStatus$);
+            expect(saved).toBe(true);
+
+            noRemoteService.dispose();
+        });
     });
 
-    it('syncOnReconnect merges offline pending and fetches missed ops', async () => {
-        socketService.nextJoinAck = { status: 'ok', version: 5 };
-        socketService.nextFetchOpsAck = {
-            status: 'ok',
-            operations: [
-                {
-                    rev: 3,
-                    userId: 'user-2',
-                    mutations: [createInsertRowMutation()],
-                } as IOperationInfo,
-            ],
-        };
+    describe('document sync status', () => {
+        it('should return true when document is synced', async () => {
+            // Wait a tick for async initialization
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
-        await offlineStorage.savePendingMutations(TEST_UNIT_ID, [createSetRangeValuesMutation()], 2, 'user-1');
-        service.updateDocRev(TEST_UNIT_ID, 2);
+            mockRemoteService.isDocumentSynced.mockReturnValue(true);
+            expect(service.isDocumentSynced('test-doc')).toBe(true);
+        });
 
-        const result = await service.syncOnReconnect(TEST_UNIT_ID);
-        expect(result.pendingMutations).toHaveLength(1);
-        expect(result.missedOps).toHaveLength(1);
+        it('should return false when document is not synced', async () => {
+            // Wait a tick for async initialization
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
-        expect(service.getPendingBaseRev(TEST_UNIT_ID)).toBe(2);
+            mockRemoteService.isDocumentSynced.mockReturnValue(false);
+            expect(service.isDocumentSynced('test-doc')).toBe(false);
+        });
 
-        const fetchCall = socketService.emitted.find((entry) => entry.event === 'fetch_ops');
-        expect(fetchCall?.args[0]).toEqual({ docId: TEST_UNIT_ID, startRev: 2 });
+        it('should return true when remote not available', () => {
+            const noRemoteRpc = new MockRPCChannelService();
+            const noRemoteService = new CollaborationProxyService(
+                noRemoteRpc,
+                logService
+            );
+            expect(noRemoteService.isDocumentSynced('test-doc')).toBe(true);
+            noRemoteService.dispose();
+        });
+    });
+
+    describe('document revision', () => {
+        it('should return server revision from remote', async () => {
+            // Wait a tick for async initialization
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            mockRemoteService.getServerRev.mockReturnValue(10);
+            expect(service.getServerRev('test-doc')).toBe(10);
+        });
+
+        it('should return 0 when remote not available', () => {
+            const noRemoteRpc = new MockRPCChannelService();
+            const noRemoteService = new CollaborationProxyService(
+                noRemoteRpc,
+                logService
+            );
+            expect(noRemoteService.getServerRev('test-doc')).toBe(0);
+            noRemoteService.dispose();
+        });
+    });
+
+    describe('flush', () => {
+        it('should have flush method', () => {
+            expect(typeof service.flush).toBe('function');
+        });
+
+        it('should call remote flush when remote is ready', async () => {
+            // Wait a tick for async initialization
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            service.flush('test-doc');
+            expect(mockRemoteService.flush).toHaveBeenCalledWith('test-doc');
+        });
+    });
+
+    describe('reset', () => {
+        it('should call remote reset', async () => {
+            // Wait a tick for async initialization
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            service.reset('test-doc');
+            expect(mockRemoteService.reset).toHaveBeenCalledWith('test-doc');
+        });
+    });
+
+    describe('dispose', () => {
+        it('should complete all subjects on dispose', () => {
+            let completed = false;
+            service.connectionStatus$.subscribe({
+                complete: () => {
+                    completed = true;
+                },
+            });
+
+            service.dispose();
+            expect(completed).toBe(true);
+        });
     });
 });

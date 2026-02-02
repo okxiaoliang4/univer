@@ -25,9 +25,27 @@ export interface ICollaborationConfig {
     accessToken: string;
     params?: Record<string, string | number | boolean>;
     override?: DependencyOverride;
+
+    /**
+     * Whether this plugin instance is the remote side (worker/server).
+     * - true: Register actual implementations and expose via RPC
+     * - false: Client side (default)
+     * @default false
+     */
+    isRemoteSide?: boolean;
+
+    /**
+     * Whether to use a remote context for collaboration (only when isRemoteSide=false).
+     * - true: Use RPC proxies to communicate with remote context
+     * - false: Run all services locally in main thread (main-only mode)
+     * @default true
+     */
+    useRemote?: boolean;
 }
 
 export const defaultPluginConfig: ICollaborationConfig = {
     wsUrl: 'ws://localhost:8080/ws',
     accessToken: '',
+    isRemoteSide: false,
+    useRemote: true,
 };

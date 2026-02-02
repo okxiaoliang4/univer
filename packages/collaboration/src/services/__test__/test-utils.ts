@@ -24,10 +24,12 @@ import type {
     IExecutionOptions,
     ILogService,
     IMutationInfo,
+    Nullable,
     UnitModel,
     UnitType,
 } from '@univerjs/core';
 import type { Socket } from 'socket.io-client';
+import type { ICollaborationConfig } from '../../controller/config.schema';
 import type { IMutationWithOpId } from '../collaboration.types';
 import type { IPendingMutations, IPendingMutationSerivce } from '../offline-storage.service';
 import type { IChangesetAck, IChangesetPushed, IFetchOpsAck, IJoinDocAck, ISocketService } from '../socket.service';
@@ -60,8 +62,8 @@ export class MockSocketService implements ISocketService {
     nextChangesetAck: IChangesetAck = { status: 'ok', serverRev: 1 };
     nextFetchOpsAck: IFetchOpsAck = { status: 'ok', operations: [] };
 
-    createSocket(url: string): Socket | null {
-        this.createdUrl = url;
+    createSocket(config: ICollaborationConfig): Nullable<Socket> {
+        this.createdUrl = config.wsUrl;
         this._socket = {
             id: 'socket-1',
             disconnected: false,
@@ -134,7 +136,7 @@ export class MockSocketService implements ISocketService {
 
 export class MockOfflineStorageService implements IPendingMutationSerivce {
     private _store = new Map<string, IPendingMutations>();
-    private _ready$ = new BehaviorSubject<boolean>(true);
+    private _ready$ = new BehaviorSubject<boolean>(false);
     clearCalls: string[] = [];
     saveCalls: string[] = [];
     removeCalls: Array<{ unitId: string; opIds: string[] }> = [];
@@ -145,12 +147,19 @@ export class MockOfflineStorageService implements IPendingMutationSerivce {
         return this._ready$.value;
     }
 
+    /**
+     * Set the ready state (for testing)
+     */
+    setReady(ready: boolean): void {
+        this._ready$.next(ready);
+    }
+
     has(unitId: string): boolean {
         return this._store.has(unitId);
     }
 
-    get(unitId: string): IMutationWithOpId[] | null {
-        return this._store.get(unitId)?.mutations ?? null;
+    get(unitId: string): IMutationWithOpId[] {
+        return this._store.get(unitId)?.mutations ?? [];
     }
 
     async add(unitId: string, mutations: IMutationWithOpId[], baseRev: number): Promise<IPendingMutations> {

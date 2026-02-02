@@ -805,6 +805,9 @@ importers:
       '@univerjs/core':
         specifier: workspace:*
         version: link:../core
+      '@univerjs/rpc':
+        specifier: workspace:*
+        version: link:../rpc
       '@univerjs/univer-ot-wasm':
         specifier: workspace:*
         version: link:../univer-ot-wasm
@@ -817,7 +820,13 @@ importers:
       socket.io-client:
         specifier: ^4.8.3
         version: 4.8.3
+      xstate:
+        specifier: ^5.26.0
+        version: 5.26.0
     devDependencies:
+      '@univerjs/sheets':
+        specifier: workspace:*
+        version: link:../sheets
       vite-plugin-top-level-await:
         specifier: ^1.6.0
         version: 1.6.0(rollup@4.55.2)(vite@7.3.1(@types/node@25.0.9)(jiti@2.6.1)(sass@1.97.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -10932,6 +10941,9 @@ packages:
     resolution: {integrity: sha512-TEU+nJVUUnA4CYJFLvK5X9AOeH4KvDvhIfm0vV1GaQRtchnG0hgK5p8hw/xjv8cunWYCsiPCSDzObPyhEwq3KQ==}
     engines: {node: '>=0.4.0'}
 
+  xstate@5.26.0:
+    resolution: {integrity: sha512-Fvi9VBoqHgsGYLU2NTag8xDTWtKqUC0+ue7EAhBNBb06wf620QEy05upBaEI1VLMzIn63zugLV8nHb69ZUWYAA==}
+
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -19417,6 +19429,8 @@ snapshots:
   xmlchars@2.2.0: {}
 
   xmlhttprequest-ssl@2.1.2: {}
+
+  xstate@5.26.0: {}
 
   y18n@5.0.8: {}
 

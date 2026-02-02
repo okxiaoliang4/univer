@@ -56,12 +56,15 @@
     },
     "dependencies": {
         "@univerjs/core": "workspace:*",
+        "@univerjs/rpc": "workspace:*",
         "@univerjs/univer-ot-wasm": "workspace:*",
         "localforage": "^1.10.0",
         "rxjs": "^7.8.2",
-        "socket.io-client": "^4.8.3"
+        "socket.io-client": "^4.8.3",
+        "xstate": "^5.26.0"
     },
     "devDependencies": {
+        "@univerjs/sheets": "workspace:*",
         "vite-plugin-top-level-await": "^1.6.0",
         "vite-plugin-wasm": "^3.5.0"
     }

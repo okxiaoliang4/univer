@@ -16,7 +16,14 @@
 
 import type { IWorkbookData } from '@univerjs/core';
 import { CollaborationPlugin, CollaborationUndoRedoService } from '@univerjs/collaboration';
-import { generateRandomId, IUndoRedoService, LocaleType, LogLevel, Univer, UniverInstanceType, UserManagerService } from '@univerjs/core';
+import {
+    IUndoRedoService,
+    LocaleType,
+    LogLevel,
+    Univer,
+    UniverInstanceType,
+    UserManagerService,
+} from '@univerjs/core';
 import { FUniver } from '@univerjs/core/facade';
 import { UniverDebuggerPlugin } from '@univerjs/debugger';
 import { UniverDocsPlugin } from '@univerjs/docs';
@@ -84,16 +91,17 @@ const LOAD_VERY_LAZY_PLUGINS_TIMEOUT = 100;
 export const mockUser = {
     userID: 'Owner_qxVnhPbQ',
     name: 'Owner',
-    avatar: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAInSURBVHgBtZU9TxtBEIbfWRzFSIdkikhBSqRQkJqkCKTCFkqVInSUSaT0wC8w/gXxD4gU2nRJkXQWhAZowDUUWKIwEgWWbEEB3mVmx3dn4DA2nB/ppNuPeWd29mMIPXDr+RxwtgRHeW6+guNPRxogqnL7Dwz9psJ27S4NShaeZTH3kwXy6I81dlRKcmRui88swdq9AcSFL7Buz1Vmlns64MiLsCjzwnIYHLH57tbfFbs7KRaXyEU8FVZofqccOfA5l7Q8LPIkGrwnb2RPNEXWFVMUF3L+kDCk0btDDAMzOm5YfAHDwp4tG74wnzAsiOYMnJ3GoDybA7IT98/jm5+JNnfiIzAS6LlqHQBN/i6b2t/cV1Hh6BfwYlHnHP4AXi5q/8kmMMpOs8+BixZw/Fd6xUEHEbnkgclvQP2fGp7uShRKnQ3G32rkjV1th8JhIGG7tR/JyjGteSOZELwGMmNqIIigRCLRh2OZIE6BjItdd7pCW6Uhm1zzkUtungSxwEUzNpQ+GQumtH1ej1MqgmNT6vwmhCq5yuwq56EYTbgeQUz3yvrpV1b4ok3nYJ+eYhgYmjRUqErx2EDq0Fr8FhG++iqVGqxlUJI/70Ar0UgJaWHj6hYVHJrfKssAHot1JfqwE9WVWzXZVd5z2Ws/4PnmtEjkXeKJDvxUecLbWOXH/DP6QQ4J72NS0adedp1aseBfXP8odlZFfPvBF7SN/8hky1TYuPOAXAEipMx15u5ToAAAAABJRU5ErkJggg==',
+    avatar:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAInSURBVHgBtZU9TxtBEIbfWRzFSIdkikhBSqRQkJqkCKTCFkqVInSUSaT0wC8w/gXxD4gU2nRJkXQWhAZowDUUWKIwEgWWbEEB3mVmx3dn4DA2nB/ppNuPeWd29mMIPXDr+RxwtgRHeW6+guNPRxogqnL7Dwz9psJ27S4NShaeZTH3kwXy6I81dlRKcmRui88swdq9AcSFL7Buz1Vmlns64MiLsCjzwnIYHLH57tbfFbs7KRaXyEU8FVZofqccOfA5l7Q8LPIkGrwnb2RPNEXWFVMUF3L+kDCk0btDDAMzOm5YfAHDwp4tG74wnzAsiOYMnJ3GoDybA7IT98/jm5+JNnfiIzAS6LlqHQBN/i6b2t/cV1Hh6BfwYlHnHP4AXi5q/8kmMMpOs8+BixZw/Fd6xUEHEbnkgclvQP2fGp7uShRKnQ3G32rkjV1th8JhIGG7tR/JyjGteSOZELwGMmNqIIigRCLRh2OZIE6BjItdd7pCW6Uhm1zzkUtungSxwEUzNpQ+GQumtH1ej1MqgmNT6vwmhCq5yuwq56EYTbgeQUz3yvrpV1b4ok3nYJ+eYhgYmjRUqErx2EDq0Fr8FhG++iqVGqxlUJI/70Ar0UgJaWHj6hYVHJrfKssAHot1JfqwE9WVWzXZVd5z2Ws/4PnmtEjkXeKJDvxUecLbWOXH/DP6QQ4J72NS0adedp1aseBfXP8odlZFfPvBF7SN/8hky1TYuPOAXAEipMx15u5ToAAAAABJRU5ErkJggg==',
     anonymous: false,
     canBindAnonymous: false,
 };
 
 // eslint-disable-next-line max-lines-per-function
 async function createNewInstance() {
-    // univer
+      // univer
     const univer = new Univer({
-        // theme: greenTheme,
+            // theme: greenTheme,
         darkMode: localStorage.getItem('local.darkMode') === 'dark',
         locale: LocaleType.ZH_CN,
         locales: {
@@ -113,34 +121,51 @@ async function createNewInstance() {
         override: [[IUndoRedoService, { useClass: CollaborationUndoRedoService }]],
     });
 
-    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-
-    const url = new URL(window.location.href);
-    const userId = url.searchParams.get('userId') || `uid_${generateRandomId()}`;
+    const worker = new Worker(new URL('./worker.js', import.meta.url), {
+        type: 'module',
+    });
 
     univer.registerPlugins([
+        [UniverRPCMainThreadPlugin, { workerURL: worker }],
         [CollaborationPlugin, {
             wsUrl: 'ws://localhost:3000/ws',
             accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
         }],
-        [UniverRPCMainThreadPlugin, { workerURL: worker }],
+        [
+            CollaborationPlugin,
+            {
+                wsUrl: 'ws://localhost:3000/ws',
+                accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
+                useRemote: true,
+            },
+        ],
         [UniverDocsPlugin],
         [UniverRenderEnginePlugin],
-        [UniverUIPlugin, {
-            container: 'app',
-            // ribbonType: 'classic',
-            customFontFamily: [
-                { value: 'PingFang SC', label: '苹方（简）', category: 'sans-serif' },
-                { value: 'Helvetica Neue', label: 'Helvetica Neue', category: 'sans-serif' },
-            ],
-        }],
-        // [UniverWebComponentAdapterPlugin],
-        // [UniverVue3AdapterPlugin],
+        [
+            UniverUIPlugin,
+            {
+                container: 'app',
+                        // ribbonType: 'classic',
+                customFontFamily: [
+                    { value: 'PingFang SC', label: '苹方（简）', category: 'sans-serif' },
+                    {
+                        value: 'Helvetica Neue',
+                        label: 'Helvetica Neue',
+                        category: 'sans-serif',
+                    },
+                ],
+            },
+        ],
+            // [UniverWebComponentAdapterPlugin],
+            // [UniverVue3AdapterPlugin],
         [UniverDocsUIPlugin],
-        [UniverSheetsPlugin, {
-            notExecuteFormula: true,
-            autoHeightForMergedCells: true,
-        }],
+        [
+            UniverSheetsPlugin,
+            {
+                notExecuteFormula: true,
+                autoHeightForMergedCells: true,
+            },
+        ],
         [UniverSheetsUIPlugin],
         [UniverSheetsNumfmtPlugin],
         [UniverSheetsZenEditorPlugin],
@@ -170,12 +195,12 @@ async function createNewInstance() {
     const userManagerService = injector.get(UserManagerService);
     userManagerService.setCurrentUser(mockUser);
 
-    const docId = 'c5aedffc-130a-42c6-b2d5-4162a55a1495';
-    const doc = await fetch(`http://localhost:8800/api/documents/${docId}`)
-        .then((res) => res.json());
+    const docId = '3e4259ae-46b0-4867-8863-e57902a8454c';
+    const doc = await fetch(`http://localhost:3000/api/documents/${docId}`).then(
+        (res) => res.json()
+    );
 
-    const docContent = await fetch(doc.signed_url)
-        .then((res) => res.json());
+    const docContent = await fetch(doc.signed_url).then((res) => res.json());
 
     univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
         ...docContent,

@@ -29,6 +29,7 @@ import {
     DisposableCollection,
     getIntersectRange,
     ICommandService,
+    ILogService,
     Inject,
     Injector,
     LifecycleService,
@@ -98,7 +99,9 @@ export class AwarenessUIService extends Disposable {
         @Inject(LifecycleService)
         private readonly _lifecycleService: LifecycleService,
         @IAwarenessService
-        private readonly _awarenessService: IAwarenessService
+        private readonly _awarenessService: IAwarenessService,
+        @Inject(ILogService)
+        private readonly _logger: ILogService
     ) {
         super();
 
@@ -189,13 +192,14 @@ export class AwarenessUIService extends Disposable {
     }
 
     async _initAwarenessUI() {
-        const unitIds = await this._awarenessService.getInitUnitIds();
+        const unitIds = await this._awarenessService.getUnitIds();
         unitIds.forEach((unitId) => {
             this.handleAwarenessInit(unitId);
         });
 
         this.disposeWithMe(
             this._awarenessService.init$.subscribe((map) => {
+                this._logger.log('AwarenessUIService: init$', map);
                 map.keys().forEach((unitId) => {
                     this.handleAwarenessInit(unitId);
                 });

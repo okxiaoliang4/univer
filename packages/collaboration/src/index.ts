@@ -14,8 +14,18 @@
  * limitations under the License.
  */
 
+export type { IDocumentSyncState, IUserAwareness, NetworkConnectionStatus } from './common/types';
 export type { ICollaborationConfig } from './controller/config.schema';
 export { CollaborationPlugin } from './plugin';
+export {
+    AwarenessRemoteProxyService,
+    AwarenessRemoteService,
+    IAwarenessRemoteService,
+} from './services/awareness-remote.service';
 export { IAwarenessService } from './services/awareness.service';
-export { CollaborationService, ICollaborationService } from './services/collaboration.service';
+export {
+    CollaborationProxyService,
+    CollaborationService,
+    ICollaborationService,
+} from './services/collaboration.service';
 export { CollaborationUndoRedoService } from './services/undo-redo.service';

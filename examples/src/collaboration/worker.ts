@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { CollaborationPlugin } from '@univerjs/collaboration';
 import { LocaleType, LogLevel, Univer } from '@univerjs/core';
 import { UniverFormulaEnginePlugin } from '@univerjs/engine-formula';
 import zhCN from '@univerjs/mockdata/locales/zh-CN';
@@ -32,6 +33,10 @@ const univer = new Univer({
 });
 
 univer.registerPlugins([
+    [CollaborationPlugin, {
+        isRemoteSide: true,
+        wsUrl: 'ws://localhost:3000/ws',
+    }],
     [UniverSheetsPlugin, { onlyRegisterFormulaRelatedMutations: true }],
     [UniverFormulaEnginePlugin],
     [UniverRPCWorkerThreadPlugin],

@@ -14,29 +14,33 @@
  * limitations under the License.
  */
 
-import type { IMutationWithOpId } from '../services/collaboration.types';
 import type { ICollaborationConfig } from './config.schema';
 import {
     Disposable,
-    generateRandomId,
-    ICommandService,
     IConfigService,
-    isInternalEditorID,
-    IUniverInstanceService,
     toDisposable,
 } from '@univerjs/core';
-import { ICollaborationService } from '../services/collaboration.service';
 import { IPendingMutationSerivce } from '../services/offline-storage.service';
 import { ISocketService } from '../services/socket.service';
 import { COLLABORATION_PLUGIN_CONFIG_KEY } from './config.schema';
 
+/**
+ * Collaboration Controller (Main Thread)
+ *
+ * In the isomorphic architecture, this controller is simplified:
+ * - useRemote=true (default): Socket and mutation handling happen in worker context.
+ *   The controller only initializes socket for main-only mode.
+ * - useRemote=false: Socket is created in main thread, but mutation handling
+ *   is done by CollaborationService which listens to onMutationExecutedForCollab.
+ *
+ * The heavy lifting (OT transform, network sync, state machine) is handled by
+ * CollaborationService, which runs either in worker (useRemote=true) or
+ * main thread (useRemote=false).
+ */
 export class CollaborationController extends Disposable {
     constructor(
         @ISocketService private readonly _socketService: ISocketService,
         @IConfigService private readonly _configService: IConfigService,
-        @ICommandService private readonly _commandService: ICommandService,
-        @IUniverInstanceService private readonly _univerInstanceService: IUniverInstanceService,
-        @ICollaborationService private readonly _collaborationService: ICollaborationService,
         @IPendingMutationSerivce private readonly _pendingMutationSerivce: IPendingMutationSerivce
     ) {
         super();
@@ -44,56 +48,36 @@ export class CollaborationController extends Disposable {
     }
 
     private _init(): void {
-        this._initListener();
-        this._initPendingMutationSerivceListener();
+        this._initPendingMutationServiceListener();
     }
 
-    private _initPendingMutationSerivceListener(): void {
+    private _initPendingMutationServiceListener(): void {
         this.disposeWithMe(
             this._pendingMutationSerivce.ready$.subscribe((ready) => {
-                // TODO: 这里监听完之后可以complete了
                 if (!ready) return;
-                this._initSocket();
+                this._initSocketIfNeeded();
             })
         );
     }
 
-    private _initSocket(): void {
+    private _initSocketIfNeeded(): void {
         const config = this._configService.getConfig<ICollaborationConfig>(
             COLLABORATION_PLUGIN_CONFIG_KEY
         )!;
+
+        // In remote mode (useRemote=true), the socket is managed in the worker context.
+        // NoopSocketService returns null, which is expected - skip socket setup.
+        const useRemote = config.useRemote ?? true;
+        if (useRemote) {
+            // Socket is handled by CollaborationService in the worker context
+            return;
+        }
+
+        // Main-only mode (useRemote=false): create socket in main thread
         const socket = this._socketService.createSocket(config);
         if (!socket) {
             throw new Error('Failed to create socket');
         }
         this.disposeWithMe(toDisposable(() => socket.disconnect()));
-    }
-
-    private _initListener(): void {
-        this._initCommandListener();
-    }
-
-    private _initCommandListener(): void {
-        this.disposeWithMe(
-            this._commandService.onMutationExecutedForCollab((command, options) => {
-                if (options?.fromCollab) return;
-                const unitId = (command.params as { unitId: string })?.unitId;
-                if (!unitId) return;
-                const unit = this._univerInstanceService.getUnit(unitId);
-                if (!unit || isInternalEditorID(unitId)) return;
-                const baseRev = this._collaborationService.getDocRev(unitId);
-                this._collaborationService.sendChangeset({
-                    unitId,
-                    baseRev,
-                    mutations: [
-                        {
-                            id: command.id,
-                            params: command.params,
-                            opId: generateRandomId(32),
-                        } as IMutationWithOpId,
-                    ],
-                });
-            })
-        );
     }
 }

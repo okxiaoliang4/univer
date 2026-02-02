@@ -21,15 +21,16 @@ import {
     createInsertRowMutation,
     createRemoveRowMutation,
     createSetRangeValuesMutation,
+    MockLogService,
 } from './test-utils';
 
 describe('TransformService', () => {
-    it('transforms SetRangeValues × InsertCol', () => {
-        const service = new TransformService();
+    it('transforms SetRangeValues × InsertCol', async () => {
+        const service = new TransformService(new MockLogService());
         const m1 = createSetRangeValuesMutation();
         const m2 = createInsertColMutation();
 
-        const resultA = service.transform(m1, m2);
+        const resultA = await service.transform(m1, m2);
         expect(resultA.error).toBeUndefined();
         expect(resultA.m1Prime).toBeDefined();
         const cellValue = (
@@ -39,13 +40,15 @@ describe('TransformService', () => {
         ).params.cellValue;
         expect(cellValue[0]?.[0]).toBeUndefined();
         expect(cellValue[0]?.[1].v).toBe('1');
+        service.dispose();
     });
-    it('transforms SetRangeValues × InsertRow', () => {
-        const service = new TransformService();
+
+    it('transforms SetRangeValues × InsertRow', async () => {
+        const service = new TransformService(new MockLogService());
         const m1 = createSetRangeValuesMutation();
         const m2 = createInsertRowMutation();
 
-        const resultA = service.transform(m1, m2);
+        const resultA = await service.transform(m1, m2);
         expect(resultA.error).toBeUndefined();
         expect(resultA.m1Prime).toBeDefined();
         const cellValue = (
@@ -55,41 +58,44 @@ describe('TransformService', () => {
         ).params.cellValue;
         expect(cellValue[0]?.[0]).toBeUndefined();
         expect(cellValue[1]?.[0].v).toBe('1');
+        service.dispose();
     });
-    it('transform list SetRangeValues × InsertRow', () => {
-        const service = new TransformService();
+
+    it('transform list SetRangeValues × InsertRow', async () => {
+        const service = new TransformService(new MockLogService());
         const m1 = createSetRangeValuesMutation();
         const m2 = createInsertRowMutation();
 
-        const resultA = service.transformList([m1], [m2]);
+        const resultA = await service.transformList([m1], [m2]);
         expect(resultA.error).toBeUndefined();
         expect(resultA.m1Primes).toHaveLength(1);
         expect(resultA.m2Primes).toHaveLength(1);
+        service.dispose();
     });
 
-    it('returns identity when one list is empty', () => {
-        const service = new TransformService();
+    it('returns identity when one list is empty', async () => {
+        const service = new TransformService(new MockLogService());
         const m1 = createSetRangeValuesMutation();
         const m2 = createInsertRowMutation();
 
-        const resultA = service.transformList([], [m2]);
+        const resultA = await service.transformList([], [m2]);
         expect(resultA.error).toBeUndefined();
         expect(resultA.m1Primes).toEqual([]);
         expect(resultA.m2Primes).toEqual([m2]);
 
-        const resultB = service.transformList([m1], []);
+        const resultB = await service.transformList([m1], []);
         expect(resultB.error).toBeUndefined();
         expect(resultB.m1Primes).toEqual([m1]);
         expect(resultB.m2Primes).toEqual([]);
         service.dispose();
     });
 
-    it('transforms multiple server mutations sequentially', () => {
-        const service = new TransformService();
+    it('transforms multiple server mutations sequentially', async () => {
+        const service = new TransformService(new MockLogService());
         const m1List = [createSetRangeValuesMutation(), createInsertColMutation()];
         const m2List = [createInsertRowMutation(), createRemoveRowMutation()];
 
-        const result = service.transformList(m1List, m2List);
+        const result = await service.transformList(m1List, m2List);
         expect(result.error).toBeUndefined();
         expect(result.m1Primes).toHaveLength(m1List.length);
         expect(result.m2Primes).toHaveLength(m2List.length);
@@ -98,17 +104,58 @@ describe('TransformService', () => {
         service.dispose();
     });
 
-    it('transforms supported mutation pairs without errors', () => {
-        const service = new TransformService();
+    it('transforms supported mutation pairs without errors', async () => {
+        const service = new TransformService(new MockLogService());
         const m1 = createSetRangeValuesMutation();
         const m2 = createInsertRowMutation();
 
-        const result = service.transform(m1, m2);
+        const result = await service.transform(m1, m2);
         expect(result.error).toBeUndefined();
         expect(result.m1Prime).toBeDefined();
         expect(result.m2Prime).toBeDefined();
         expect((result.m1Prime as { id: string }).id).toBe(m1.id);
         expect((result.m2Prime as { id: string }).id).toBe(m2.id);
+        service.dispose();
+    });
+
+    it('composes two mutations', async () => {
+        const service = new TransformService(new MockLogService());
+        const m1 = createSetRangeValuesMutation();
+        const m2 = createSetRangeValuesMutation();
+
+        const result = await service.compose(m1, m2);
+        expect(result).toBeDefined();
+        expect(Array.isArray(result)).toBe(true);
+        service.dispose();
+    });
+
+    it('composes a list of mutations', async () => {
+        const service = new TransformService(new MockLogService());
+        const mutations = [
+            createSetRangeValuesMutation(),
+            createSetRangeValuesMutation(),
+        ];
+
+        const result = await service.composeList(mutations);
+        expect(result).toBeDefined();
+        expect(Array.isArray(result)).toBe(true);
+        service.dispose();
+    });
+
+    it('returns same mutation for single-element composeList', async () => {
+        const service = new TransformService(new MockLogService());
+        const m1 = createSetRangeValuesMutation();
+
+        const result = await service.composeList([m1]);
+        expect(result).toEqual([m1]);
+        service.dispose();
+    });
+
+    it('returns empty array for empty composeList', async () => {
+        const service = new TransformService(new MockLogService());
+
+        const result = await service.composeList([]);
+        expect(result).toEqual([]);
         service.dispose();
     });
 });
