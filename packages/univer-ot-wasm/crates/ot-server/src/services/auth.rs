@@ -53,6 +53,8 @@ pub struct AuthService {
     /// Per-socket permission cache: socket_id -> (doc_id -> CachedPermission)
     permission_cache: Arc<DashMap<String, DashMap<String, CachedPermission>>>,
     cache_ttl: Duration,
+    /// Whether to skip token verification (for development/testing)
+    skip_token_verification: bool,
 }
 
 impl AuthService {
@@ -62,15 +64,21 @@ impl AuthService {
     /// * `grpc_client` - GrpcClientService for making gRPC calls
     /// * `cache_ttl_secs` - TTL for permission cache in seconds
     pub fn new(grpc_client: GrpcClientService, cache_ttl_secs: u64) -> Self {
+        // Check if token verification should be skipped (for development/testing)
+        let skip_token_verification = std::env::var("SKIP_TOKEN_VERIFICATION")
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(false);
+
         info!(
-            "Initializing AuthService with cache_ttl={}s",
-            cache_ttl_secs
+            "Initializing AuthService with cache_ttl={}s, skip_token_verification={}",
+            cache_ttl_secs, skip_token_verification
         );
 
         Self {
             grpc_client,
             permission_cache: Arc::new(DashMap::new()),
             cache_ttl: Duration::from_secs(cache_ttl_secs),
+            skip_token_verification,
         }
     }
 
@@ -84,10 +92,16 @@ impl AuthService {
 
         let user_info = self.decode_token_payload(token)?;
 
-        // Verify token with user service
-        self.grpc_client.verify_token(&user_info.uid, token).await?;
-
-        info!("Token verified successfully for user: {}", user_info.uid);
+        // Verify token with user service (can be skipped via SKIP_TOKEN_VERIFICATION env var)
+        if self.skip_token_verification {
+            info!(
+                "Skipping token verification for user: {} (SKIP_TOKEN_VERIFICATION=true)",
+                user_info.uid
+            );
+        } else {
+            self.grpc_client.verify_token(&user_info.uid, token).await?;
+            info!("Token verified successfully for user: {}", user_info.uid);
+        }
 
         Ok(user_info)
     }
