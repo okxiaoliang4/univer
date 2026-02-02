@@ -138,22 +138,14 @@ impl GrpcClientService {
         doc_id: &str,
         access_token: &str,
     ) -> Result<document_proto::Permissions> {
-        let request = tonic::Request::new(document_proto::QueryUserPermissionsRequest {
+        let request = tonic::Request::new(document_proto::GetDocumentRequest {
             document_id: doc_id.to_string(),
-            user_id: if user_id.is_empty() {
-                None
-            } else {
-                Some(user_id.to_string())
-            },
-            access_token: if access_token.is_empty() {
-                None
-            } else {
-                Some(access_token.to_string())
-            },
+            user_id: Some(user_id.to_string()),
+            access_token: Some(access_token.to_string()),
         });
 
         let mut client = self.create_document_client().await?;
-        let response = client.query_user_permissions(request).await.map_err(|e| {
+        let response = client.get_document(request).await.map_err(|e| {
             warn!(
                 "Failed to query document permissions for doc_id={}, user_id={}: {}",
                 doc_id, user_id, e
@@ -162,7 +154,8 @@ impl GrpcClientService {
         })?;
 
         let resp = response.into_inner();
-        resp.permissions
+        let doc = resp.doc.ok_or_else(|| anyhow!("No document returned from document service"))?;
+        doc.permissions
             .ok_or_else(|| anyhow!("No permissions returned from document service"))
     }
 

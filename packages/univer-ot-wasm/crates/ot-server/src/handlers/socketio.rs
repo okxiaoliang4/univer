@@ -271,6 +271,7 @@ pub fn setup_socketio(io: &SocketIo, state: AppState) {
             "presence_update",
             move |socket: SocketRef, Data::<PresenceUpdateRequest>(req)| {
                 let state = state.clone();
+                info!("🔔 Handling presence_update: {:?}", req);
                 async move {
                     if let Err(e) = handle_presence_update(&socket, &state, req).await {
                         warn!("Error handling presence_update: {}", e);
@@ -616,13 +617,9 @@ async fn handle_presence_update(
     req: PresenceUpdateRequest,
 ) -> Result<()> {
     let doc_id = req.doc_id.clone();
-    let client_id = req.client_id.unwrap_or_else(|| {
-        socket
-            .id
-            .to_string()
-            .chars()
-            .fold(0u64, |acc, c| acc + c as u64)
-    });
+
+    // Use socket.id as the client_id for consistent identification
+    let client_id = socket.id.to_string();
 
     let user = req
         .user

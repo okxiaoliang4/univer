@@ -92,8 +92,10 @@ pub struct FetchOpsAck {
 pub struct PresenceUpdateRequest {
     #[serde(rename = "docId")]
     pub doc_id: String,
+    /// Client ID - can be a number or string from the client
+    /// Use serde_json::Value to accept both types
     #[serde(rename = "clientId")]
-    pub client_id: Option<u64>,
+    pub client_id: Option<serde_json::Value>,
     pub user: Option<PresenceUserInfo>,
     #[serde(rename = "selectionParams")]
     pub selection_params: Option<serde_json::Value>,
@@ -113,7 +115,7 @@ pub struct AwarenessStateSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AwarenessStateItem {
     #[serde(rename = "clientID")]
-    pub client_id: u64,
+    pub client_id: String,
     pub id: String,
     pub name: String,
     #[serde(rename = "selectionParams")]

@@ -6,8 +6,10 @@ use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct AwarenessService {
-    memory: Arc<RwLock<HashMap<String, HashMap<u64, AwarenessStateItem>>>>,
-    socket_map: Arc<RwLock<HashMap<String, HashMap<String, u64>>>>,
+    /// Map of doc_id -> (client_id -> AwarenessStateItem)
+    memory: Arc<RwLock<HashMap<String, HashMap<String, AwarenessStateItem>>>>,
+    /// Map of doc_id -> (socket_id -> client_id)
+    socket_map: Arc<RwLock<HashMap<String, HashMap<String, String>>>>,
     redis_client: Option<redis::Client>,
     redis_enabled: bool,
     ttl_seconds: u64,
@@ -34,7 +36,7 @@ impl AwarenessService {
         format!("awareness:doc:{}", doc_id)
     }
 
-    pub async fn get_state(&self, doc_id: &str) -> Result<HashMap<u64, AwarenessStateItem>> {
+    pub async fn get_state(&self, doc_id: &str) -> Result<HashMap<String, AwarenessStateItem>> {
         if self.redis_enabled {
             if let Some(client) = &self.redis_client {
                 let mut conn = client.get_multiplexed_async_connection().await?;
@@ -44,7 +46,7 @@ impl AwarenessService {
                     let state = snapshot
                         .states
                         .into_iter()
-                        .map(|user| (user.client_id, user))
+                        .map(|user| (user.client_id.clone(), user))
                         .collect::<HashMap<_, _>>();
                     let mut guard = self.memory.write().expect("awareness memory lock poisoned");
                     guard.insert(doc_id.to_string(), state.clone());
@@ -63,12 +65,14 @@ impl AwarenessService {
         socket_id: &str,
         user: AwarenessStateItem,
     ) -> Result<()> {
+        let client_id = user.client_id.clone();
+
         {
             let mut guard = self.memory.write().expect("awareness memory lock poisoned");
             guard
                 .entry(doc_id.to_string())
                 .or_default()
-                .insert(user.client_id, user.clone());
+                .insert(client_id.clone(), user);
         }
 
         {
@@ -79,17 +83,17 @@ impl AwarenessService {
             guard
                 .entry(doc_id.to_string())
                 .or_default()
-                .insert(socket_id.to_string(), user.client_id);
+                .insert(socket_id.to_string(), client_id);
         }
 
         self.persist_doc(doc_id).await
     }
 
-    pub async fn remove_client(&self, doc_id: &str, client_id: u64) -> Result<()> {
+    pub async fn remove_client(&self, doc_id: &str, client_id: &str) -> Result<()> {
         {
             let mut guard = self.memory.write().expect("awareness memory lock poisoned");
             if let Some(doc_state) = guard.get_mut(doc_id) {
-                doc_state.remove(&client_id);
+                doc_state.remove(client_id);
                 // Clean up empty document entry to prevent memory leak
                 if doc_state.is_empty() {
                     guard.remove(doc_id);
@@ -119,7 +123,7 @@ impl AwarenessService {
         };
 
         if let Some(client_id) = client_id {
-            self.remove_client(doc_id, client_id).await?;
+            self.remove_client(doc_id, &client_id).await?;
         }
 
         Ok(())
@@ -164,7 +168,7 @@ mod tests {
         let service = AwarenessService::new("redis://127.0.0.1/".to_string(), false, 120)
             .expect("awareness service");
         let user = AwarenessStateItem {
-            client_id: 1,
+            client_id: "socket-1".to_string(),
             id: "user-1".to_string(),
             name: "User One".to_string(),
             selection_params: json!({
@@ -180,7 +184,7 @@ mod tests {
             .expect("upsert");
 
         let state = service.get_state("doc-1").await.expect("get");
-        let stored = state.get(&1).expect("stored user");
+        let stored = state.get("socket-1").expect("stored user");
         assert_eq!(stored.id, "user-1");
         assert_eq!(stored.name, "User One");
     }
@@ -190,7 +194,7 @@ mod tests {
         let service = AwarenessService::new("redis://127.0.0.1/".to_string(), false, 120)
             .expect("awareness service");
         let user = AwarenessStateItem {
-            client_id: 2,
+            client_id: "socket-2".to_string(),
             id: "user-2".to_string(),
             name: "User Two".to_string(),
             selection_params: json!({
@@ -211,6 +215,6 @@ mod tests {
             .expect("remove");
 
         let state = service.get_state("doc-2").await.expect("get");
-        assert!(state.get(&2).is_none());
+        assert!(state.get("socket-2").is_none());
     }
 }

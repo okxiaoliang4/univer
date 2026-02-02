@@ -119,10 +119,8 @@ export class SocketNetworkService
                 path: '/socket.io/',
                 reconnection: true,
                 autoConnect: true,
-                query: {
-                    ...this._config.params,
-                    userId: this._config.userId,
-                    accessToken: this._config.accessToken,
+                auth: {
+                    token: this._config.accessToken,
                 },
             });
 
@@ -319,7 +317,7 @@ export class SocketNetworkService
             }
             : undefined;
 
-        this._socket.emit('presence_update', {
+        this._socket.volatile.emit('presence_update', {
             docId: awareness.docId,
             clientId: awareness.userId,
             user: { id: awareness.userId, name: awareness.userName },
