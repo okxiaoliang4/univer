@@ -120,8 +120,8 @@ async function createNewInstance() {
 
     univer.registerPlugins([
         [CollaborationPlugin, {
-            wsUrl: 'ws://localhost:8800/ws',
-            userId,
+            wsUrl: 'ws://localhost:3000/ws',
+            accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
         }],
         [UniverRPCMainThreadPlugin, { workerURL: worker }],
         [UniverDocsPlugin],

@@ -38,6 +38,15 @@ import { COLLABORATION_PLUGIN_CONFIG_KEY } from '../config.schema';
 
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+// Helper function to create a mock JWT token for testing
+// Format: header.payload.signature (base64 encoded)
+function createMockToken(userId: string): string {
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+    const payload = btoa(JSON.stringify({ uid: userId, name: 'Test User', email: 'test@test.com' }));
+    const signature = 'mock-signature';
+    return `${header}.${payload}.${signature}`;
+}
+
 class MockCollaborationService implements ICollaborationService {
     pendingMutations: IMutationInfo[] = [];
     currentVersion?: number;
@@ -87,7 +96,7 @@ describe('CollaborationController', () => {
     it('creates socket and disconnects on dispose', () => {
         const socketService = new MockSocketService();
         const configService = new MockConfigService({
-            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', userId: 'user-1' },
+            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', accessToken: createMockToken('user-1') },
         });
         const commandService = new MockCommandService();
         const instanceService = new MockUniverInstanceService();
@@ -115,7 +124,7 @@ describe('CollaborationController', () => {
     it('transforms pending mutations on changeset push without version gap', async () => {
         const socketService = new MockSocketService();
         const configService = new MockConfigService({
-            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', userId: 'user-1' },
+            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', accessToken: createMockToken('user-1') },
         });
         const commandService = new MockCommandService();
         const instanceService = new MockUniverInstanceService();
@@ -166,7 +175,7 @@ describe('CollaborationController', () => {
     it('fetches missed ops on version gap when no pending mutations', async () => {
         const socketService = new MockSocketService();
         const configService = new MockConfigService({
-            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', userId: 'user-1' },
+            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', accessToken: createMockToken('user-1') },
         });
         const commandService = new MockCommandService();
         const instanceService = new MockUniverInstanceService();
@@ -221,7 +230,7 @@ describe('CollaborationController', () => {
     it('syncs pending and missed ops on reconnect', async () => {
         const socketService = new MockSocketService();
         const configService = new MockConfigService({
-            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', userId: 'user-1' },
+            [COLLABORATION_PLUGIN_CONFIG_KEY]: { wsUrl: 'ws://test', accessToken: createMockToken('user-1') },
         });
         const commandService = new MockCommandService();
         const instanceService = new MockUniverInstanceService();

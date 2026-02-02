@@ -11,5 +11,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(&["proto/ot_rpc.proto"], &["proto"])?;
 
     println!("cargo:rerun-if-changed=proto/ot_rpc.proto");
+
+    tonic_build::configure()
+        .build_server(false)
+        .build_client(true)
+        .file_descriptor_set_path(out_dir.join("user_document_descriptor.bin"))
+        .compile(&[
+          "proto/user.proto",
+          "proto/document.proto",
+        ], &["proto"])?;
+
+    println!("cargo:rerun-if-changed=proto/user.proto");
+    println!("cargo:rerun-if-changed=proto/document.proto");
     Ok(())
 }

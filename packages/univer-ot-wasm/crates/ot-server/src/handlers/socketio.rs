@@ -1,4 +1,5 @@
 use crate::metrics;
+use crate::services::auth::AuthUserInfo;
 use crate::services::ot::Changeset;
 use crate::state::AppState;
 use crate::types::{
@@ -18,6 +19,13 @@ use std::sync::OnceLock;
 use std::time::Instant;
 use tracing::{error, info, warn};
 use uuid::Uuid;
+
+/// Socket authentication data stored in socket extensions
+#[derive(Debug, Clone)]
+pub struct SocketAuthData {
+    pub user_info: AuthUserInfo,
+    pub access_token: String,
+}
 
 /// Track which sockets are in which document rooms
 /// Key: doc_id, Value: set of socket IDs
@@ -54,20 +62,80 @@ fn track_socket_leave(doc_id: &str, socket_id: &str) -> bool {
     false
 }
 
+/// Auth request structure for Socket.IO handshake
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+pub struct AuthRequest {
+    #[serde(default)]
+    pub token: String,
+}
+
+/// Extract auth token from socket handshake (fallback method)
+fn extract_auth_token_from_query(socket: &SocketRef) -> Option<String> {
+    let handshake = socket.req_parts();
+
+    // Try to parse from query string
+    if let Some(query) = handshake.uri.query() {
+        for pair in query.split('&') {
+            if let Some((key, value)) = pair.split_once('=') {
+                if key == "token" {
+                    return Some(value.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Setup Socket.IO event handlers
 pub fn setup_socketio(io: &SocketIo, state: AppState) {
     // Setup handlers for /ws namespace
     let state_clone = state.clone();
-    io.ns("/ws", move |socket: SocketRef| async move {
+    io.ns("/ws", move |socket: SocketRef, Data(auth): Data<AuthRequest>| async move {
         info!("Socket connected to /ws namespace: {:?}", socket.id);
+
+        // Extract auth token from handshake auth data or fallback to query string
+        let token = if !auth.token.is_empty() {
+            auth.token
+        } else if let Some(t) = extract_auth_token_from_query(&socket) {
+            t
+        } else {
+            warn!("Socket {} connected without auth token, disconnecting", socket.id);
+            socket.disconnect().ok();
+            return;
+        };
+
+        // Verify token with user service
+        let state = state_clone.clone();
+        let user_info = match state.auth_service.verify_token(&token).await {
+            Ok(info) => {
+                info!(
+                    "Socket {} authenticated as user {} ({})",
+                    socket.id, info.uid, info.email
+                );
+                info
+            }
+            Err(e) => {
+                warn!(
+                    "Socket {} auth failed: {}, disconnecting",
+                    socket.id, e
+                );
+                socket.disconnect().ok();
+                return;
+            }
+        };
+
+        // Store auth data in socket extensions for use in event handlers
+        socket.extensions.insert(SocketAuthData {
+            user_info: user_info.clone(),
+            access_token: token.clone(),
+        });
 
         // Increment online users counter
         metrics::increment_online_users();
 
         // Increment WebSocket connections counter
         metrics::increment_websocket_connections();
-
-        let state = state_clone.clone();
 
         // Handle join_doc event
         socket.on(
@@ -229,6 +297,37 @@ async fn handle_join_doc(
     let doc_id =
         Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
 
+    // Get auth data from socket extensions
+    let auth_data = socket
+        .extensions
+        .get::<SocketAuthData>()
+        .ok_or_else(|| anyhow::anyhow!("Socket not authenticated"))?;
+
+    // Check document permissions
+    let permissions = state
+        .auth_service
+        .check_document_permission(
+            &socket.id.to_string(),
+            &auth_data.user_info.uid,
+            &req.doc_id,
+            &auth_data.access_token,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Permission check failed: {}", e))?;
+
+    if !permissions.readable {
+        return Err(anyhow::anyhow!(
+            "Permission denied: user {} cannot read document {}",
+            auth_data.user_info.uid,
+            req.doc_id
+        ));
+    }
+
+    info!(
+        "User {} has permissions for doc {}: readable={}, writable={}",
+        auth_data.user_info.uid, req.doc_id, permissions.readable, permissions.writable
+    );
+
     // Verify document exists and get current version from documents table
     let version = state
         .document_service
@@ -239,7 +338,10 @@ async fn handle_join_doc(
     // Join the room
     let room = format!("doc:{}", req.doc_id);
     socket.join(room.clone());
-    info!("Socket {} joined room {}", socket.id, room);
+    info!(
+        "Socket {} (user {}) joined room {}",
+        socket.id, auth_data.user_info.uid, room
+    );
 
     // Track socket joining document
     let is_new_document = track_socket_join(&req.doc_id, &socket.id.to_string());
@@ -333,15 +435,43 @@ async fn handle_changeset(
         req.base_rev,
         req.mutations.len()
     );
+
+    // Get auth data from socket extensions
+    let auth_data = socket
+        .extensions
+        .get::<SocketAuthData>()
+        .ok_or_else(|| anyhow::anyhow!("Socket not authenticated"))?;
+
     let doc_id =
         Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
+
+    // Check document permissions - must have write permission
+    let permissions = state
+        .auth_service
+        .check_document_permission(
+            &socket.id.to_string(),
+            &auth_data.user_info.uid,
+            &req.doc_id,
+            &auth_data.access_token,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Permission check failed: {}", e))?;
+
+    if !permissions.writable {
+        return Err(anyhow::anyhow!(
+            "Permission denied: user {} cannot write to document {}",
+            auth_data.user_info.uid,
+            req.doc_id
+        ));
+    }
 
     // Convert ChangesetRequest to Changeset for OTService
     let mutations: Vec<MutationInfoWithOpId> = req.mutations;
 
+    // Use authenticated user_id from token instead of socket.id
     let changeset = Changeset {
         base_rev: req.base_rev,
-        user_id: socket.id.to_string(), // TODO: 后面换成auth token中的userId
+        user_id: auth_data.user_info.uid.clone(),
         mutations,
         client_id: req
             .client_id
@@ -356,11 +486,28 @@ async fn handle_changeset(
         .await?;
 
     info!(
-        "Changeset applied successfully: doc_id={}, server_rev={}, mutations_count={}",
+        "Changeset applied successfully: doc_id={}, user_id={}, server_rev={}, mutations_count={}",
         req.doc_id,
+        auth_data.user_info.uid,
         result.server_rev,
         result.mutations.len()
     );
+
+    // Notify document service about the modification (fire and forget)
+    let grpc_client = state.grpc_client.clone();
+    let user_id = auth_data.user_info.uid.clone();
+    let doc_id_for_notify = req.doc_id.clone();
+    tokio::spawn(async move {
+        if let Err(e) = grpc_client
+            .notify_modify_document(&user_id, &doc_id_for_notify)
+            .await
+        {
+            warn!(
+                "Failed to notify document modification: doc_id={}, user_id={}, error={}",
+                doc_id_for_notify, user_id, e
+            );
+        }
+    });
 
     // Broadcast to room (excluding sender)
     let room = format!("doc:{}", req.doc_id);
@@ -510,7 +657,16 @@ async fn handle_presence_update(
 }
 
 async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
-    info!("Socket disconnecting: {:?}", socket.id);
+    let user_id = socket
+        .extensions
+        .get::<SocketAuthData>()
+        .map(|auth| auth.user_info.uid.clone())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    info!("Socket {} (user {}) disconnecting", socket.id, user_id);
+
+    // Invalidate permission cache for this socket
+    state.auth_service.invalidate_socket_cache(&socket.id.to_string());
 
     // Decrement online users counter
     metrics::decrement_online_users();

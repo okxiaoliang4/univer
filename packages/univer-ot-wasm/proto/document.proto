@@ -1,0 +1,1761 @@
+syntax = "proto3";
+
+package document;
+option go_package = "./pbdocument";
+
+enum DocType {
+  UNKNOWN = 0; // 未知文档
+  DOC = 1;     // DOC文档
+  PDF = 2;     // PDF文档
+  PPT = 3;     // 演示文稿
+  XLS = 4;     // 电子表格
+}
+
+enum CreateType {
+  CREATE_TYPE_UNKNOWN = 0;
+  CREATE_TYPE_NEW = 1;
+  CREATE_TYPE_FROM_FILE = 2;
+}
+
+enum UserSignatureType {
+  USER_SIGNATURE_TYPE_UNKNOWN = 0;
+  USER_SIGNATURE_TYPE_DRAW = 1;
+  USER_SIGNATURE_TYPE_TEXT = 2;
+  USER_SIGNATURE_TYPE_IMAGE = 3;
+}
+
+message Directory {
+  string folder_id = 1; // 文件夹ID
+  string name = 2;      // 文件夹名称
+}
+
+message UserInfo {
+  string uid = 1;
+  string name = 2;
+  string email = 3;
+  string nick_name = 4;
+}
+
+message UserSignatureInfo {
+  string guid = 1;
+  string user_id = 2;
+  UserSignatureType type = 3;
+  bytes data = 4;
+}
+
+message FolderInfo {
+  string id = 1;                                  // 文件夹ID
+  string user_id = 2;                             // 创建者用户ID
+  string parent_id = 3;                           // 父级文件夹ID
+  string name = 4;                                // 文件夹名称
+  string icon = 5;                                // 文件夹图标
+  repeated Directory path = 6;                    // 文件夹路径
+  repeated KnowledgeBaseInfo knowledge_bases = 7; // 绑定知识库
+  int64 create_time = 8;                          // 创建时间
+  int64 last_open_time = 9;                       // 最后打开时间
+  int64 last_edit_time = 10;                      // 最后编辑时间
+  bool favorited = 11;                            // 是否已收藏
+  int64 content_count = 12;                       // 文件数量
+  int64 content_size = 13;                        // 文件大小
+}
+
+message Permissions {
+  bool readable = 1;    // 是否可查阅
+  bool commentable = 2; // 是否可评论
+  bool writable = 3;    // 是否可编辑
+  bool owner = 4;       // 是否所有者
+}
+
+message LimitedPermissions {
+  bool readable = 1;    // 是否可查阅
+  bool commentable = 2; // 是否可评论
+  bool writable = 3;    // 是否可编辑
+}
+
+message DocumentInfo {
+  string id = 1;                                  // 文档ID
+  string title = 2;                               // 文档标题
+  DocType type = 3;                               // 文档类型
+  string note = 4;                                // 文档备注
+  string creator = 5;                             // 文档创建者
+  repeated KnowledgeBaseInfo knowledge_bases = 6; // 绑定知识库
+  uint64 file_size = 7;                           // 文件大小
+  int64 create_time = 8;        // 文档创建时间(unix时间戳，秒)
+  int64 last_open_time = 9;     // 用户最后打开时间(unix时间戳，秒)
+  int64 last_edit_time = 10;    // 用户最后编辑时间(unix时间戳，秒)
+  Permissions permissions = 11; // 文档权限
+  bool deleted = 12;            // 是否已删除
+  string preview_url = 13;      // 文档预览图
+  string link_permission = 14;  // 链接权限
+  bool favorited = 15;          // 是否已收藏
+  string status = 16;           // 文档状态
+  FolderInfo folder = 17; // 文件夹信息
+  string gpt_task_id = 18;    // gpt任务ID
+  optional string sub_type = 19; // 文档子应用类型
+  optional string gpt_task_id_v2 = 20; // gptv2任务ID
+  optional string key = 21; // s3文档key
+  bool used_quote = 22; // 是否使用引用功能
+  optional UserInfo last_editor = 23; // 最后编辑者
+  repeated DocumentInfo quote_docs = 24; // 引用文档
+}
+
+message ParticipantInfo {
+  string user_id = 1;          // 用户ID
+  Permissions permissions = 2; // 是否所有者
+}
+
+message FolderContentInfo {
+  optional string folder_id = 1;                    // 文件夹ID
+  string user_id = 2;                               // 用户ID
+  string user_type = 3;                             // 用户类型
+  string target_id = 4;                             // 目标ID
+  string type = 5;                                  // 类型
+  Permissions permissions = 6;                      // 权限
+  int64 join_time = 7;                              // 加入时间
+  int64 last_open_time = 8;                         // 最后打开时间
+  int64 last_edit_time = 9;                         // 最后编辑时间
+  optional DocumentInfo document = 10;              // 文档信息
+  optional FolderInfo folder = 11;                  // 文件夹信息
+  optional KnowledgeBaseInfo knowledge_base = 12;   // 知识库信息
+  optional StaticDocumentInfo static_document = 13; // 静态文档信息
+}
+
+message FolderContentFilter {
+  optional string creator_id = 1;               // 创建者ID
+  repeated string type = 2;                     // 类型
+  repeated string doc_status = 3;               // 文档状态
+  repeated string target_ids = 4;               // 目标ID
+  repeated DocType included_document_type = 5;  // 包含文档类型
+  repeated DocType excluded_document_type = 6;  // 排除文档类型
+  optional bool folder_included = 7;            // 筛选文件类型时是否包含文件夹
+}
+
+message DocumentFilter {
+  bool created_by_me = 1;                       // 由我创建
+  bool set_created_by_me = 2;                   // 已设置由我创建参数
+  repeated DocType included_document_type = 3;  // 包含文档类型
+  repeated DocType excluded_document_type = 4;  // 排除文档类型
+}
+
+message DocumentOrderBy {
+  bool name_asc = 1;            // 文档名称升序
+  bool name_desc = 2;           // 文档名称降序
+  bool create_time_asc = 3;     // 创建时间升序
+  bool create_time_desc = 4;    // 创建时间降序
+  bool last_edit_time_asc = 5;  // 最后编辑时间升序
+  bool last_edit_time_desc = 6; // 最后编辑时间降序
+  bool last_open_time_asc = 7;  // 最后打开时间升序
+  bool last_open_time_desc = 8; // 最后打开时间降序
+}
+
+message KnowledgeBaseInfo {
+  string id = 1;            // 知识库ID
+  string name = 2;          // 知识库名字
+  string note = 3;          // 知识库备注
+  string icon = 4;          // 知识库图标
+  uint64 file_size = 5;     // 文件大小
+  string creator = 6;       // 创建者
+  int64 create_time = 7;    // 创建日期
+  int64 last_open_time = 8; // 用户最后打开时间(unix时间戳，秒)
+  int64 last_edit_time = 9; // 用户最后编辑时间(unix时间戳，秒)
+  int64 content_count = 10; // 文件数量
+  int64 content_size = 11;  // 文件大小
+}
+
+message DocumentEditor {
+  string user_id = 1;       // 用户ID
+  int64 last_edit_time = 2; // 最后编辑时间
+}
+
+// @deprecated
+message DocumentVersionInfo {
+  string id = 1;                       // 文档版本ID
+  string name = 2;                     // 版本名称
+  bool is_auto_name = 3;               // 是否自动创建
+  repeated DocumentEditor users = 4;   // 参与用户列表
+  uint64 file_size = 5;                // 文件大小
+  DocumentVersionInfo revert_from = 6; // 还愿自版本
+  string revert_from_id = 7;           // 还愿自版本ID
+  int64 create_time = 8;               // 创建时间
+  int64 update_clock = 9;              // 更新时钟
+  int64 origin_clock = 10;             // 原始文档更新时钟
+  bytes diff_update = 11;              // 差异更新数据
+  bytes full_updates = 12;             // 完整更新数据
+  optional string user_id = 13;         // 版本保存用户ID
+}
+
+message	DocumentMilestoneInfo {
+  string id = 1;                                    // 文档版本ID
+  string doc_id = 2;                                // 文档id
+  string name = 3;                                  // 文档名称
+  repeated DocumentEditor users = 4;                // 参与用户列表
+  uint64 size = 5;                                  // 文件大小
+  int32 created_at = 6;                             // 创建时间
+  int32 updated_at = 7;                             // 更新时钟
+  string storage_id = 8;                            // 文档版本s3 Id
+  optional string restore_from_id = 9;              // 从哪个里程碑恢复的
+  optional DocumentMilestoneInfo restore_from = 10; // 恢复的里程碑实体
+}
+
+message DocumentVersionInfoV2 {
+  DocumentVersionSummary summary = 1;
+  bytes updates = 2;
+  int32 compression_type = 3;
+}
+
+message DocumentVersionSummary {
+  string guid = 1;
+  optional string user_id = 2;
+  string name = 3;
+  int64  size = 4;
+  int64  clock = 5;
+  int64  ts = 6;
+  string note = 7;
+  repeated DocumentEditor users = 8;
+  int32 flag = 9;
+}
+
+message StaticDocumentInfo {
+  string id = 1;                 // 文档ID
+  string key = 2;                // S3 Object Key
+  string title = 3;              // 文档标题
+  string note = 4;               // 文档备注
+  string owner = 5;              // 文档所有者
+  uint64 file_size = 6;          // 文档大小
+  string suffix = 7;             // 文档后缀
+  string mime_type = 8;          // 文档MIME类型
+  int64 create_time = 9;         // 文档创建时间(unix时间戳，秒)
+  string preview_url = 10;       // 预览图URL
+  string link_permission = 11;  // 链接权限
+  string knowledge_base_id = 12; // 已绑定知识库ID
+  int64 last_open_time = 13; // 用户最后打开时间(unix时间戳，秒)
+  int64 last_edit_time = 14; // 用户最后编辑时间(unix时间戳，秒)
+}
+
+message FeatureSetting {
+  string text = 1;
+  string value = 2;
+}
+
+// ====================================================================================================================
+// User Metadata
+// ====================================================================================================================
+
+message ListUserSignatureRequest {
+  string user_id = 1; // 用户ID
+}
+
+message ListUserSignatureResponse {
+  repeated UserSignatureInfo data = 1; // 签名列表
+}
+
+message CreateUserSignatureRequest {
+  string user_id = 1; // 用户ID
+  UserSignatureType type = 2;   // 签名类型
+  bytes data = 3;    // 签名数据
+}
+
+message CreateUserSignatureResponse {
+  UserSignatureInfo signature = 1; // 签名信息
+}
+
+message DeleteUserSignatureRequest {
+  string guid = 1; // 签名ID
+  string user_id = 2; // 用户ID
+}
+
+message DeleteUserSignatureResponse {}
+
+// ====================================================================================================================
+// Document
+// ====================================================================================================================
+
+message GetDocumentRequest {
+  string document_id = 1;           // 文档ID
+  optional string user_id = 2;      // 用户ID
+  optional string access_token = 3; // 访问令牌
+}
+
+message GetDocumentResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message CreateDocumentRequest {
+  string user_id = 1;                     // 用户ID
+  DocType doc_type = 2;                   // 文档类型
+  string title = 3;                       // 文档标题
+  string note = 4;                        // 文档备注
+  repeated string knowledge_base_ids = 5; // 知识库IDs(可选参数)
+  string folder_id = 6;                   // 文件夹ID(可选参数)
+  bytes sv = 7;                           // yjs state vector
+  bytes update = 8;                       // yjs update
+  string preview_url = 9;                 // 文档预览图
+  string status = 10;                     // 文档状态
+  string gpt_task_id = 11;                // GPT任务ID
+  CreateType create_type = 12;            // 文档创建类型(New|FromFile)
+  optional string gpt_task_id_v2 = 13;    // GPTv2任务ID
+  optional string sub_type = 14;          // 文档子应用类型
+  optional string guid = 15;              // 文档ID
+  optional bool used_quote = 16;          // 是否使用引用功能
+  optional string key = 17;                // Yjs文档s3文件名称
+  optional string doc_key = 18;           // 文档key
+  repeated string quote_doc_ids = 19;     // 引用文档ID
+}
+
+message CreateDocumentResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message ActivateDocumentRequest {
+  string document_id = 1;     // 文档ID(guid)
+  string user_id = 2;         // 用户ID
+  optional string title = 3; // 文档标题
+  optional bool used_quote = 4;   // 是否使用引用功能
+}
+
+message ActivateDocumentResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message CloneDocumentRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string title = 3;       // 文档标题
+  string folder_id = 4;   // 文件夹ID
+  string version_id = 5;  // 版本ID
+}
+
+message CloneDocumentResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message BindKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string document_id = 2;       // 文档ID
+  string knowledge_base_id = 3; // 知识库ID
+}
+
+message BindKnowledgeBaseResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message UnbindKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string document_id = 2;       // 文档ID
+  string knowledge_base_id = 3; // 知识库ID
+}
+
+message UnbindKnowledgeBaseResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message ModifyDocumentNoteRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string note = 3;        // 文档备注
+}
+
+message ModifyDocumentNoteResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message ModifyDocumentTitleRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string title = 3;       // 文档标题
+}
+
+message ModifyDocumentTitleResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message ModifyDocumentUsedQuoteRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  bool used_quote = 3;    // 是否使用引用功能
+}
+
+message ModifyDocumentUsedQuoteResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message ModifyDocumentPreviewRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string preview_url = 3; // 文档预览图
+}
+
+message ModifyDocumentPreviewResponse {
+  DocumentInfo doc = 1; // 文档信息
+}
+
+message ModifyDocumentLinkPermissionRequest {
+  string user_id = 1;                 // 用户ID
+  string document_id = 2;             // 文档ID
+  LimitedPermissions permissions = 3; // 用户权限
+}
+
+message ModifyDocumentLinkPermissionResponse {
+  DocumentInfo doc = 1; // 文档信息
+  StaticDocumentInfo static_doc = 2; // 静态文档信息
+}
+
+message InvitedUser {
+  string email = 1;                   // 用户邮箱
+  LimitedPermissions permissions = 2; // 用户权限
+}
+
+message InviteUserToDocumentRequest {
+  string user_id = 1;             // 用户ID
+  string document_id = 2;         // 文档ID
+  string message = 3;             // 邀请消息内容
+  repeated InvitedUser users = 4; // 邀请用户列表
+}
+
+message InviteUserToDocumentResponse {}
+
+message AcceptDocumentInvitationRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+}
+
+message AcceptDocumentInvitationResponse {}
+
+message QueryUserPermissionsRequest {
+  string document_id = 1; // 文档ID
+  optional string user_id = 2;     // 用户ID
+  optional string access_token = 3; // 访问令牌
+}
+
+message QueryUserPermissionsResponse {
+  Permissions permissions = 1; // 文档权限
+  DocType doc_type = 2;
+  map<int32, FeatureSetting> settings = 3;
+}
+
+message ModifyUserPermissionsRequest {
+  string user_id = 1;        // 用户ID
+  string document_id = 2;    // 文档ID
+  string target_user_id = 3; // 目标用户ID
+  bool readable = 4;         // 是否可查阅
+  bool commentable = 5;      // 是否可评论
+  bool writable = 6;         // 是否可编辑
+}
+
+message ModifyUserPermissionsResponse {
+  LimitedPermissions permissions = 1; // 文档权限
+}
+
+message QueryDocumentParticipantsRequest {
+  string document_id = 1;           // 文档ID
+  optional string user_id = 2;      // 用户ID
+  optional string access_token = 3; // 访问令牌
+}
+
+message QueryDocumentParticipantsResponse {
+  repeated ParticipantInfo participants = 1;
+}
+
+// @deprecated
+message ListDocumentVersionsRequest {
+  string user_id = 1;             // 用户ID
+  string document_id = 2;         // 文档ID
+  int32 limit = 3;                // 返回数量限制
+  int64 last_update_clock = 4;    // 最后更新时钟
+  bool set_last_update_clock = 5; // 设置最后更新时钟
+  bool include_diff_update = 6;   // 包含差异更新数据
+  string sort = 7;                // 排序方式(枚举值: asc|desc)
+}
+
+message ListDocumentVersionsResponse {
+  int64 current_update_clock = 1;        // 当前更新时钟
+  repeated DocumentVersionInfo data = 2; // 版本列表
+}
+
+message ListDocumentMilestonesRequest {
+  string document_id = 1;           // 文档ID
+  optional string user_id = 2;      // 用户ID
+  optional string access_token = 3; // 访问令牌
+  optional int32 limit = 4;         // 返回数量限制
+  optional string cursor = 5;       // 最后更新时钟
+  string sort = 6;                  // 排序方式(枚举值: asc|desc)
+}
+
+message ListDocumentMilestonesResponse {
+  optional string next_cursor = 1;        // 当前更新时钟
+  repeated DocumentMilestoneInfo data = 2; // 版本列表
+}
+
+message RestoreDocumentMilestoneRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string milestone_id = 3; // 版本ID
+}
+
+message RestoreDocumentMilestoneResponse {}
+
+message GetDocumentVersionUpdateRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string version_id = 3;  // 版本ID
+}
+
+message GetDocumentVersionUpdateResponse { bytes update = 1; }
+
+// @deprecated
+message ModifyDocumentVersionNameRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string version_id = 3;  // 版本ID
+  string name = 4;        // 版本名称
+}
+
+message ModifyDocumentVersionNameResponse {
+  DocumentVersionInfo version = 1; // 版本信息
+}
+
+message GetDocumentVersionRequestV2 {
+  string document_id = 1;           // 文档ID
+  string version_guid = 2;          // 版本ID
+  optional string user_id = 3;      // 用户ID
+  optional string access_token = 4; // 访问令牌
+}
+
+message GetDocumentVersionResponseV2 {
+  DocumentVersionInfoV2 version = 1; // 版本信息
+}
+
+message ListDocumentVersionsRequestV2 {
+  string document_id = 1;           // 文档ID
+  optional string user_id = 2;      // 用户ID
+  optional string access_token = 3; // 访问令牌
+  int32 limit = 4;                  // 返回数量限制
+  int64 last_clock = 5;             // 最后更新时钟
+  bool desc = 6;                    // 是否降序 
+}
+
+message ListDocumentVersionsResponseV2 {
+  repeated DocumentVersionSummary data = 1; // 版本列表
+}
+
+message ModifyDocumentVersionNameRequestV2 {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string version_guid = 3;  // 版本ID
+  string name = 4;        // 版本名称
+}
+
+message ModifyDocumentVersionNameResponseV2 {
+  DocumentVersionSummary version = 1; // 版本信息
+}
+
+message SaveDocCurrentVersionRequestV2 {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  optional string name = 3;        // 版本名称
+}
+
+message SaveDocCurrentVersionResponseV2 {
+  DocumentVersionSummary version = 1; // 版本信息
+}
+
+message ModifyDocumentQuoteDocsRequest {
+  optional string user_id = 1;       // 用户ID
+  string document_id = 2;            // 文档ID
+  repeated string quote_doc_ids = 3; // 引用文档ID列表
+  bool coverage = 4;                 // 是否覆盖旧引用文档
+}
+
+message ModifyDocumentQuoteDocsResponse {}
+
+message DeleteDocumentVersionRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  string version_id = 3;  // 版本ID
+}
+
+message DeleteDocumentVersionResponse {}
+
+message DeleteDocumentRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+}
+
+message DeleteDocumentResponse {}
+
+message QueryDocumentsByIdsRequest { repeated string ids = 1; }
+
+message QueryDocumentsByIdsResponse { repeated DocumentInfo data = 1; }
+
+message QueryRecentlyDocumentsRequest {
+  string user_id = 1; // 用户ID
+  DocType type = 2;   // 文档类型
+  int32 page = 3;     // 页码
+  int32 size = 4;     // 每页数量
+}
+
+message QueryRecentlyDocumentsResponse { repeated DocumentInfo data = 1; }
+
+message QueryUserDocumentsRequest {
+  string user_id = 1; // 用户ID
+  repeated string statuses = 2; // 文档状态
+}
+
+message QueryUserDocumentsResponse { 
+  repeated DocumentInfo docs = 1; 
+}
+
+message QueryUsedSpaceRequest {
+  string user_id = 1; // 用户ID
+}
+
+message QueryUsedSpaceResponse {
+  uint64 used_space = 1; // 已使用空间
+  uint64 total_space = 2; // 总空间
+  uint64 doc_count = 3; // 文档数量
+}
+
+enum PermissionRequestStatus {
+  PR_STATUS_UNKNOWN = 0;
+  PR_STATUS_PENDING = 1;
+  PR_STATUS_DENY = 2;
+  PR_STATUS_APPROVED = 3;
+}
+
+message RequestPermission {
+  string document_id = 1;             // 文档ID
+  string target_user_id = 2;          // 目标用户ID
+  LimitedPermissions permissions = 3; // 用户权限
+  PermissionRequestStatus status = 4; // 请求状态
+  int64 create_time = 5;              // 创建时间
+}
+
+message RequestPermissionRequest {
+  string user_id = 1;                 // 用户ID
+  string document_id = 2;             // 文档ID
+  LimitedPermissions permissions = 3; // 用户权限
+}
+
+message RequestPermissionResponse {
+  string status = 1; // 请求状态(枚举值: pending|approved)
+}
+
+message ListPermissionRequestsRequest {
+  string document_id = 1;           // 文档ID
+  optional string user_id = 2;      // 用户ID
+  optional string access_token = 3; // 访问令牌
+}
+
+message ListPermissionRequestsResponse { repeated RequestPermission data = 1; }
+
+message UpdatePermissionRequestStatusRequest {
+  string user_id = 1;                 // 用户ID
+  string document_id = 2;             // 文档ID
+  string target_user_id = 3;          // 目标用户ID
+  PermissionRequestStatus status = 4; // 请求状态
+}
+
+message UpdatePermissionRequestStatusResponse {}
+
+message GetFolderRequest {
+  string user_id = 1;   // 用户ID
+  string folder_id = 2; // 文件夹ID(为空返回根目录)
+}
+
+message GetFolderResponse {
+  FolderInfo folder = 1; // 文件夹信息
+}
+
+message ListFolderRequest {
+  string user_id = 1;           // 用户ID
+  string parent_id = 2;         // 父级文件夹ID(可选)
+  DocumentOrderBy order_by = 3; // 文件夹排序方式
+}
+
+message ListFolderResponse {
+  repeated FolderInfo data = 1; // 文件夹列表
+}
+
+message CreateFolderRequest {
+  string user_id = 1;   // 用户ID
+  string name = 2;      // 文件夹名称
+  string icon = 3;      // 文件夹图标(可选)
+  string parent_id = 4; // 父级文件夹ID(可选)
+}
+
+message CreateFolderResponse {
+  FolderInfo folder = 1; // 文件夹信息
+}
+
+message MoveFolderRequest {
+  string user_id = 1;          // 用户ID
+  string folder_id = 2;        // 文件夹ID
+  string target_folder_id = 3; // 目标文件夹ID(为空表示根目录)
+}
+
+message MoveFolderResponse {
+  FolderInfo folder = 1; // 文件夹信息
+}
+
+message MoveDocumentRequest {
+  string user_id = 1;          // 用户ID
+  string document_id = 2;      // 文档ID
+  string target_folder_id = 3; // 目标文件夹ID(为空表示根目录)
+}
+
+message MoveDocumentResponse {}
+
+message ModifyFolderNameRequest {
+  string user_id = 1;   // 用户ID
+  string folder_id = 2; // 文件夹ID
+  string name = 3;      // 文件夹名称
+}
+
+message ModifyFolderNameResponse {
+  FolderInfo folder = 1; // 文件夹信息
+}
+
+message ListFolderDocumentsRequest {
+  string user_id = 1;           // 用户ID
+  string folder_id = 2;         // 文件夹ID(为空表示根目录)
+  DocumentFilter filter = 3;    // 文档筛选器
+  DocumentOrderBy order_by = 4; // 文档排序方式
+}
+
+message ListFolderDocumentsResponse {
+  repeated DocumentInfo data = 1; // 文档列表
+}
+
+message ListFolderContentsRequest {
+  optional string user_id = 1;           // 用户ID
+  optional string org_id = 2;            // 组织ID
+  optional string folder_id = 3;         // 文件夹ID(为空表示根目录)
+  FolderContentFilter filter = 4;    // 文档筛选器
+  DocumentOrderBy order_by = 5; // 文档排序方式
+  int32 page = 6;               // 页码
+  int32 size = 7;               // 每页数量
+}
+
+message ListFolderContentsResponse {
+  repeated FolderContentInfo items = 1; // 文件夹内容列表
+  int32 total = 2;                      // 总数量
+  int32 page = 3;                       // 页码
+  int32 page_size = 4;                  // 每页数量
+  int32 total_pages = 5;                // 总页数
+  bool has_prev = 6;                    // 是否有上一页
+  bool has_next = 7;                    // 是否有下一页
+}
+
+message BindFolderToKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string folder_id = 2;         // 文件夹ID
+  string knowledge_base_id = 3; // 知识库ID
+}
+
+message BindFolderToKnowledgeBaseResponse {
+  FolderInfo folder = 1; // 文件夹信息
+}
+
+message UnbindFolderFromKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string folder_id = 2;         // 文件夹ID
+  string knowledge_base_id = 3; // 知识库ID
+}
+
+message UnbindFolderFromKnowledgeBaseResponse {
+  FolderInfo folder = 1; // 文件夹信息
+}
+
+message DeleteFolderRequest {
+  string user_id = 1;   // 用户ID
+  string folder_id = 2; // 文件夹ID
+}
+
+message DeleteFolderResponse {}
+
+message NotifyOpenDocumentRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  int64 timestamp = 3;    // 时间戳(unix时间戳，秒)
+}
+
+message NotifyOpenDocumentResponse {}
+
+message NotifyModifyDocumentRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  int64 timestamp = 3;    // 时间戳(unix时间戳，秒)
+}
+
+message NotifyModifyDocumentResponse {}
+
+message NotifyDocumentFileSizeRequest {
+  string user_id = 1;     // 用户ID
+  string document_id = 2; // 文档ID
+  int64 timestamp = 3;    // 时间戳(unix时间戳，秒)
+  uint64 file_size = 4;   // 文件大小
+}
+
+message NotifyDocumentFileSizeResponse {}
+
+message InterCreateDocumentRequest {
+  CreateDocumentRequest doc_req = 1;
+}
+
+message InterCreateDocumentResponse {
+DocumentInfo doc = 1; // 文档信息
+}
+
+message InterDeleteDocumentRequest {
+string document_id = 1; // 文档ID
+}
+
+message InterDeleteDocumentResponse {}
+
+message InterSetDocumentStatusRequest {
+  string document_id = 1; // 文档ID
+  string status = 2;     // 文档状态
+}
+
+message InterSetDocumentStatusResponse {}
+
+message InterClearUserDataRequest {
+  string user_id = 1; // 用户ID
+}
+
+message InterClearUserDataResponse {}
+
+// ====================================================================================================================
+// Knowledge Base
+// ====================================================================================================================
+
+message GetKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+}
+
+message GetKnowledgeBaseResponse {
+  KnowledgeBaseInfo knowledge_base = 1; // 知识库信息
+}
+
+message ListKnowledgeBaseRequest {
+  string owner = 1;             // 创建者ID
+  DocumentOrderBy order_by = 2; // 排序方式
+  int32 page = 3;               // 页码
+  int32 size = 4;               // 每页数量
+}
+
+message ListKnowledgeBaseResponse {
+  int32 total_number = 1;              // 总数量
+  repeated KnowledgeBaseInfo data = 2; // 知识库列表
+}
+
+message AddDocumentToKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+  string key = 3;               // S3 Object Key
+  string title = 4;             // 文档标题
+  string note = 5;              // 文档备注
+  string preview_url = 6;       // 预览图URL
+  bytes update = 7;             // yjs update
+  DocType doc_type = 8;         // 文档类型
+  CreateType create_type = 9;   // 文档创建类型(New|FromFile)
+  optional string doc_key = 10; // 文档key
+}
+
+message AddDocumentToKnowledgeBaseResponse {
+  StaticDocumentInfo doc = 1; // 文档信息
+}
+
+message GetKnowledgeBaseDocumentRequest {
+  string doc_id = 1;                // 文档ID
+  optional string user_id = 2;      // 用户ID
+  optional string access_token = 3; // 访问令牌
+}
+
+message GetKnowledgeBaseDocumentResponse {
+  StaticDocumentInfo doc = 1; // 文档信息
+}
+
+message ModifyKnowledgeBaseDocumentTitleRequest {
+  string user_id = 1; // 用户ID
+  string doc_id = 2;  // 文档ID
+  string title = 3;   // 文档标题
+}
+message ModifyKnowledgeBaseDocumentTitleResponse {
+  StaticDocumentInfo doc = 1; // 文档信息
+}
+
+message ListKnowledgeBaseDocumentsRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+  DocumentOrderBy order_by = 3; // 文档排序方式
+  int32 page = 4;               // 页码
+  int32 size = 5;               // 每页数量
+}
+
+message ListKnowledgeBaseDocumentsResponse {
+  int32 total_number = 1;               // 总数量
+  repeated StaticDocumentInfo data = 2; // 文档列表
+}
+
+message CopyDocumentToKnowledgeBaseRequest {
+  string user_id = 1;              // 用户ID
+  string static_doc_id = 2;        // 静态文档ID
+  string to_knowledge_base_id = 3; // 目标知识库ID
+}
+
+message CopyDocumentToKnowledgeBaseResponse {
+  StaticDocumentInfo doc = 1; // 文档信息
+}
+
+message MoveDocumentToKnowledgeBaseRequest {
+  string user_id = 1;              // 用户ID
+  string static_doc_id = 2;        // 静态文档ID
+  string to_knowledge_base_id = 3; // 目标知识库ID
+}
+
+message MoveDocumentToKnowledgeBaseResponse {
+  StaticDocumentInfo doc = 1; // 文档信息
+}
+
+message DeleteDocumentFromKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+  string key = 3;               // S3 Object Key
+}
+
+message DeleteDocumentFromKnowledgeBaseResponse {}
+
+message CreateKnowledgeBaseRequest {
+  string user_id = 1; // 用户ID
+  string name = 2;    // 知识库名称
+  string note = 3;    // 知识库备注
+  string icon = 4;    // 知识库图标
+}
+
+message CreateKnowledgeBaseResponse {
+  KnowledgeBaseInfo knowledge_base = 1; // 知识库信息
+}
+
+message ModifyKnowledgeBaseIconRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+  string icon = 3;              // 知识库图标
+}
+
+message ModifyKnowledgeBaseIconResponse {
+  KnowledgeBaseInfo knowledge_base = 1; // 知识库信息
+}
+
+message ModifyKnowledgeBaseNameRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+  string name = 3;              // 知识库名称
+}
+
+message ModifyKnowledgeBaseNameResponse {
+  KnowledgeBaseInfo knowledge_base = 1; // 知识库信息
+}
+
+message ModifyKnowledgeBaseNoteRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+  string note = 3;              // 知识库备注
+}
+
+message ModifyKnowledgeBaseNoteResponse {
+  KnowledgeBaseInfo knowledge_base = 1; // 知识库信息
+}
+
+message DeleteKnowledgeBaseRequest {
+  string user_id = 1;           // 用户ID
+  string knowledge_base_id = 2; // 知识库ID
+}
+
+message DeleteKnowledgeBaseResponse {}
+
+message QueryStaticDocumentPermissionsRequest {
+  string user_id = 1;       // 用户ID
+  string static_doc_id = 2; // 静态文档ID
+}
+
+message QueryStaticDocumentPermissionsResponse {
+  Permissions permissions = 1; // 文档权限
+}
+
+message QueryStaticDocumentsByIdsRequest {
+  repeated string Ids = 1; // 文档id
+}
+
+message QueryStaticDocumentsByIdsResponse {
+  repeated StaticDocumentInfo data = 1; // 静态文档列表
+}
+
+// ====================================================================================================================
+// Favorite
+// ====================================================================================================================
+
+enum FavoriteType {
+  FavoriteTypUnknown = 0;
+  FavoriteTypeDoc = 1;
+  FavoriteTypeFolder = 2;
+}
+
+message FavoriteContent {
+  string id = 1;
+  FavoriteType type = 2;
+  DocumentInfo doc = 3;
+  FolderInfo folder = 4;
+  int64 create_time = 5;
+}
+
+message FavoriteAddRequest {
+  string user_id = 1;
+  FavoriteType type = 2;
+  string entity_id = 3;
+}
+
+message FavoriteAddResponse { string id = 1; }
+
+message FavoriteRemoveRequest {
+  string user_id = 1;
+  FavoriteType type = 2;
+  string entity_id = 3;
+}
+
+message FavoriteRemoveResponse {}
+
+message QueryFavoriteContentsRequest {
+  string user_id = 1;
+  bool favorite_time_asc = 2;         // 收藏时间升序
+  bool favorite_time_desc = 3;        // 收藏时间降序
+  DocumentFilter document_filter = 4; // 文档筛选器
+  DocumentOrderBy order_by = 5;       // 文档排序方式
+  int32 page = 6;                     // 页码
+  int32 size = 7;                     // 每页数量
+}
+
+message QueryFavoriteContentsResponse {
+  int32 total_number = 1;
+  repeated FavoriteContent docs = 2;
+  repeated FavoriteContent folders = 3;
+}
+
+message ListFavoriteContentsRequest {
+  string user_id = 1;    // 用户ID
+  optional string org_id = 2;     // 组织ID
+  optional string folder_id = 3;  // 文件夹ID(为空表示根目录)
+  FolderContentFilter filter = 4; // 文档筛选器
+  DocumentOrderBy order_by = 5;   // 文档排序方式
+  int32 page = 6;                 // 页码
+  int32 size = 7;                 // 每页数量
+  bool favorite_time_asc = 8;     // 收藏时间升序
+  bool favorite_time_desc = 9;    // 收藏时间降序
+}
+
+message ListFavoriteContentsResponse {
+  repeated FavoriteContent items = 1; // 文件夹内容列表
+  int32 total = 2;                    // 总数量
+  int32 page = 3;                     // 页码
+  int32 page_size = 4;                // 每页数量
+  int32 total_pages = 5;              // 总页数
+  bool has_prev = 6;                  // 是否有上一页
+  bool has_next = 7;                  // 是否有下一页
+}
+
+// ====================================================================================================================
+// Trash
+// ====================================================================================================================
+
+enum TrashItemType {
+  TrashItemTypeUnknown = 0;
+  TrashItemTypeFolder = 1;
+  TrashItemTypeDocument = 2;
+  TrashItemTypeKnowledgeBase = 3;
+  TrashItemTypeStaticDocument = 4;
+}
+
+message TrashItem {
+  string id = 1;
+  TrashItemType type = 2;
+  string name = 3;
+  string icon = 4;
+  string preview_url = 5;
+  string docuemnt_type = 6;
+  int64 delete_time = 7;
+}
+
+message ClearTrashRequest {
+  string user_id = 1; // 用户ID
+}
+
+message ClearTrashResponse { int32 count = 1; }
+
+message ListTrashItemsRequest {
+  string user_id = 1;               // 用户ID
+  repeated TrashItemType types = 2; // 内容类型
+  int32 page = 3;                   // 页码
+  int32 size = 4;                   // 每页数量
+}
+
+message ListTrashItemsResponse {
+  int32 total_number = 1;
+  repeated TrashItem data = 2;
+}
+
+message DeleteTrashItemRequest {
+  string user_id = 1; // 用户ID
+  string item_id = 2; // 目标项ID
+}
+
+message DeleteTrashItemResponse {}
+
+message RestoreTrashItemRequest {
+  string user_id = 1; // 用户ID
+  string item_id = 2; // 目标项ID
+}
+
+message RestoreTrashItemResponse {}
+
+// ====================================================================================================================
+// Email
+// ====================================================================================================================
+
+message SendEmailRequest {
+  string subject = 1;
+  string to = 2;
+  string text = 3;
+  string html = 4;
+}
+
+message SendEmailResponse { string id = 1; }
+
+// ====================================================================================================================
+// Message
+// ====================================================================================================================
+
+enum MessageType {
+  MessageTypeUnknown = 0;           // 未定义
+  MessageTypeNotice = 1;            // 通知
+  MessageTypeInvitation = 2;        // 邀请
+  MessageTypePermissionRequest = 3; // 权限请求
+}
+
+enum MessageStatus {
+  MessageStatusTypeUnknown = 0; // 未定义
+  MessageStatusTypeRead = 1;    // 已读
+  MessageStatusTypeUnread = 2;  // 未读
+}
+
+message MessageMetaDataItem {
+  string field = 1;
+  string value = 2;
+}
+
+message MessageItem {
+  string id = 1;                             // 消息ID
+  MessageType type = 2;                      // 消息类型
+  string title = 3;                          // 消息标题
+  string content = 4;                        // 消息内容
+  repeated MessageMetaDataItem metadata = 5; // 消息元数据
+  MessageStatus status = 6;                  // 消息状态
+  int64 timestamp = 7;                       // 消息时间戳
+}
+
+message GetMessageRequest {
+  string user_id = 1;    // 用户ID
+  string message_id = 2; // 消息ID
+}
+
+message GetMessageResponse { MessageItem message = 1; }
+
+message QueryMessagesRequest {
+  string user_id = 1;       // 用户ID
+  int32 page = 2;           // 页码
+  int32 size = 3;           // 每页数量
+  MessageType type = 4;     // 消息类型(可选)
+  MessageStatus status = 5; // 消息状态(可选)
+}
+
+message QueryMessagesResponse {
+  int32 total = 1;                   // 数量总计
+  repeated MessageItem messages = 2; // 消息列表
+}
+
+message GetUnreadCountRequest {
+  string user_id = 1; // 用户ID
+}
+
+message MessageCount {
+  MessageType type = 1; // 消息类型
+  int32 count = 2;      // 消息数量
+}
+
+message GetUnreadCountResponse { repeated MessageCount data = 1; }
+
+message SendMessageRequest {
+  string email = 1;                          // 用户邮箱
+  MessageType type = 2;                      //
+  string title = 3;                          // 消息标题
+  string content = 4;                        // 消息内容
+  repeated MessageMetaDataItem metadata = 5; // 消息元数据
+}
+
+message SendMessageResponse { MessageItem message = 1; }
+
+message UpdateMessageStatusRequest {
+  string user_id = 1;       // 用户ID
+  repeated string ids = 2;  // 消息ID列表
+  MessageStatus status = 3; // 消息状态(枚举值)
+}
+
+message UpdateMessageStatusResponse {}
+
+message DeleteMessageRequest {
+  string user_id = 1;      // 用户ID
+  repeated string ids = 2; // 消息ID列表
+}
+
+message DeleteMessageResponse {}
+
+// ====================================================================================================================
+// S3 Storage
+// ====================================================================================================================
+
+message StorePreSignObjectRequest {
+  string user_id = 1;   // 用户ID
+  string key = 2;       // Object Key
+  string suffix = 3;    // 文件后缀
+  string filename = 4;  // 文件名称
+  int64 expiration = 5; // 过期时间(unix时间戳)
+  optional string doc_id = 6; // 文档ID
+}
+
+message StorePreSignObjectResponse {}
+
+message CheckObjectPermissionRequest {
+  string user_id = 1; // 用户ID
+  string key = 2;     // Object Key
+  optional string doc_id = 3; // 文档ID
+}
+
+message CheckObjectPermissionResponse {
+  S3Object object = 1;
+}
+
+message DeleteObjectRequest {
+  string user_id = 1; // 用户ID
+  string key = 2;     // Object Key
+}
+
+message DeleteObjectResponse {}
+
+message GetPreuploadUrlRequest {
+  string acl = 1;
+  int64 file_size = 2;
+  optional string filename = 3;
+  optional string prefix = 4;
+  optional string doc_id = 5;
+  optional string user_id = 6;
+  optional string key = 7;
+  bool reupload = 8;
+}
+
+message GetPreuploadUrlResponse {
+  string key = 1;
+  string url = 2;
+  map<string, string> values = 3;
+}
+
+message ConvertObjectRequest {
+  string key = 1;
+  string content_type = 2;
+  bool skip_cache = 3;
+  bool skip_upload = 4;
+  optional string filename = 5;
+  optional string prefix = 6;
+  optional string doc_id = 7;
+  optional string user_id = 8;
+}
+
+message ConvertObjectResponse {
+  string key = 1;
+  string url = 2;
+}
+
+message GetAttachmentUrlRequest {
+  string key = 1;
+}
+
+message SignedHeader {
+  string key = 1;
+  repeated string value = 2;
+}
+
+message GetAttachmentUrlResponse {
+  string url = 1;
+  string method = 2;
+  int64 expiration = 3;
+  repeated SignedHeader signed_header = 4;
+}
+
+// ====================================================================================================================
+// Management
+// ====================================================================================================================
+
+message S3Object {
+  string key = 1;
+  string suffix = 2;
+  string content_type = 3;
+  string filename = 4;
+  uint64 file_size = 5;
+  int64 upload_time = 6;
+  optional string doc_id = 7; // 文档ID
+}
+
+message ObjectStats {
+  string suffix = 1;
+  int64 file_size = 3;
+  int32 file_count = 2;
+}
+
+message OpenAiTokenLog {
+  int32 tokens = 1;
+  int32 prompt_tokens = 2;
+  int32 completion_tokens = 3;
+  int32 total_tokens = 4;
+  int64 timestamp = 5;
+}
+
+message GetOpenAiTokenLogsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 size = 3;
+}
+
+message GetOpenAiTokenLogsResponse {
+  int32 total_number = 1;
+  repeated OpenAiTokenLog data = 2;
+}
+
+message GetOpenAiTokenStatsRequest { string user_id = 1; }
+
+message GetOpenAiTokenStatsResponse {
+  int32 total_tokens = 1;
+  int64 last_update_time = 2;
+}
+
+message ListS3ObjectByUserRequest {
+  string user_id = 1;
+  string suffix = 2;
+  int32 page = 3;
+  int32 size = 4;
+}
+
+message ListS3ObjectByUserResponse {
+  int32 total_number = 1;
+  repeated S3Object data = 2;
+}
+
+message S3ObjectCountAndSizeRequest {}
+
+message S3ObjectCountAndSizeResponse {
+  int64 file_size = 1;
+  int32 file_count = 2;
+}
+
+message S3ObjectCountAndSizeByUserRequest { string user_id = 1; }
+
+message S3ObjectCountAndSizeByUserResponse {
+  int64 file_size = 1;
+  int32 file_count = 2;
+}
+
+message S3ObjectCountAndSizeByFileTypeRequest {}
+
+message S3ObjectCountAndSizeByFileTypeResponse {
+  repeated ObjectStats data = 1;
+}
+
+message S3ObjectCountAndSizeByFileTypeAndUserRequest { string user_id = 1; }
+
+message S3ObjectCountAndSizeByFileTypeAndUserResponse {
+  repeated ObjectStats data = 1;
+}
+
+message UploadExternalUrlRequest {
+  string user_id = 1;
+  string url = 2;
+  string acl = 3;
+}
+
+message UploadExternalUrlResponse { string task_id = 1; }
+
+message GetUploadExternalUrlStatusRequest { string task_id = 1; }
+
+message GetUploadExternalUrlStatusResponse {
+  string status = 1;
+  string object_key = 2;
+}
+
+// ====================================================================================================================
+// AI Tool
+// ====================================================================================================================
+
+message CostCredit {
+  string credit = 1;
+  string display = 2;
+}
+
+message CostCreditWord {
+  double cost = 1;
+}
+
+enum ScanHistoryType {
+  AI_UNKNOWN = 0;
+  AI_DETECT = 1;   // 去AI化
+  AI_HUMANIZE = 2; // AI检测
+  AI_DETECT_V2 = 3; // v2
+  AI_PROFESSOR_REVIEW = 4; // 评分报告
+}
+
+message CreateTaskResult {
+  string status = 1;  // 状态(枚举值: queued|rejected)
+  string task_id = 2; // 任务ID
+}
+
+message ScanHistoryItem {
+  string id = 1;
+  ScanHistoryType type = 2;
+  string user_id = 3;
+  string doc_id = 4;
+  bytes inputs = 5;
+  bytes outputs = 6;
+  int64 elapsed_msec = 7;
+  int64 create_time = 8;
+  optional string public_res_url = 9;
+}
+
+message AiEmptyRequest {}
+
+message AiDetectRequest {
+  string user_id = 1;
+  string doc_id = 2;
+  repeated string texts = 3;
+  string version = 4;
+}
+
+message AiHumanizeRequest {
+  string user_id = 1;
+  string doc_id = 2;
+  string mode = 3;
+  repeated string texts = 4;
+}
+
+message DocumentTask {
+  string task_id = 1;
+  string task_type = 2;
+  string task_status = 3;
+}
+
+message GetTaskQueueRequest {
+  string user_id = 1;
+  string doc_id = 2;
+  string task_type = 3;
+}
+
+message GetTaskQueueResponse { repeated DocumentTask data = 1; }
+
+message GetTaskStatusRequest {
+  string user_id = 1;
+  string task_id = 2;
+}
+
+message GetTaskStatusResponse {
+  string status = 1;          // 任务状态
+  string last_error = 2;      // 最后错误
+  int64 last_failed_at = 3;   // 最后失败时间
+  int64 next_process_at = 4;  // 下次处理时间
+  ScanHistoryItem result = 5; // 任务结果
+}
+
+message StoreScanHistoryRequest { ScanHistoryItem item = 1; }
+
+message StoreScanHistoryResponse {}
+
+message UpdateScanHistoryPublicResUrlRequest {
+  string scan_history_id = 1;
+  string public_res_url = 2;
+  string user_id = 3;
+}
+
+message UpdateScanHistoryPublicResUrlResponse {}
+
+message QueryScanHistoryRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 size = 3;
+  optional ScanHistoryType type = 4;
+}
+
+message QueryScanHistoryResponse {
+  int32 total = 1;
+  repeated ScanHistoryItem data = 2;
+}
+
+message QueryScanHistoryItemRequest {
+  string id = 1;
+  string user_id = 2;
+}
+
+message QueryScanHistoryItemResponse { ScanHistoryItem data = 1; }
+
+message GetDocumentSnapshotRequest {
+  string user_id = 1;
+  string scan_history_id = 2;
+}
+
+message GetDocumentSnapshotResponse { 
+  bytes update = 1; 
+  int32 compression_type = 2;
+  string doc_id = 3;
+  optional string version_id = 4;
+}
+
+message DeleteScanHistoryItemRequest {
+  string id = 1;
+  string user_id = 2;
+}
+
+message DeleteScanHistoryItemResponse {}
+
+// ====================================================================================================================
+// gRPC Services
+// ====================================================================================================================
+
+service AiTool {
+  rpc AiDetect(AiDetectRequest) returns (CreateTaskResult);
+  rpc AiHumanize(AiHumanizeRequest) returns (CreateTaskResult);
+  rpc AiDetectCredit(AiDetectRequest) returns (CostCredit);
+  rpc AiHumanizeCredit(AiHumanizeRequest) returns (CostCredit);
+  rpc AiDetectCost(AiEmptyRequest) returns (CostCreditWord);
+  rpc AiHumanizeCost(AiEmptyRequest) returns (CostCreditWord);
+  rpc GetTaskQueue(GetTaskQueueRequest) returns (GetTaskQueueResponse);
+  rpc GetTaskStatus(GetTaskStatusRequest) returns (GetTaskStatusResponse);
+  rpc StoreScanHistory(StoreScanHistoryRequest)
+      returns (StoreScanHistoryResponse);
+  rpc UpdateScanHistoryPublicResUrl(UpdateScanHistoryPublicResUrlRequest)
+      returns (UpdateScanHistoryPublicResUrlResponse);
+  rpc QueryScanHistory(QueryScanHistoryRequest)
+      returns (QueryScanHistoryResponse);
+  rpc QueryScanHistoryItem(QueryScanHistoryItemRequest)
+      returns (QueryScanHistoryItemResponse);
+  rpc GetDocumentSnapshot(GetDocumentSnapshotRequest)
+      returns (GetDocumentSnapshotResponse);
+  rpc DeleteScanHistoryItem(DeleteScanHistoryItemRequest)
+      returns (DeleteScanHistoryItemResponse);
+}
+
+service UserMetadata {
+  rpc CreateUserSignature(CreateUserSignatureRequest)
+      returns (CreateUserSignatureResponse);
+  rpc DeleteUserSignature(DeleteUserSignatureRequest)
+      returns (DeleteUserSignatureResponse);
+  rpc ListUserSignature(ListUserSignatureRequest)
+      returns (ListUserSignatureResponse);
+}
+
+service Folder {
+  rpc GetFolder(GetFolderRequest) returns (GetFolderResponse);
+  rpc ListFolder(ListFolderRequest) returns (ListFolderResponse);
+  rpc CreateFolder(CreateFolderRequest) returns (CreateFolderResponse);
+  rpc MoveFolder(MoveFolderRequest) returns (MoveFolderResponse);
+  rpc MoveDocument(MoveDocumentRequest) returns (MoveDocumentResponse);
+  rpc ModifyFolderName(ModifyFolderNameRequest) returns (ModifyFolderNameResponse);
+  rpc ListFolderDocuments(ListFolderDocumentsRequest) returns (ListFolderDocumentsResponse);
+  rpc ListFolderContents(ListFolderContentsRequest) returns (ListFolderContentsResponse);
+  rpc BindFolderToKnowledgeBase(BindFolderToKnowledgeBaseRequest) returns (BindFolderToKnowledgeBaseResponse);
+  rpc UnbindFolderFromKnowledgeBase(UnbindFolderFromKnowledgeBaseRequest) returns (UnbindFolderFromKnowledgeBaseResponse);
+  rpc DeleteFolder(DeleteFolderRequest) returns (DeleteFolderResponse);
+}
+
+service Document {
+  rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
+  rpc CloneDocument(CloneDocumentRequest) returns (CloneDocumentResponse);
+  rpc CreateDocument(CreateDocumentRequest) returns (CreateDocumentResponse);
+  rpc InterCreateDocument(InterCreateDocumentRequest) returns (InterCreateDocumentResponse);
+  rpc InterDeleteDocument(InterDeleteDocumentRequest) returns (InterDeleteDocumentResponse);
+  rpc InterSetDocumentStatus(InterSetDocumentStatusRequest) returns (InterSetDocumentStatusResponse);
+  rpc InterClearUserData(InterClearUserDataRequest) returns (InterClearUserDataResponse);
+  rpc ActivateDocument(ActivateDocumentRequest) returns (ActivateDocumentResponse);
+  rpc BindKnowledgeBase(BindKnowledgeBaseRequest)
+      returns (BindKnowledgeBaseResponse);
+  rpc UnbindKnowledgeBase(UnbindKnowledgeBaseRequest)
+      returns (UnbindKnowledgeBaseResponse);
+  rpc ModifyDocumentNote(ModifyDocumentNoteRequest)
+      returns (ModifyDocumentNoteResponse);
+  rpc ModifyDocumentTitle(ModifyDocumentTitleRequest)
+      returns (ModifyDocumentTitleResponse);
+  rpc ModifyDocumentUsedQuote(ModifyDocumentUsedQuoteRequest)
+      returns (ModifyDocumentUsedQuoteResponse);
+  rpc ModifyDocumentPreview(ModifyDocumentPreviewRequest)
+      returns (ModifyDocumentPreviewResponse);
+  rpc ModifyDocumentLinkPermission(ModifyDocumentLinkPermissionRequest)
+      returns (ModifyDocumentLinkPermissionResponse);
+  rpc InviteUserToDocument(InviteUserToDocumentRequest)
+      returns (InviteUserToDocumentResponse);
+  rpc AcceptDocumentInvitation(AcceptDocumentInvitationRequest)
+      returns (AcceptDocumentInvitationResponse);
+  rpc QueryUserPermissions(QueryUserPermissionsRequest)
+      returns (QueryUserPermissionsResponse);
+  rpc ModifyUserPermissions(ModifyUserPermissionsRequest)
+      returns (ModifyUserPermissionsResponse);
+  rpc ModifyDocumentQuoteDocs(ModifyDocumentQuoteDocsRequest)
+      returns (ModifyDocumentQuoteDocsResponse);
+  rpc QueryDocumentParticipants(QueryDocumentParticipantsRequest)
+      returns (QueryDocumentParticipantsResponse);
+  rpc ListDocumentMilestones(ListDocumentMilestonesRequest)
+      returns (ListDocumentMilestonesResponse);
+  rpc RestoreDocumentMilestone(RestoreDocumentMilestoneRequest)
+      returns (RestoreDocumentMilestoneResponse) {};
+  rpc ListDocumentVersionsV2(ListDocumentVersionsRequestV2)
+      returns (ListDocumentVersionsResponseV2);
+  rpc GetDocumentVersionV2(GetDocumentVersionRequestV2)
+      returns (GetDocumentVersionResponseV2);
+  rpc ModifyDocumentVersionNameV2(ModifyDocumentVersionNameRequestV2)
+      returns (ModifyDocumentVersionNameResponseV2);
+  rpc SaveDocCurrentVersionV2(SaveDocCurrentVersionRequestV2)
+      returns (SaveDocCurrentVersionResponseV2);
+  // @deprecated
+  rpc ListDocumentVersions(ListDocumentVersionsRequest)
+      returns (ListDocumentVersionsResponse);
+  // @deprecated
+  rpc GetDocumentVersionUpdate(GetDocumentVersionUpdateRequest)
+      returns (GetDocumentVersionUpdateResponse);
+  // @deprecated
+  rpc ModifyDocumentVersionName(ModifyDocumentVersionNameRequest)
+      returns (ModifyDocumentVersionNameResponse);
+  rpc DeleteDocumentVersion(DeleteDocumentVersionRequest)
+      returns (DeleteDocumentVersionResponse);
+  rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
+  rpc QueryDocumentsByIds(QueryDocumentsByIdsRequest)
+      returns (QueryDocumentsByIdsResponse);
+  rpc QueryRecentlyDocuments(QueryRecentlyDocumentsRequest)
+      returns (QueryRecentlyDocumentsResponse);
+  rpc QueryUserDocuments(QueryUserDocumentsRequest)
+      returns (QueryUserDocumentsResponse);
+  rpc QueryUsedSpace(QueryUsedSpaceRequest) returns (QueryUsedSpaceResponse);
+
+  rpc RequestPermission(RequestPermissionRequest)
+      returns (RequestPermissionResponse);
+  rpc ListPermissionRequests(ListPermissionRequestsRequest)
+      returns (ListPermissionRequestsResponse);
+  rpc UpdatePermissionRequestStatus(UpdatePermissionRequestStatusRequest)
+      returns (UpdatePermissionRequestStatusResponse);
+
+  rpc NotifyOpenDocument(NotifyOpenDocumentRequest)
+      returns (NotifyOpenDocumentResponse);
+  rpc NotifyModifyDocument(NotifyModifyDocumentRequest)
+      returns (NotifyModifyDocumentResponse);
+  rpc NotifyDocumentFileSize(NotifyDocumentFileSizeRequest)
+      returns (NotifyDocumentFileSizeResponse);
+}
+
+service KnowledgeBase {
+  rpc CreateKnowledgeBase(CreateKnowledgeBaseRequest)
+      returns (CreateKnowledgeBaseResponse);
+  rpc GetKnowledgeBase(GetKnowledgeBaseRequest)
+      returns (GetKnowledgeBaseResponse);
+  rpc ListKnowledgeBase(ListKnowledgeBaseRequest)
+      returns (ListKnowledgeBaseResponse);
+  rpc AddDocumentToKnowledgeBase(AddDocumentToKnowledgeBaseRequest)
+      returns (AddDocumentToKnowledgeBaseResponse);
+  rpc GetKnowledgeBaseDocument(GetKnowledgeBaseDocumentRequest)
+      returns (GetKnowledgeBaseDocumentResponse);
+  rpc ModifyKnowledgeBaseDocumentTitle(ModifyKnowledgeBaseDocumentTitleRequest)
+      returns (ModifyKnowledgeBaseDocumentTitleResponse);
+  rpc ListKnowledgeBaseDocuments(ListKnowledgeBaseDocumentsRequest)
+      returns (ListKnowledgeBaseDocumentsResponse);
+  rpc CopyDocumentToKnowledgeBase(CopyDocumentToKnowledgeBaseRequest)
+      returns (CopyDocumentToKnowledgeBaseResponse);
+  rpc MoveDocumentToKnowledgeBase(MoveDocumentToKnowledgeBaseRequest)
+      returns (MoveDocumentToKnowledgeBaseResponse);
+  rpc DeleteDocumentFromKnowledgeBase(DeleteDocumentFromKnowledgeBaseRequest)
+      returns (DeleteDocumentFromKnowledgeBaseResponse);
+  rpc ModifyKnowledgeBaseIcon(ModifyKnowledgeBaseIconRequest)
+      returns (ModifyKnowledgeBaseIconResponse);
+  rpc ModifyKnowledgeBaseName(ModifyKnowledgeBaseNameRequest)
+      returns (ModifyKnowledgeBaseNameResponse);
+  rpc ModifyKnowledgeBaseNote(ModifyKnowledgeBaseNoteRequest)
+      returns (ModifyKnowledgeBaseNoteResponse);
+  rpc DeleteKnowledgeBase(DeleteKnowledgeBaseRequest)
+      returns (DeleteKnowledgeBaseResponse);
+  rpc QueryStaticDocumentPermissions(QueryStaticDocumentPermissionsRequest)
+      returns (QueryStaticDocumentPermissionsResponse);
+  rpc QueryStaticDocumentsByIds(QueryStaticDocumentsByIdsRequest) 
+      returns (QueryStaticDocumentsByIdsResponse);
+
+  rpc NotifyOpenDocument(NotifyOpenDocumentRequest)
+      returns (NotifyOpenDocumentResponse);
+  rpc NotifyModifyDocument(NotifyModifyDocumentRequest)
+      returns (NotifyModifyDocumentResponse);
+}
+
+service Favorite {
+  rpc FavoriteAdd(FavoriteAddRequest) returns (FavoriteAddResponse);
+  rpc FavoriteRemove(FavoriteRemoveRequest) returns (FavoriteRemoveResponse);
+  rpc QueryFavoriteContents(QueryFavoriteContentsRequest) returns (QueryFavoriteContentsResponse);
+  rpc ListFavoriteContents(ListFavoriteContentsRequest) returns (ListFavoriteContentsResponse);
+}
+
+service Trash {
+  rpc ClearTrash(ClearTrashRequest) returns (ClearTrashResponse);
+  rpc ListTrashItems(ListTrashItemsRequest) returns (ListTrashItemsResponse);
+  rpc DeleteTrashItem(DeleteTrashItemRequest) returns (DeleteTrashItemResponse);
+  rpc RestoreTrashItem(RestoreTrashItemRequest)
+      returns (RestoreTrashItemResponse);
+}
+
+service Email { rpc SendEmail(SendEmailRequest) returns (SendEmailResponse); }
+
+service Message {
+  rpc GetMessage(GetMessageRequest) returns (GetMessageResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc QueryMessages(QueryMessagesRequest) returns (QueryMessagesResponse);
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse);
+  rpc UpdateMessageStatus(UpdateMessageStatusRequest)
+      returns (UpdateMessageStatusResponse);
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
+}
+
+service S3Storage {
+  rpc StorePreSignObject(StorePreSignObjectRequest) returns (StorePreSignObjectResponse);
+  rpc CheckObjectPermission(CheckObjectPermissionRequest) returns (CheckObjectPermissionResponse);
+  rpc DeleteObject(DeleteObjectRequest) returns (DeleteObjectResponse);
+  rpc GetPreuploadUrl(GetPreuploadUrlRequest) returns (GetPreuploadUrlResponse);
+  rpc ConvertObject(ConvertObjectRequest) returns (ConvertObjectResponse);
+  rpc GetAttachmentUrl(GetAttachmentUrlRequest) returns (GetAttachmentUrlResponse);
+}
+
+service Management {
+  rpc GetOpenAiTokenLogs(GetOpenAiTokenLogsRequest)
+      returns (GetOpenAiTokenLogsResponse);
+  rpc GetOpenAiTokenStats(GetOpenAiTokenStatsRequest)
+      returns (GetOpenAiTokenStatsResponse);
+  rpc ListS3ObjectByUser(ListS3ObjectByUserRequest)
+      returns (ListS3ObjectByUserResponse);
+  rpc S3ObjectCountAndSize(S3ObjectCountAndSizeRequest)
+      returns (S3ObjectCountAndSizeResponse);
+  rpc S3ObjectCountAndSizeByUser(S3ObjectCountAndSizeByUserRequest)
+      returns (S3ObjectCountAndSizeByUserResponse);
+  rpc S3ObjectCountAndSizeByFileType(S3ObjectCountAndSizeByFileTypeRequest)
+      returns (S3ObjectCountAndSizeByFileTypeResponse);
+  rpc S3ObjectCountAndSizeByFileTypeAndUser(
+      S3ObjectCountAndSizeByFileTypeAndUserRequest)
+      returns (S3ObjectCountAndSizeByFileTypeAndUserResponse);
+  rpc UploadExternalUrl(UploadExternalUrlRequest)
+      returns (UploadExternalUrlResponse);
+  rpc GetUploadExternalUrlStatus(GetUploadExternalUrlStatusRequest)
+      returns (GetUploadExternalUrlStatusResponse);
+}

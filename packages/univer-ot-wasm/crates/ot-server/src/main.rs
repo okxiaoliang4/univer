@@ -96,6 +96,36 @@ async fn main() -> anyhow::Result<()> {
     let (layer, io) = SocketIo::new_layer();
     info!("Socket.IO layer initialized");
 
+    // Connect to etcd first (needed for auth service discovery)
+    info!("Connecting to etcd at {:?}", config.etcd_endpoints);
+    let etcd_service = match services::EtcdService::connect(&config.etcd_endpoints).await {
+        Ok(service) => {
+            info!("Connected to etcd successfully");
+            service
+        }
+        Err(e) => {
+            error!("Failed to connect to etcd: {}", e);
+            return Err(e);
+        }
+    };
+
+    // Initialize gRPC client service for external service calls
+    info!("Initializing gRPC client service");
+    let grpc_client = services::GrpcClientService::new(
+        etcd_service.clone(),
+        config.user_rpc_prefix.clone(),
+        config.document_rpc_prefix.clone(),
+    );
+    info!("gRPC client service initialized");
+
+    // Initialize auth service with gRPC client
+    info!("Initializing auth service");
+    let auth_service = services::AuthService::new(
+        grpc_client.clone(),
+        config.permission_cache_ttl_seconds,
+    );
+    info!("Auth service initialized");
+
     // Create application state
     info!("Creating server state");
     let state = match ServerState::new(
@@ -110,8 +140,10 @@ async fn main() -> anyhow::Result<()> {
         config.redis_url.clone(),
         config.awareness_redis_enabled,
         config.awareness_ttl_seconds,
-        config.etcd_endpoints.clone(),
+        etcd_service.clone(),
+        grpc_client.clone(),
         io.clone(),
+        auth_service,
     )
     .await
     {
@@ -120,8 +152,6 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(state)
         }
     };
-
-    let etcd_service = state.etcd_service.clone();
     let instance_id = Uuid::new_v4();
     info!("Registering instance {} with etcd", instance_id);
     let registration_ip = config.etcd_registration_ip.clone().unwrap_or_else(|| {

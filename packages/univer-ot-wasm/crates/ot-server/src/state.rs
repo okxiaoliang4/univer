@@ -1,6 +1,6 @@
 use crate::services::{
-    AwarenessService, DocumentActorManager, DocumentService, EtcdService, OTService,
-    OpQueueService, SnapshotService, StorageService,
+    AuthService, AwarenessService, DocumentActorManager, DocumentService, EtcdService,
+    GrpcClientService, OTService, OpQueueService, SnapshotService, StorageService,
 };
 use sea_orm::DatabaseConnection;
 use socketioxide::SocketIo;
@@ -18,11 +18,14 @@ pub struct ServerState {
     pub storage_service: StorageService,
     pub awareness_service: AwarenessService,
     pub etcd_service: EtcdService,
+    pub grpc_client: GrpcClientService,
     pub op_queue_service: OpQueueService,
     pub socket_io: SocketIo,
+    pub auth_service: AuthService,
 }
 
 impl ServerState {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         db: DatabaseConnection,
         snapshot_interval: u64,
@@ -35,8 +38,10 @@ impl ServerState {
         redis_url: String,
         awareness_redis_enabled: bool,
         awareness_ttl_seconds: u64,
-        etcd_endpoints: Vec<String>,
+        etcd_service: EtcdService,
+        grpc_client: GrpcClientService,
         socket_io: SocketIo,
+        auth_service: AuthService,
     ) -> Self {
         let db_arc = Arc::new(db);
         let storage_service = StorageService::new(
@@ -67,10 +72,6 @@ impl ServerState {
             redis::Client::open(redis_url.clone()).expect("Failed to initialize redis client"),
         );
 
-        let etcd_service = EtcdService::connect(&etcd_endpoints)
-            .await
-            .expect("Failed to initialize etcd service");
-
         let ot_service = OTService::new(
             (*db_arc).clone(),
             document_service.clone(),
@@ -88,8 +89,10 @@ impl ServerState {
             storage_service,
             awareness_service,
             etcd_service,
+            grpc_client,
             op_queue_service,
             socket_io,
+            auth_service,
         }
     }
 }
