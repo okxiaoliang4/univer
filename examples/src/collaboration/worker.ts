@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { ICollaborationConfig } from '@univerjs/collaboration';
 import { CollaborationPlugin } from '@univerjs/collaboration';
 import { LocaleType, LogLevel, Univer } from '@univerjs/core';
 import { UniverFormulaEnginePlugin } from '@univerjs/engine-formula';
@@ -23,27 +24,36 @@ import { UniverSheetsPlugin } from '@univerjs/sheets';
 import { UniverSheetsFilterPlugin } from '@univerjs/sheets-filter';
 import { UniverRemoteSheetsFormulaPlugin } from '@univerjs/sheets-formula';
 
-// Univer web worker is also a univer application.
-const univer = new Univer({
-    locale: LocaleType.ZH_CN,
-    logLevel: LogLevel.VERBOSE,
-    locales: {
-        [LocaleType.ZH_CN]: zhCN,
-    },
-});
-
-univer.registerPlugins([
-    [CollaborationPlugin, {
-        isRemoteSide: true,
-        wsUrl: 'ws://192.168.2.100:8800/ws',
-        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
-    }],
-    [UniverSheetsPlugin, { onlyRegisterFormulaRelatedMutations: true }],
-    [UniverFormulaEnginePlugin],
-    [UniverRPCWorkerThreadPlugin],
-    [UniverRemoteSheetsFormulaPlugin],
-    [UniverSheetsFilterPlugin],
-]);
-
 declare let self: WorkerGlobalScope & typeof globalThis & { univer: Univer };
-self.univer = univer;
+
+self.postMessage({ type: 'initialized' });
+
+let config: ICollaborationConfig | null = null;
+self.addEventListener('message', (event: MessageEvent) => {
+    if (event.data.type === 'setConfig') {
+        config = event.data.config;
+    } else if (event.data.type === 'init') {
+        // Univer web worker is also a univer application.
+        const univer = new Univer({
+            locale: LocaleType.ZH_CN,
+            logLevel: LogLevel.VERBOSE,
+            locales: {
+                [LocaleType.ZH_CN]: zhCN,
+            },
+        });
+
+        univer.registerPlugins([
+            [UniverRPCWorkerThreadPlugin],
+            [CollaborationPlugin, {
+                ...config,
+                isRemoteSide: true,
+            }],
+            [UniverSheetsPlugin, { onlyRegisterFormulaRelatedMutations: true }],
+            [UniverFormulaEnginePlugin],
+            [UniverRemoteSheetsFormulaPlugin],
+            [UniverSheetsFilterPlugin],
+        ]);
+
+        self.univer = univer;
+    }
+});

@@ -125,15 +125,32 @@ async function createNewInstance() {
         type: 'module',
     });
 
+    const collaborationConfig = {
+        wsUrl: 'ws://192.168.2.100:8800/ws',
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
+        useRemote: true,
+    };
+
+    worker.addEventListener('message', (event: MessageEvent) => {
+        if (event.data.type === 'initialized') {
+            worker.postMessage({
+                type: 'setConfig',
+                config: {
+                    wsUrl: 'ws://192.168.2.100:8800/ws',
+                    accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
+                },
+            });
+            setTimeout(() => {
+                worker.postMessage({ type: 'init' });
+            }, 0);
+        }
+    }, { once: true });
+
     univer.registerPlugins([
         [UniverRPCMainThreadPlugin, { workerURL: worker }],
         [
             CollaborationPlugin,
-            {
-                wsUrl: 'ws://192.168.2.100:8800/ws',
-                accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
-                useRemote: true,
-            },
+            collaborationConfig,
         ],
         [UniverDocsPlugin],
         [UniverRenderEnginePlugin],

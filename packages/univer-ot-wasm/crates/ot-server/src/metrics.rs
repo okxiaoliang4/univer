@@ -918,10 +918,10 @@ fn update_process_metrics() {
 
 /// Start metrics collection background task
 ///
-/// This spawns a tokio task that updates process metrics every 15 seconds
+/// This spawns a tokio task that updates process metrics every 5 seconds
 pub fn start_metrics_collection() {
     tokio::spawn(async {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
         loop {
             interval.tick().await;
             update_process_metrics();

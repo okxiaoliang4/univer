@@ -192,7 +192,6 @@ async fn main() -> anyhow::Result<()> {
     // Setup Socket.IO event handlers
     info!("Setting up Socket.IO event handlers");
     io.ns("/ws", socketio::on_connect).await?;
-
     info!("Socket.IO event handlers configured");
 
     // Build application with routes
