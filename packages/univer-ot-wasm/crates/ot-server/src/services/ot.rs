@@ -2,6 +2,7 @@ use crate::database::entities::{documents, operation_log};
 use crate::metrics;
 use crate::services::document::DocumentService;
 use crate::services::op_queue::OpQueueService;
+use crate::services::params_codec;
 use anyhow::{Context, Result};
 use ot_core::{MutationInfo, MutationInfoWithOpId, TransformService};
 use sea_orm::{
@@ -205,8 +206,8 @@ impl OTService {
                 .get(index)
                 .map(|mutation| mutation.op_id.clone())
                 .unwrap_or_default();
-            let params = serde_json::to_string(&m1_prime.params)
-                .context("Failed to serialize mutation params for operation_log")?;
+            let params = params_codec::encode_params(&m1_prime.params)
+                .context("Failed to encode mutation params for operation_log")?;
             let operation = operation_log::ActiveModel {
                 doc_id: Set(doc_id),
                 rev: Set(next_rev),

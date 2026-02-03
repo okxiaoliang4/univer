@@ -6,6 +6,7 @@ pub mod etcd;
 pub mod grpc_client;
 pub mod op_queue;
 pub mod ot;
+pub mod params_codec;
 pub mod snapshot;
 pub mod storage;
 

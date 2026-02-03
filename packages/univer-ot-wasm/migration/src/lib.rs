@@ -7,6 +7,7 @@ mod m20260123_000001_add_op_id_to_operation_logs;
 mod m20260125_000001_add_document_metadata;
 mod m20250128_000001_add_desc_version_index;
 mod m20250129_000001_operation_logs_params_to_text;
+mod m20260202_000001_operation_logs_params_to_binary;
 
 pub struct Migrator;
 
@@ -21,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260125_000001_add_document_metadata::Migration),
             Box::new(m20250128_000001_add_desc_version_index::Migration),
             Box::new(m20250129_000001_operation_logs_params_to_text::Migration),
+            Box::new(m20260202_000001_operation_logs_params_to_binary::Migration),
         ]
     }
 }

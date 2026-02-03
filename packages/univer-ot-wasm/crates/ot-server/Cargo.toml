@@ -19,6 +19,7 @@ path = "src/main.rs"
 ot-core = { path = "../ot-core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+rmp-serde = "1.3"
 
 # Server dependencies (no feature flags needed!)
 axum = "0.8"
@@ -58,6 +59,7 @@ reqwest = { version = "0.12", features = [
     "rustls-tls"
 ] }
 mimalloc = { version = "0.1.48", features = [ "v3" ] }
+libmimalloc-sys = { version = "0.1.44", features = [ "extended" ] }
 opentelemetry = "0.31.0"
 opentelemetry_sdk = { version = "0.31.0", features = [ "rt-tokio" ] }
 opentelemetry-prometheus = "0.31.0"

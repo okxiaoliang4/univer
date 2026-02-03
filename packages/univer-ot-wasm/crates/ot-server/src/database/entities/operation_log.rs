@@ -14,8 +14,8 @@ pub struct Model {
     pub user_id: String,
     #[sea_orm(column_name = "mutation_id")]
     pub mutation_id: String,
-    #[sea_orm(column_type = "Text")]
-    pub params: String,
+    #[sea_orm(column_type = "VarBinary(StringLen::Max)")]
+    pub params: Vec<u8>,
     #[sea_orm(column_name = "client_id")]
     pub client_id: String,
     #[sea_orm(column_name = "op_id")]

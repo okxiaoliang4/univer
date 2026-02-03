@@ -1,4 +1,5 @@
 use crate::database::entities::{document_snapshot, documents, operation_log};
+use crate::services::params_codec;
 use crate::services::storage::{StoredSnapshot, StorageService};
 use anyhow::{Context, Result};
 use sea_orm::{
@@ -749,7 +750,7 @@ impl DocumentService {
         let result: Result<Vec<OperationInfo>> = operations
             .into_iter()
             .map(|op| {
-                let params = serde_json::from_str(&op.params).with_context(|| {
+                let params = params_codec::decode_params_compat(&op.params).with_context(|| {
                     format!(
                         "Invalid operation params: doc_id={}, rev={}",
                         doc_id, op.rev
