@@ -24,13 +24,23 @@ use prometheus::{
     register_int_counter, register_int_gauge, Encoder, Gauge, Histogram, IntCounter, IntGauge,
     TextEncoder,
 };
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use tracing::{error, info};
 
 // Static metrics collectors
 static PROCESS_MEMORY_RSS: OnceLock<IntGauge> = OnceLock::new();
 static PROCESS_MEMORY_VIRTUAL: OnceLock<IntGauge> = OnceLock::new();
+static PROCESS_MEMORY_HEAP: OnceLock<IntGauge> = OnceLock::new();
 static PROCESS_CPU_USAGE: OnceLock<Gauge> = OnceLock::new();
+
+// CPU tracking state (for calculating CPU percentage between measurements)
+struct CpuState {
+    last_utime: u64,
+    last_stime: u64,
+    last_timestamp: std::time::Instant,
+}
+
+static CPU_STATE: OnceLock<Mutex<CpuState>> = OnceLock::new();
 
 // Socket.IO metrics
 static ONLINE_DOCUMENTS: OnceLock<IntGauge> = OnceLock::new();
@@ -154,12 +164,29 @@ pub fn init_process_metrics() {
         .expect("Failed to register process_memory_virtual_bytes")
     });
 
+    PROCESS_MEMORY_HEAP.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "process_memory_heap_bytes",
+            "Heap memory size in bytes"
+        ))
+        .expect("Failed to register process_memory_heap_bytes")
+    });
+
     PROCESS_CPU_USAGE.get_or_init(|| {
         register_gauge!(opts!(
             "process_cpu_usage_ratio",
             "CPU usage ratio (0.0 to 1.0 per core)"
         ))
         .expect("Failed to register process_cpu_usage_ratio")
+    });
+
+    // Initialize CPU state
+    CPU_STATE.get_or_init(|| {
+        Mutex::new(CpuState {
+            last_utime: 0,
+            last_stime: 0,
+            last_timestamp: std::time::Instant::now(),
+        })
     });
 
     info!("Process metrics initialized");
@@ -751,9 +778,10 @@ pub fn set_online_users(count: i64) {
 
 /// Update process metrics by reading from system APIs
 fn update_process_metrics() {
-    // Get memory info using procfs or system APIs
+    // Update memory metrics
     #[cfg(target_os = "linux")]
     {
+        // Read memory info from /proc/self/statm
         if let Ok(statm) = std::fs::read_to_string("/proc/self/statm") {
             let parts: Vec<&str> = statm.split_whitespace().collect();
             if parts.len() >= 2 {
@@ -766,13 +794,67 @@ fn update_process_metrics() {
                 }
             }
         }
+
+        // Read heap info from /proc/self/status
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            for line in status.lines() {
+                if line.starts_with("VmData:") {
+                    if let Some(heap_str) = line.split_whitespace().nth(1) {
+                        if let Ok(heap_kb) = heap_str.parse::<i64>() {
+                            PROCESS_MEMORY_HEAP.get().unwrap().set(heap_kb * 1024);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Read CPU info from /proc/self/stat
+        if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
+            let parts: Vec<&str> = stat.split_whitespace().collect();
+            // utime is at index 13, stime is at index 14 (0-based)
+            if parts.len() > 14 {
+                if let (Ok(utime), Ok(stime)) = (
+                    parts[13].parse::<u64>(),
+                    parts[14].parse::<u64>(),
+                ) {
+                    if let Some(cpu_state_mutex) = CPU_STATE.get() {
+                        if let Ok(mut cpu_state) = cpu_state_mutex.lock() {
+                            let now = std::time::Instant::now();
+                            let time_elapsed = now.duration_since(cpu_state.last_timestamp).as_secs_f64();
+
+                            if cpu_state.last_utime > 0 && time_elapsed > 0.0 {
+                                // Calculate CPU time delta (in clock ticks)
+                                let utime_delta = utime.saturating_sub(cpu_state.last_utime);
+                                let stime_delta = stime.saturating_sub(cpu_state.last_stime);
+                                let total_cpu_ticks = (utime_delta + stime_delta) as f64;
+
+                                // Convert to seconds (assuming 100 clock ticks per second on Linux)
+                                let clock_ticks_per_sec = 100.0;
+                                let cpu_time_seconds = total_cpu_ticks / clock_ticks_per_sec;
+
+                                // Calculate CPU usage ratio
+                                let cpu_usage = cpu_time_seconds / time_elapsed;
+
+                                PROCESS_CPU_USAGE.get().unwrap().set(cpu_usage);
+                            }
+
+                            // Update state for next measurement
+                            cpu_state.last_utime = utime;
+                            cpu_state.last_stime = stime;
+                            cpu_state.last_timestamp = now;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[cfg(target_os = "macos")]
     {
-        // On macOS, we can use task_info or read from system APIs
-        // For simplicity, we'll use a basic implementation
         use std::process::Command;
+
+        // Get memory info using ps
         if let Ok(output) = Command::new("ps")
             .args(["-p", &std::process::id().to_string(), "-o", "rss=,vsz="])
             .output()
@@ -786,6 +868,48 @@ fn update_process_metrics() {
                     if let Ok(vsz) = parts[1].parse::<i64>() {
                         PROCESS_MEMORY_VIRTUAL.get().unwrap().set(vsz * 1024); // ps returns KB
                     }
+                }
+            }
+        }
+
+        // Get heap info using vmmap (more accurate than ps for heap)
+        if let Ok(output) = Command::new("vmmap")
+            .args([&std::process::id().to_string()])
+            .output()
+        {
+            if let Ok(output_str) = String::from_utf8(output.stdout) {
+                let mut heap_size: i64 = 0;
+                for line in output_str.lines() {
+                    if line.contains("MALLOC") || line.contains("VM_ALLOCATE") {
+                        // Parse heap regions (vmmap output varies, this is a basic approach)
+                        if let Some(size_part) = line.split_whitespace().nth(1) {
+                            // Size is typically in format like "4096K" or "1M"
+                            let size_str = size_part.trim_end_matches('K').trim_end_matches('M');
+                            if let Ok(size) = size_str.parse::<i64>() {
+                                if size_part.ends_with('K') {
+                                    heap_size += size * 1024;
+                                } else if size_part.ends_with('M') {
+                                    heap_size += size * 1024 * 1024;
+                                }
+                            }
+                        }
+                    }
+                }
+                if heap_size > 0 {
+                    PROCESS_MEMORY_HEAP.get().unwrap().set(heap_size);
+                }
+            }
+        }
+
+        // Get CPU info using ps with cpu percentage
+        if let Ok(output) = Command::new("ps")
+            .args(["-p", &std::process::id().to_string(), "-o", "%cpu="])
+            .output()
+        {
+            if let Ok(output_str) = String::from_utf8(output.stdout) {
+                if let Ok(cpu_percent) = output_str.trim().parse::<f64>() {
+                    // ps returns CPU as percentage (0-100 per core), convert to ratio (0-1 per core)
+                    PROCESS_CPU_USAGE.get().unwrap().set(cpu_percent / 100.0);
                 }
             }
         }
@@ -804,6 +928,30 @@ pub fn start_metrics_collection() {
         }
     });
     info!("Metrics collection task started");
+}
+
+/// Get current process metrics for debugging
+///
+/// Returns a formatted string with current memory and CPU metrics
+pub fn get_current_metrics_debug() -> String {
+    update_process_metrics(); // Update metrics first
+
+    let rss = PROCESS_MEMORY_RSS.get().map(|g| g.get()).unwrap_or(0);
+    let virtual_mem = PROCESS_MEMORY_VIRTUAL.get().map(|g| g.get()).unwrap_or(0);
+    let heap = PROCESS_MEMORY_HEAP.get().map(|g| g.get()).unwrap_or(0);
+    let cpu = PROCESS_CPU_USAGE.get().map(|g| g.get()).unwrap_or(0.0);
+
+    format!(
+        "Process Metrics:\n\
+         - RSS: {} MB\n\
+         - Virtual Memory: {} MB\n\
+         - Heap: {} MB\n\
+         - CPU Usage: {:.2}% per core",
+        rss / (1024 * 1024),
+        virtual_mem / (1024 * 1024),
+        heap / (1024 * 1024),
+        cpu * 100.0
+    )
 }
 
 /// Handler for Prometheus metrics endpoint
