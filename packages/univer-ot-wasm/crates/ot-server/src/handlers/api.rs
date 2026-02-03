@@ -146,23 +146,6 @@ pub async fn create_document(
     }))
 }
 
-/// POST /api/documents/:doc_id/snapshot - Update document snapshot
-pub async fn update_snapshot(
-    State(state): State<AppState>,
-    Path(doc_id): Path<String>,
-    Json(req): Json<UpdateSnapshotRequest>,
-) -> Result<StatusCode, StatusCode> {
-    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
-
-    state
-        .snapshot_service
-        .update_snapshot(doc_uuid, req.content, req.version)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(StatusCode::OK)
-}
-
 /// POST /api/documents/:doc_id/restore - Restore document snapshot
 pub async fn restore_document(
     State(state): State<AppState>,

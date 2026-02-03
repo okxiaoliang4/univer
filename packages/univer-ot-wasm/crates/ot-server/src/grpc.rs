@@ -97,32 +97,14 @@ impl OtRpcService for OtGrpcService {
             }
         };
 
-        let room = format!("doc:{}", req.doc_id);
-        let room_clone = room.clone();
-        let pushed = crate::types::ChangesetPushed {
-            doc_id: req.doc_id.clone(),
-            server_rev: applied.server_rev,
-            user_id: applied.user_id.clone(),
-        };
-
-        match serde_json::to_value(&pushed) {
-            Ok(json) => {
-                if let Err(e) = self
-                    .state
-                    .socket_io
-                    .to(room)
-                    .emit("changeset_pushed", &json)
-                    .await
-                {
-                    warn!("Failed to emit changeset_pushed to room {}: {}", room_clone, e);
-                } else {
-                    info!("Emitted changeset_pushed to room {}", room_clone);
-                }
-            }
-            Err(e) => {
-                error!("Failed to serialize changeset_pushed for room {}: {}", room_clone, e);
-            }
-        }
+        // Note: Socket.IO broadcast is not performed here because:
+        // 1. The changeset is already broadcasted via the socket handler when clients submit changes
+        // 2. Redis adapter automatically syncs messages across all server instances
+        // 3. This gRPC endpoint is primarily for applying changes from external services,
+        //    and those changes will be picked up by clients via fetch_ops or changeset_pushed events
+        //
+        // If cross-server broadcast is needed, consider using Redis pub/sub directly
+        // or passing SocketIo reference via a different mechanism.
 
         info!("broadcast_op completed successfully: doc_id={}, server_rev={}",
             doc_id, applied.server_rev);

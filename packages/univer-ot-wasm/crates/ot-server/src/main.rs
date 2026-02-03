@@ -6,6 +6,7 @@ use axum::{
 use migration::{Migrator, MigratorTrait};
 use sea_orm::Database;
 use sea_orm::DatabaseConnection;
+use socketioxide_redis::{ClusterAdapter, RedisAdapter, RedisAdapterCtr};
 use std::{net::SocketAddr, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -91,17 +92,12 @@ async fn main() -> anyhow::Result<()> {
     }
     info!("Database migrations completed successfully");
 
-    // Create Socket.IO layer
-    info!("Initializing Socket.IO layer");
-    let (layer, io) = SocketIo::new_layer();
-    info!("Socket.IO layer initialized");
-
     // Connect to etcd first (needed for auth service discovery)
     info!("Connecting to etcd at {:?}", config.etcd_endpoints);
     let etcd_service = match services::EtcdService::connect(&config.etcd_endpoints).await {
         Ok(service) => {
             info!("Connected to etcd successfully");
-            service
+            Arc::new(service)
         }
         Err(e) => {
             error!("Failed to connect to etcd: {}", e);
@@ -111,26 +107,25 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize gRPC client service for external service calls
     info!("Initializing gRPC client service");
-    let grpc_client = services::GrpcClientService::new(
+    let grpc_client = Arc::new( services::GrpcClientService::new(
         etcd_service.clone(),
         config.user_rpc_prefix.clone(),
         config.document_rpc_prefix.clone(),
-    );
+    ));
     info!("gRPC client service initialized");
 
     // Initialize auth service with gRPC client
     info!("Initializing auth service");
-    let auth_service = services::AuthService::new(
+    let auth_service = Arc::new(services::AuthService::new(
         grpc_client.clone(),
         config.permission_cache_ttl_seconds,
-    );
+    ));
     info!("Auth service initialized");
 
     // Create application state
     info!("Creating server state");
     let state = match ServerState::new(
         db,
-        config.snapshot_interval,
         config.s3_endpoint.clone(),
         config.s3_region.clone(),
         config.s3_bucket.clone(),
@@ -140,9 +135,8 @@ async fn main() -> anyhow::Result<()> {
         config.redis_url.clone(),
         config.awareness_redis_enabled,
         config.awareness_ttl_seconds,
-        etcd_service.clone(),
-        grpc_client.clone(),
-        io.clone(),
+        etcd_service,
+        grpc_client,
         auth_service,
     )
     .await
@@ -152,6 +146,17 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(state)
         }
     };
+    // Create Socket.IO layer with state
+    let client = redis::Client::open(config.redis_url.clone())?;
+    let adapter = RedisAdapterCtr::new_with_redis(&client).await?;
+
+    info!("Initializing Socket.IO layer");
+    let (layer, io) = SocketIo::builder()
+        .with_state(state.clone())
+        .with_adapter::<RedisAdapter<_>>(adapter)
+        .build_layer();
+    info!("Socket.IO layer initialized");
+
     let instance_id = Uuid::new_v4();
     info!("Registering instance {} with etcd", instance_id);
     let registration_ip = config.etcd_registration_ip.clone().unwrap_or_else(|| {
@@ -164,7 +169,8 @@ async fn main() -> anyhow::Result<()> {
     });
     let endpoint = format!("{}:{}", registration_ip, config.grpc_server_port);
     info!("Registering endpoint: {}", endpoint);
-    let registration = match etcd_service
+    // etcd_service was moved earlier, so we need to clone or Arc it if necessary.
+    let registration = match state.etcd_service
         .register_with_lease(
             "ot-collaboration",
             instance_id,
@@ -185,7 +191,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Setup Socket.IO event handlers
     info!("Setting up Socket.IO event handlers");
-    socketio::setup_socketio(&io, state.clone());
+    io.ns("/ws", socketio::on_connect).await?;
+
     info!("Socket.IO event handlers configured");
 
     // Build application with routes
@@ -197,10 +204,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/documents/{doc_id}", get(api::get_document))
         .route("/api/documents/{doc_id}/restore", post(api::restore_document))
         .route("/api/documents/{doc_id}/snapshots", get(api::get_snapshot_list))
-        .route(
-            "/api/documents/{doc_id}/snapshot",
-            post(api::update_snapshot),
-        )
         .route(
             "/api/documents/{doc_id}/snapshots/{snapshot_id}",
             post(api::update_snapshot_name),

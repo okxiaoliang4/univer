@@ -46,7 +46,7 @@ impl CachedChannel {
 
 /// Inner state for GrpcClientService
 struct GrpcClientServiceInner {
-    etcd_service: EtcdService,
+    etcd_service: Arc<EtcdService>,
     user_rpc_prefix: String,
     document_rpc_prefix: String,
     /// Cached user service channel (lazily initialized, refreshed on TTL expiry)
@@ -77,7 +77,7 @@ impl GrpcClientService {
     /// * `user_rpc_prefix` - Etcd prefix for user service endpoints
     /// * `document_rpc_prefix` - Etcd prefix for document service endpoints
     pub fn new(
-        etcd_service: EtcdService,
+        etcd_service: Arc<EtcdService>,
         user_rpc_prefix: String,
         document_rpc_prefix: String,
     ) -> Self {

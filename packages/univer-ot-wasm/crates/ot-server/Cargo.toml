@@ -43,10 +43,17 @@ chrono = { version = "0.4", features = [ "serde" ] }
 async-trait = "0.1"
 dotenvy = "0.15"
 migration = { path = "../../migration" }
-socketioxide = { version = "0.18", features = [ "extensions" ] }
+socketioxide = { version = "0.18", features = [
+    "extensions",
+    "state"
+] }
+socketioxide-redis = { version = "0.4", features = [ "redis-cluster" ] }
 aws-credential-types = "1"
 aws-sdk-s3 = { version = "1", features = [ "behavior-version-latest" ] }
-redis = { version = "0.25", features = [ "tokio-comp" ] }
+redis = { version = "1", features = [
+    "tokio-comp",
+    "cluster"
+] }
 md5 = "0.7"
 etcd-client = "0.14"
 tonic = "0.11"
@@ -72,6 +79,9 @@ jsonwebtoken = "9"
 rust_socketio = { version = "0.6", features = [ "async" ] }
 sysinfo = "0.34"
 futures-util = "0.3"
+
+[features]
+default = []
 
 [build-dependencies]
 tonic-build = "0.11"

@@ -10,9 +10,10 @@ use crate::types::{
 use anyhow::Result;
 use dashmap::DashMap;
 use ot_core::MutationInfoWithOpId;
+use socketioxide::adapter::Adapter;
+use socketioxide::extract::AckSender;
 use socketioxide::{
-    extract::{AckSender, Data, SocketRef},
-    SocketIo,
+    extract::{Data, SocketRef, State},
 };
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -70,7 +71,7 @@ pub struct AuthRequest {
 }
 
 /// Extract auth token from socket handshake (fallback method)
-fn extract_auth_token_from_query(socket: &SocketRef) -> Option<String> {
+fn extract_auth_token_from_query<A: Adapter>(socket: &SocketRef<A>) -> Option<String> {
     let handshake = socket.req_parts();
 
     // Try to parse from query string
@@ -87,243 +88,229 @@ fn extract_auth_token_from_query(socket: &SocketRef) -> Option<String> {
     None
 }
 
-/// Setup Socket.IO event handlers
-pub fn setup_socketio(io: &SocketIo, state: AppState) {
-    // Setup handlers for /ws namespace
-    let state_clone = state.clone();
-    io.ns("/ws", move |socket: SocketRef, Data(auth): Data<AuthRequest>| async move {
-        info!(">>> [CONNECT] Socket connected to /ws namespace: socket_id={:?}", socket.id);
-        info!(">>> [CONNECT] Auth token present: {}", !auth.token.is_empty());
+/// Handle socket connection
+pub async fn on_connect<A: Adapter>(socket: SocketRef<A>, Data(auth): Data<AuthRequest>, state: State<AppState>) {
+    info!(">>> [CONNECT] Socket connected to /ws namespace: socket_id={:?}", socket.id);
+    info!(">>> [CONNECT] Auth token present: {}", !auth.token.is_empty());
 
-        // Extract auth token from handshake auth data or fallback to query string
-        let token = if !auth.token.is_empty() {
-            auth.token
-        } else if let Some(t) = extract_auth_token_from_query(&socket) {
-            t
-        } else {
-            warn!("Socket {} connected without auth token, disconnecting", socket.id);
+    // Extract auth token from handshake auth data or fallback to query string
+    let token = if !auth.token.is_empty() {
+        auth.token
+    } else if let Some(t) = extract_auth_token_from_query(&socket) {
+        t
+    } else {
+        warn!("Socket {} connected without auth token, disconnecting", socket.id);
+        socket.disconnect().ok();
+        return;
+    };
+
+    // Verify token with user service
+    let user_info = match state.auth_service.verify_token(&token).await {
+        Ok(info) => {
+            info!(
+                "Socket {} authenticated as user {} ({})",
+                socket.id, info.uid, info.email
+            );
+            info
+        }
+        Err(e) => {
+            warn!(
+                "Socket {} auth failed: {}, disconnecting",
+                socket.id, e
+            );
             socket.disconnect().ok();
             return;
-        };
+        }
+    };
 
-        // Verify token with user service
-        let state = state_clone.clone();
-        let user_info = match state.auth_service.verify_token(&token).await {
-            Ok(info) => {
-                info!(
-                    "Socket {} authenticated as user {} ({})",
-                    socket.id, info.uid, info.email
-                );
-                info
-            }
-            Err(e) => {
-                warn!(
-                    "Socket {} auth failed: {}, disconnecting",
-                    socket.id, e
-                );
-                socket.disconnect().ok();
-                return;
-            }
-        };
-
-        // Store auth data in socket extensions for use in event handlers
-        socket.extensions.insert(SocketAuthData {
-            user_info: user_info.clone(),
-            access_token: token.clone(),
-        });
-
-        // Increment online users counter
-        metrics::increment_online_users();
-
-        // Increment WebSocket connections counter
-        metrics::increment_websocket_connections();
-
-        // Handle join_doc event
-        socket.on(
-            "join_doc",
-            move |socket: SocketRef, Data::<JoinDocRequest>(req), ack: AckSender| {
-                let state = state.clone();
-                async move {
-                    info!(">>> [join_doc] Received request: socket_id={}, doc_id={}", socket.id, req.doc_id);
-                    match handle_join_doc(&socket, &state, req.clone()).await {
-                        Ok(ack_data) => {
-                            info!(">>> [join_doc] Success: doc_id={}, version={:?}", req.doc_id, ack_data.version);
-                            match serde_json::to_value(&ack_data) {
-                                Ok(json) => {
-                                    info!(">>> [join_doc] Sending ACK: {:?}", json);
-                                    if let Err(e) = ack.send(&json) {
-                                        error!(">>> [join_doc] Failed to send ACK: {:?}", e);
-                                    } else {
-                                        info!(">>> [join_doc] ACK sent successfully");
-                                    }
-                                }
-                                Err(e) => {
-                                    error!(">>> [join_doc] Failed to serialize ACK: {}", e);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!(">>> [join_doc] Error: doc_id={}, error={}", req.doc_id, e);
-                            let error_ack = JoinDocAck {
-                                status: "error".to_string(),
-                                version: None,
-                                content: None,
-                                message: Some(e.to_string()),
-                            };
-                            if let Ok(json) = serde_json::to_value(&error_ack) {
-                                if let Err(e) = ack.send(&json) {
-                                    error!(">>> [join_doc] Failed to send error ACK: {:?}", e);
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        );
-
-        // Handle awareness_init event
-        let state = state_clone.clone();
-        socket.on(
-            "awareness_init",
-            move |socket: SocketRef, Data::<JoinDocRequest>(req), ack: AckSender| {
-                let state = state.clone();
-                async move {
-                    match handle_awareness_init(&socket, &state, req).await {
-                        Ok(ack_data) => {
-                            if let Ok(json) = serde_json::to_value(&ack_data) {
-                                let _ = ack.send(&json);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Error initializing awareness: {}", e);
-                            let error_ack = AwarenessInitAck {
-                                status: "error".to_string(),
-                                states: vec![],
-                            };
-                            if let Ok(json) = serde_json::to_value(&error_ack) {
-                                let _ = ack.send(&json);
-                            }
-                        }
-                    }
-                }
-            },
-        );
-
-        // Handle leave_doc event
-        socket.on(
-            "leave_doc",
-            |socket: SocketRef, Data::<LeaveDocRequest>(req)| async move {
-                handle_leave_doc(&socket, req).await;
-            },
-        );
-
-        let state = state_clone.clone();
-        // Handle changeset event
-        socket.on(
-            "changeset",
-            move |socket: SocketRef, Data::<ChangesetRequest>(req), ack: AckSender| {
-                let state = state.clone();
-                async move {
-                    info!(
-                        "·: socket_id={:?}, doc_id={}, base_rev={}",
-                        socket.id, req.doc_id, req.base_rev
-                    );
-                    match handle_changeset(&socket, &state, req).await {
-                        Ok(ack_data) => {
-                            if let Ok(json) = serde_json::to_value(&ack_data) {
-                                let _ = ack.send(&json);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Error applying changeset: {}", e);
-                            let error_ack = ChangesetAck {
-                                status: "error".to_string(),
-                                server_rev: None,
-                                op_ids: None,
-                                message: Some(e.to_string()),
-                            };
-                            if let Ok(json) = serde_json::to_value(&error_ack) {
-                                let _ = ack.send(&json);
-                            }
-                        }
-                    }
-                }
-            },
-        );
-
-        let state = state_clone.clone();
-        // Handle fetch_ops event
-        socket.on(
-            "fetch_ops",
-            move |socket: SocketRef, Data::<FetchOpsRequest>(req), ack: AckSender| {
-                let state = state.clone();
-                async move {
-                    info!(">>> [fetch_ops] Received request: socket_id={}, doc_id={}, start_rev={}", socket.id, req.doc_id, req.start_rev);
-                    match handle_fetch_ops(&socket, &state, req.clone()).await {
-                        Ok(ack_data) => {
-                            let ops_count = ack_data.operations.as_ref().map(|o| o.len()).unwrap_or(0);
-                            info!(">>> [fetch_ops] Success: doc_id={}, ops_count={}", req.doc_id, ops_count);
-                            match serde_json::to_value(&ack_data) {
-                                Ok(json) => {
-                                    info!(">>> [fetch_ops] Sending ACK with {} operations", ops_count);
-                                    if let Err(e) = ack.send(&json) {
-                                        error!(">>> [fetch_ops] Failed to send ACK: {:?}", e);
-                                    } else {
-                                        info!(">>> [fetch_ops] ACK sent successfully");
-                                    }
-                                }
-                                Err(e) => {
-                                    error!(">>> [fetch_ops] Failed to serialize ACK: {}", e);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!(">>> [fetch_ops] Error: doc_id={}, error={}", req.doc_id, e);
-                            let error_ack = FetchOpsAck {
-                                status: "error".to_string(),
-                                operations: None,
-                                message: Some(e.to_string()),
-                            };
-                            if let Ok(json) = serde_json::to_value(&error_ack) {
-                                if let Err(e) = ack.send(&json) {
-                                    error!(">>> [fetch_ops] Failed to send error ACK: {:?}", e);
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        );
-
-        // Handle presence_update event
-        let state = state_clone.clone();
-        socket.on(
-            "presence_update",
-            move |socket: SocketRef, Data::<PresenceUpdateRequest>(req)| {
-                let state = state.clone();
-                info!("🔔 Handling presence_update: {:?}", req);
-                async move {
-                    if let Err(e) = handle_presence_update(&socket, &state, req).await {
-                        warn!("Error handling presence_update: {}", e);
-                    }
-                }
-            },
-        );
-
-        let state = state_clone.clone();
-        socket.on_disconnect(move |socket: SocketRef| {
-            let state = state.clone();
-            async move {
-                handle_disconnect(&socket, &state).await;
-            }
-        });
-
-        info!(">>> [CONNECT] All event handlers registered for socket: {:?}", socket.id);
+    // Store auth data in socket extensions for use in event handlers
+    socket.extensions.insert(SocketAuthData {
+        user_info,
+        access_token: token,
     });
+
+    // Increment online users counter
+    metrics::increment_online_users();
+
+    // Increment WebSocket connections counter
+    metrics::increment_websocket_connections();
+
+    // Register event handlers with named functions
+    socket.on("join_doc", on_join_doc);
+    socket.on("awareness_init", on_awareness_init);
+    socket.on("leave_doc", on_leave_doc);
+    socket.on("changeset", on_changeset);
+    socket.on("fetch_ops", on_fetch_ops);
+    socket.on("presence_update", on_presence_update);
+    socket.on_disconnect(on_disconnect);
 }
 
-async fn handle_join_doc(
-    socket: &SocketRef,
+/// Handle join_doc event
+async fn on_join_doc<A: Adapter>(
+    socket: SocketRef<A>,
+    Data(req): Data<JoinDocRequest>,
+    state: State<AppState>,
+    ack: AckSender<A>,
+) {
+    info!(">>> [join_doc] Received request: socket_id={}, doc_id={}", socket.id, req.doc_id);
+    match handle_join_doc(&socket, &state, req.clone()).await {
+        Ok(ack_data) => {
+            info!(">>> [join_doc] Success: doc_id={}, version={:?}", req.doc_id, ack_data.version);
+            match serde_json::to_value(&ack_data) {
+                Ok(json) => {
+                    info!(">>> [join_doc] Sending ACK: {:?}", json);
+                    if let Err(e) = ack.send(&json) {
+                        error!(">>> [join_doc] Failed to send ACK: {:?}", e);
+                    } else {
+                        info!(">>> [join_doc] ACK sent successfully");
+                    }
+                }
+                Err(e) => {
+                    error!(">>> [join_doc] Failed to serialize ACK: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            error!(">>> [join_doc] Error: doc_id={}, error={}", req.doc_id, e);
+            let error_ack = JoinDocAck {
+                status: "error".to_string(),
+                version: None,
+                content: None,
+                message: Some(e.to_string()),
+            };
+            if let Ok(json) = serde_json::to_value(&error_ack) {
+                if let Err(e) = ack.send(&json) {
+                    error!(">>> [join_doc] Failed to send error ACK: {:?}", e);
+                }
+            }
+        }
+    }
+}
+
+/// Handle awareness_init event
+async fn on_awareness_init<A: Adapter>(
+    socket: SocketRef<A>,
+    Data(req): Data<JoinDocRequest>,
+    ack: AckSender<A>,
+    state: State<AppState>,
+) {
+    match handle_awareness_init(&socket, &state, req).await {
+        Ok(ack_data) => {
+            if let Ok(json) = serde_json::to_value(&ack_data) {
+                let _ = ack.send(&json);
+            }
+        }
+        Err(e) => {
+            error!("Error initializing awareness: {}", e);
+            let error_ack = AwarenessInitAck {
+                status: "error".to_string(),
+                states: vec![],
+            };
+            if let Ok(json) = serde_json::to_value(&error_ack) {
+                let _ = ack.send(&json);
+            }
+        }
+    }
+}
+
+/// Handle leave_doc event
+async fn on_leave_doc<A: Adapter>(socket: SocketRef<A>, Data(req): Data<LeaveDocRequest>) {
+    handle_leave_doc(&socket, req).await;
+}
+
+/// Handle changeset event
+async fn on_changeset<A: Adapter>(
+    socket: SocketRef<A>,
+    Data(req): Data<ChangesetRequest>,
+    ack: AckSender<A>,
+    state: State<AppState>,
+) {
+    info!(
+        "·: socket_id={:?}, doc_id={}, base_rev={}",
+        socket.id, req.doc_id, req.base_rev
+    );
+    match handle_changeset(&socket, &state, req).await {
+        Ok(ack_data) => {
+            if let Ok(json) = serde_json::to_value(&ack_data) {
+                let _ = ack.send(&json);
+            }
+        }
+        Err(e) => {
+            error!("Error applying changeset: {}", e);
+            let error_ack = ChangesetAck {
+                status: "error".to_string(),
+                server_rev: None,
+                op_ids: None,
+                message: Some(e.to_string()),
+            };
+            if let Ok(json) = serde_json::to_value(&error_ack) {
+                let _ = ack.send(&json);
+            }
+        }
+    }
+}
+
+/// Handle fetch_ops event
+async fn on_fetch_ops<A: Adapter>(
+    socket: SocketRef<A>,
+    Data(req): Data<FetchOpsRequest>,
+    ack: AckSender<A>,
+    state: State<AppState>,
+) {
+    info!(">>> [fetch_ops] Received request: socket_id={}, doc_id={}, start_rev={}", socket.id, req.doc_id, req.start_rev);
+    match handle_fetch_ops(&socket, &state, req.clone()).await {
+        Ok(ack_data) => {
+            let ops_count = ack_data.operations.as_ref().map(|o| o.len()).unwrap_or(0);
+            info!(">>> [fetch_ops] Success: doc_id={}, ops_count={}", req.doc_id, ops_count);
+            match serde_json::to_value(&ack_data) {
+                Ok(json) => {
+                    info!(">>> [fetch_ops] Sending ACK with {} operations", ops_count);
+                    if let Err(e) = ack.send(&json) {
+                        error!(">>> [fetch_ops] Failed to send ACK: {:?}", e);
+                    } else {
+                        info!(">>> [fetch_ops] ACK sent successfully");
+                    }
+                }
+                Err(e) => {
+                    error!(">>> [fetch_ops] Failed to serialize ACK: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            error!(">>> [fetch_ops] Error: doc_id={}, error={}", req.doc_id, e);
+            let error_ack = FetchOpsAck {
+                status: "error".to_string(),
+                operations: None,
+                message: Some(e.to_string()),
+            };
+            if let Ok(json) = serde_json::to_value(&error_ack) {
+                if let Err(e) = ack.send(&json) {
+                    error!(">>> [fetch_ops] Failed to send error ACK: {:?}", e);
+                }
+            }
+        }
+    }
+}
+
+/// Handle presence_update event
+async fn on_presence_update<A: Adapter>(
+    socket: SocketRef<A>,
+    Data(req): Data<PresenceUpdateRequest>,
+    state: State<AppState>,
+) {
+    info!("Handling presence_update: {:?}", req);
+    if let Err(e) = handle_presence_update(&socket, &state, req).await {
+        warn!("Error handling presence_update: {}", e);
+    }
+}
+
+/// Handle disconnect event
+async fn on_disconnect<A: Adapter>(socket: SocketRef<A>, state: State<AppState>) {
+    handle_disconnect(&socket, &state).await;
+}
+
+async fn handle_join_doc<A: Adapter>(
+    socket: &SocketRef<A>,
     state: &AppState,
     req: JoinDocRequest,
 ) -> Result<JoinDocAck> {
@@ -402,7 +389,7 @@ async fn handle_join_doc(
     })
 }
 
-async fn handle_leave_doc(socket: &SocketRef, req: LeaveDocRequest) {
+async fn handle_leave_doc<A: Adapter>(socket: &SocketRef<A>, req: LeaveDocRequest) {
     let room = format!("doc:{}", req.doc_id);
     socket.leave(room.clone());
     info!("Socket {} left room {}", socket.id, room);
@@ -421,8 +408,8 @@ async fn handle_leave_doc(socket: &SocketRef, req: LeaveDocRequest) {
     }
 }
 
-async fn handle_awareness_init(
-    socket: &SocketRef,
+async fn handle_awareness_init<A: Adapter>(
+    socket: &SocketRef<A>,
     state: &AppState,
     req: JoinDocRequest,
 ) -> Result<AwarenessInitAck> {
@@ -457,8 +444,8 @@ async fn handle_awareness_init(
     })
 }
 
-async fn handle_changeset(
-    socket: &SocketRef,
+async fn handle_changeset<A: Adapter>(
+    socket: &SocketRef<A>,
     state: &AppState,
     req: ChangesetRequest,
 ) -> Result<ChangesetAck> {
@@ -592,8 +579,8 @@ async fn handle_changeset(
     })
 }
 
-async fn handle_fetch_ops(
-    _socket: &SocketRef,
+async fn handle_fetch_ops<A: Adapter>(
+    _socket: &SocketRef<A>,
     state: &AppState,
     req: FetchOpsRequest,
 ) -> Result<FetchOpsAck> {
@@ -641,8 +628,8 @@ async fn handle_fetch_ops(
     })
 }
 
-async fn handle_presence_update(
-    socket: &SocketRef,
+async fn handle_presence_update<A: Adapter>(
+    socket: &SocketRef<A>,
     state: &AppState,
     req: PresenceUpdateRequest,
 ) -> Result<()> {
@@ -683,7 +670,7 @@ async fn handle_presence_update(
     Ok(())
 }
 
-async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
+async fn handle_disconnect<A: Adapter>(socket: &SocketRef<A>, state: &AppState) {
     let socket_id = socket.id.to_string();
 
     // Get user info before cleanup for logging
@@ -743,5 +730,4 @@ async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
         "Disconnect cleanup completed: socket_id={}, user_id={}, rooms_cleaned={}",
         socket_id, user_id, room_count
     );
-
 }

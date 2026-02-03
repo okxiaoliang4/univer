@@ -15,13 +15,13 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct DocumentService {
     db: Arc<DatabaseConnection>,
-    storage_service: StorageService,
+    storage_service: Arc<StorageService>,
 }
 
 impl DocumentService {
-    pub fn new(db: DatabaseConnection, storage_service: StorageService) -> Self {
+    pub fn new(db: Arc<DatabaseConnection>, storage_service: Arc<StorageService>) -> Self {
         Self {
-            db: Arc::new(db),
+            db,
             storage_service,
         }
     }

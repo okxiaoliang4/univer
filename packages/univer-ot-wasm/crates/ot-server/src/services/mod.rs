@@ -7,7 +7,6 @@ pub mod grpc_client;
 pub mod op_queue;
 pub mod ot;
 pub mod params_codec;
-pub mod snapshot;
 pub mod storage;
 
 pub use auth::AuthService;
@@ -18,5 +17,4 @@ pub use etcd::EtcdService;
 pub use grpc_client::GrpcClientService;
 pub use op_queue::OpQueueService;
 pub use ot::OTService;
-pub use snapshot::SnapshotService;
 pub use storage::StorageService;

@@ -37,19 +37,19 @@ pub struct ChangesetApplied {
 #[derive(Clone)]
 pub struct OTService {
     db: Arc<DatabaseConnection>,
-    document_service: DocumentService,
+    document_service: Arc<DocumentService>,
     transform_service: Arc<TransformService>,
-    op_queue_service: OpQueueService,
+    op_queue_service: Arc<OpQueueService>,
 }
 
 impl OTService {
     pub fn new(
-        db: DatabaseConnection,
-        document_service: DocumentService,
-        op_queue_service: OpQueueService,
+        db: Arc<DatabaseConnection>,
+        document_service: Arc<DocumentService>,
+        op_queue_service: Arc<OpQueueService>,
     ) -> Self {
         Self {
-            db: Arc::new(db),
+            db,
             document_service,
             transform_service: Arc::new(TransformService::new()),
             op_queue_service,

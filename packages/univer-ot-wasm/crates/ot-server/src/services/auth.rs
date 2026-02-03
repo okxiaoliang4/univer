@@ -49,7 +49,7 @@ struct CachedPermission {
 /// - Per-socket permission caching with TTL to reduce gRPC calls
 #[derive(Clone)]
 pub struct AuthService {
-    grpc_client: GrpcClientService,
+    grpc_client: Arc<GrpcClientService>,
     /// Per-socket permission cache: socket_id -> (doc_id -> CachedPermission)
     permission_cache: Arc<DashMap<String, DashMap<String, CachedPermission>>>,
     cache_ttl: Duration,
@@ -63,7 +63,7 @@ impl AuthService {
     /// # Arguments
     /// * `grpc_client` - GrpcClientService for making gRPC calls
     /// * `cache_ttl_secs` - TTL for permission cache in seconds
-    pub fn new(grpc_client: GrpcClientService, cache_ttl_secs: u64) -> Self {
+    pub fn new(grpc_client: Arc<GrpcClientService>, cache_ttl_secs: u64) -> Self {
         // Check if token verification should be skipped (for development/testing)
         let skip_token_verification = std::env::var("SKIP_TOKEN_VERIFICATION")
             .map(|v| v.eq_ignore_ascii_case("true") || v == "1")

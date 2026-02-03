@@ -19,12 +19,12 @@ struct ApplyChangesetTask {
 
 #[derive(Clone)]
 pub struct DocumentActorManager {
-    ot_service: OTService,
+    ot_service: Arc<OTService>,
     actors: Arc<Mutex<HashMap<Uuid, mpsc::Sender<ApplyChangesetTask>>>>,
 }
 
 impl DocumentActorManager {
-    pub fn new(ot_service: OTService) -> Self {
+    pub fn new(ot_service: Arc<OTService>) -> Self {
         let manager = Self {
             ot_service,
             actors: Arc::new(Mutex::new(HashMap::new())),
