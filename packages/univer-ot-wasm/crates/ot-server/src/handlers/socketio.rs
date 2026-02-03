@@ -684,16 +684,22 @@ async fn handle_presence_update(
 }
 
 async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
-    let user_id = socket
+    let socket_id = socket.id.to_string();
+
+    // Get user info before cleanup for logging
+    let (user_id, had_auth_data) = socket
         .extensions
         .get::<SocketAuthData>()
-        .map(|auth| auth.user_info.uid.clone())
-        .unwrap_or_else(|| "unknown".to_string());
+        .map(|auth| (auth.user_info.uid.clone(), true))
+        .unwrap_or_else(|| ("unknown".to_string(), false));
 
-    info!("Socket {} (user {}) disconnecting", socket.id, user_id);
+    info!(
+        "Socket {} (user {}) disconnecting, had_auth_data={}",
+        socket_id, user_id, had_auth_data
+    );
 
     // Invalidate permission cache for this socket
-    state.auth_service.invalidate_socket_cache(&socket.id.to_string());
+    state.auth_service.invalidate_socket_cache(&socket_id);
 
     // Decrement online users counter
     metrics::decrement_online_users();
@@ -702,6 +708,7 @@ async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
     metrics::decrement_websocket_connections();
 
     let rooms = socket.rooms().into_iter().collect::<Vec<_>>();
+    let room_count = rooms.len();
 
     for room in rooms {
         if let Some(doc_id) = room.strip_prefix("doc:") {
@@ -711,14 +718,14 @@ async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
             // Clean up awareness state
             if let Err(e) = state
                 .awareness_service
-                .remove_by_socket(doc_id, &socket.id.to_string())
+                .remove_by_socket(doc_id, &socket_id)
                 .await
             {
                 warn!("Error removing client awareness: {}", e);
             }
 
             // Track socket leaving document
-            let is_document_empty = track_socket_leave(doc_id, &socket.id.to_string());
+            let is_document_empty = track_socket_leave(doc_id, &socket_id);
 
             // If this was the last socket in this document, decrement online documents and active sessions
             if is_document_empty {
@@ -728,4 +735,13 @@ async fn handle_disconnect(socket: &SocketRef, state: &AppState) {
             }
         }
     }
+
+    // Log cleanup summary for debugging memory issues
+    // Note: socket.extensions will be automatically dropped when the socket is dropped by socketioxide.
+    // This log helps verify the disconnect handler completed successfully.
+    info!(
+        "Disconnect cleanup completed: socket_id={}, user_id={}, rooms_cleaned={}",
+        socket_id, user_id, room_count
+    );
+
 }

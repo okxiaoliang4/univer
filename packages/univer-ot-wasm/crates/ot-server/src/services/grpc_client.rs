@@ -2,9 +2,10 @@ use crate::services::EtcdService;
 use anyhow::{anyhow, Result};
 use rand::seq::SliceRandom;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::RwLock;
 use tonic::transport::Channel;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 // Include generated proto code for user service
 pub mod user_proto {
@@ -19,15 +20,48 @@ pub mod document_proto {
 pub use document_proto::document_client::DocumentClient;
 pub use user_proto::user_client::UserClient;
 
+/// Channel refresh interval - refresh channels periodically to handle endpoint changes
+const CHANNEL_REFRESH_INTERVAL: Duration = Duration::from_secs(300); // 5 minutes
+
+/// Cached channel with creation timestamp for TTL-based refresh
+struct CachedChannel {
+    channel: Channel,
+    created_at: Instant,
+    endpoint: String,
+}
+
+impl CachedChannel {
+    fn new(channel: Channel, endpoint: String) -> Self {
+        Self {
+            channel,
+            created_at: Instant::now(),
+            endpoint,
+        }
+    }
+
+    fn is_expired(&self) -> bool {
+        self.created_at.elapsed() > CHANNEL_REFRESH_INTERVAL
+    }
+}
+
 /// Inner state for GrpcClientService
 struct GrpcClientServiceInner {
     etcd_service: EtcdService,
     user_rpc_prefix: String,
     document_rpc_prefix: String,
+    /// Cached user service channel (lazily initialized, refreshed on TTL expiry)
+    user_channel: RwLock<Option<CachedChannel>>,
+    /// Cached document service channel (lazily initialized, refreshed on TTL expiry)
+    document_channel: RwLock<Option<CachedChannel>>,
 }
 
 /// gRPC client service for managing connections to external services
 /// Uses etcd for dynamic service discovery
+///
+/// This service uses connection pooling to reuse HTTP/2 channels:
+/// - Channels are lazily created on first use
+/// - Channels are refreshed after CHANNEL_REFRESH_INTERVAL (5 minutes)
+/// - HTTP/2 multiplexing allows multiple concurrent requests on a single channel
 ///
 /// This service is wrapped in Arc so cloning is cheap (reference count only)
 #[derive(Clone)]
@@ -48,8 +82,8 @@ impl GrpcClientService {
         document_rpc_prefix: String,
     ) -> Self {
         info!(
-            "Initializing GrpcClientService: user_rpc_prefix={}, document_rpc_prefix={}",
-            user_rpc_prefix, document_rpc_prefix
+            "Initializing GrpcClientService with connection pooling: user_rpc_prefix={}, document_rpc_prefix={}, channel_refresh_interval={:?}",
+            user_rpc_prefix, document_rpc_prefix, CHANNEL_REFRESH_INTERVAL
         );
 
         Self {
@@ -57,6 +91,8 @@ impl GrpcClientService {
                 etcd_service,
                 user_rpc_prefix,
                 document_rpc_prefix,
+                user_channel: RwLock::new(None),
+                document_channel: RwLock::new(None),
             }),
         }
     }
@@ -89,24 +125,124 @@ impl GrpcClientService {
         Ok(url)
     }
 
-    /// Create a user service client by discovering endpoint from etcd
-    pub async fn create_user_client(&self) -> Result<UserClient<Channel>> {
-        let url = self.get_service_endpoint(&self.inner.user_rpc_prefix).await?;
+    /// Get or create a cached channel for the user service.
+    /// Channels are reused across multiple requests (HTTP/2 multiplexing).
+    /// Channels are refreshed after CHANNEL_REFRESH_INTERVAL to handle endpoint changes.
+    async fn get_user_channel(&self) -> Result<Channel> {
+        // Fast path: check if we have a valid cached channel
+        {
+            let guard = self.inner.user_channel.read().await;
+            if let Some(cached) = guard.as_ref() {
+                if !cached.is_expired() {
+                    return Ok(cached.channel.clone());
+                }
+                debug!(
+                    "User service channel expired (age={:?}), will refresh",
+                    cached.created_at.elapsed()
+                );
+            }
+        }
+
+        // Slow path: create or refresh the channel
+        let mut guard = self.inner.user_channel.write().await;
+
+        // Double-check after acquiring write lock (another thread may have refreshed)
+        if let Some(cached) = guard.as_ref() {
+            if !cached.is_expired() {
+                return Ok(cached.channel.clone());
+            }
+        }
+
+        let url = self
+            .get_service_endpoint(&self.inner.user_rpc_prefix)
+            .await?;
         let channel = Channel::from_shared(url.clone())?
             .connect()
             .await
             .map_err(|e| anyhow!("Failed to connect to user service at {}: {}", url, e))?;
-        Ok(UserClient::new(channel))
+
+        info!("Created new user service channel: endpoint={}", url);
+        *guard = Some(CachedChannel::new(channel.clone(), url));
+        Ok(channel)
     }
 
-    /// Create a document service client by discovering endpoint from etcd
-    pub async fn create_document_client(&self) -> Result<DocumentClient<Channel>> {
-        let url = self.get_service_endpoint(&self.inner.document_rpc_prefix).await?;
+    /// Get or create a cached channel for the document service.
+    /// Channels are reused across multiple requests (HTTP/2 multiplexing).
+    /// Channels are refreshed after CHANNEL_REFRESH_INTERVAL to handle endpoint changes.
+    async fn get_document_channel(&self) -> Result<Channel> {
+        // Fast path: check if we have a valid cached channel
+        {
+            let guard = self.inner.document_channel.read().await;
+            if let Some(cached) = guard.as_ref() {
+                if !cached.is_expired() {
+                    return Ok(cached.channel.clone());
+                }
+                debug!(
+                    "Document service channel expired (age={:?}), will refresh",
+                    cached.created_at.elapsed()
+                );
+            }
+        }
+
+        // Slow path: create or refresh the channel
+        let mut guard = self.inner.document_channel.write().await;
+
+        // Double-check after acquiring write lock (another thread may have refreshed)
+        if let Some(cached) = guard.as_ref() {
+            if !cached.is_expired() {
+                return Ok(cached.channel.clone());
+            }
+        }
+
+        let url = self
+            .get_service_endpoint(&self.inner.document_rpc_prefix)
+            .await?;
         let channel = Channel::from_shared(url.clone())?
             .connect()
             .await
             .map_err(|e| anyhow!("Failed to connect to document service at {}: {}", url, e))?;
+
+        info!("Created new document service channel: endpoint={}", url);
+        *guard = Some(CachedChannel::new(channel.clone(), url));
+        Ok(channel)
+    }
+
+    /// Create a user service client using the pooled channel.
+    /// The underlying HTTP/2 connection is reused across multiple clients.
+    pub async fn create_user_client(&self) -> Result<UserClient<Channel>> {
+        let channel = self.get_user_channel().await?;
+        Ok(UserClient::new(channel))
+    }
+
+    /// Create a document service client using the pooled channel.
+    /// The underlying HTTP/2 connection is reused across multiple clients.
+    pub async fn create_document_client(&self) -> Result<DocumentClient<Channel>> {
+        let channel = self.get_document_channel().await?;
         Ok(DocumentClient::new(channel))
+    }
+
+    /// Force refresh the user service channel.
+    /// Useful when connection errors occur or endpoints change.
+    pub async fn refresh_user_channel(&self) {
+        let mut guard = self.inner.user_channel.write().await;
+        if let Some(cached) = guard.take() {
+            info!(
+                "Forcing user service channel refresh (previous endpoint={})",
+                cached.endpoint
+            );
+        }
+    }
+
+    /// Force refresh the document service channel.
+    /// Useful when connection errors occur or endpoints change.
+    pub async fn refresh_document_channel(&self) {
+        let mut guard = self.inner.document_channel.write().await;
+        if let Some(cached) = guard.take() {
+            info!(
+                "Forcing document service channel refresh (previous endpoint={})",
+                cached.endpoint
+            );
+        }
     }
 
     /// Verify an access token by calling the user service
