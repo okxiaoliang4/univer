@@ -41,6 +41,14 @@ pub struct StorageLocation {
     pub version_id: String,
 }
 
+/// Info returned from S3 upload for batch DB insert
+#[derive(Debug, Clone)]
+pub struct UploadedOperationParams {
+    pub storage_id: Uuid,
+    pub rev: i64,
+    pub storage_record: storage::ActiveModel,
+}
+
 impl StorageService {
     pub fn new(
         db: sea_orm::DatabaseConnection,
@@ -213,5 +221,201 @@ impl StorageService {
         let data = response.body.collect().await?.into_bytes();
         let content = serde_json::from_slice::<JsonValue>(&data)?;
         Ok(content)
+    }
+
+    /// Store operation params to S3
+    /// Returns storage_id for the uploaded content
+    ///
+    /// Path structure: {env}/documents/{doc_id}/operations/{rev}_{hash}.msgpack
+    pub async fn store_operation_params(
+        &self,
+        doc_id: Uuid,
+        rev: i64,
+        params: &[u8], // MessagePack encoded params
+    ) -> Result<Uuid> {
+        let hash = format!("{:x}", md5::compute(params));
+        let size = params.len() as i64;
+        let path = format!(
+            "{}/documents/{}/operations/{}_{}.msgpack",
+            self.server_env, doc_id, rev, &hash[..8]
+        );
+        let filename = format!("{}-{}.msgpack", doc_id, rev);
+        let metadata = json!({
+            "doc_id": doc_id.to_string(),
+            "rev": rev,
+        });
+
+        tracing::debug!(
+            "Uploading operation params to storage: doc_id={}, rev={}, path={}, size={}",
+            doc_id,
+            rev,
+            path,
+            size
+        );
+
+        let output = self
+            .s3_client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(&path)
+            .content_type("application/msgpack")
+            .body(params.to_vec().into())
+            .send()
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to upload operation params: doc_id={}, rev={}, path={}",
+                    doc_id, rev, path
+                )
+            })?;
+
+        let version_id = output
+            .version_id()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "null".to_string());
+
+        let now = chrono::Utc::now();
+        let storage_id = Uuid::new_v4();
+        let record = storage::ActiveModel {
+            id: sea_orm::Set(storage_id),
+            endpoint: sea_orm::Set(self.endpoint.clone()),
+            region: sea_orm::Set(self.region.clone()),
+            bucket: sea_orm::Set(self.bucket.clone()),
+            path: sea_orm::Set(path.clone()),
+            size: sea_orm::Set(size),
+            hash: sea_orm::Set(hash),
+            hash_algorithm: sea_orm::Set("md5".to_string()),
+            filename: sea_orm::Set(filename),
+            content_type: sea_orm::Set(Some("application/msgpack".to_string())),
+            metadata: sea_orm::Set(Some(metadata.into())),
+            version_id: sea_orm::Set(version_id),
+            compressed: sea_orm::Set(None),
+            created_at: sea_orm::Set(now.into()),
+            updated_at: sea_orm::Set(now.into()),
+        };
+
+        record.insert(&*self.db).await.with_context(|| {
+            format!(
+                "Failed to insert storage record: doc_id={}, rev={}, storage_id={}",
+                doc_id, rev, storage_id
+            )
+        })?;
+
+        tracing::debug!(
+            "Operation params stored: doc_id={}, rev={}, storage_id={}",
+            doc_id,
+            rev,
+            storage_id
+        );
+
+        Ok(storage_id)
+    }
+
+    /// Upload operation params to S3 only (for batch processing)
+    /// Returns the storage info without inserting to DB - caller handles batch insert
+    ///
+    /// This is used by the write-behind worker to batch uploads and DB inserts
+    pub async fn upload_operation_params_to_s3(
+        &self,
+        doc_id: Uuid,
+        rev: i64,
+        params: &[u8], // MessagePack encoded params
+    ) -> Result<UploadedOperationParams> {
+        let hash = format!("{:x}", md5::compute(params));
+        let size = params.len() as i64;
+        let path = format!(
+            "{}/documents/{}/operations/{}_{}.msgpack",
+            self.server_env, doc_id, rev, &hash[..8]
+        );
+        let filename = format!("{}-{}.msgpack", doc_id, rev);
+        let metadata = serde_json::json!({
+            "doc_id": doc_id.to_string(),
+            "rev": rev,
+        });
+
+        tracing::debug!(
+            "Uploading operation params to S3: doc_id={}, rev={}, path={}, size={}",
+            doc_id,
+            rev,
+            path,
+            size
+        );
+
+        let output = self
+            .s3_client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(&path)
+            .content_type("application/msgpack")
+            .body(params.to_vec().into())
+            .send()
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to upload operation params: doc_id={}, rev={}, path={}",
+                    doc_id, rev, path
+                )
+            })?;
+
+        let version_id = output
+            .version_id()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "null".to_string());
+
+        let now = chrono::Utc::now();
+        let storage_id = Uuid::new_v4();
+        let record = storage::ActiveModel {
+            id: sea_orm::Set(storage_id),
+            endpoint: sea_orm::Set(self.endpoint.clone()),
+            region: sea_orm::Set(self.region.clone()),
+            bucket: sea_orm::Set(self.bucket.clone()),
+            path: sea_orm::Set(path.clone()),
+            size: sea_orm::Set(size),
+            hash: sea_orm::Set(hash),
+            hash_algorithm: sea_orm::Set("md5".to_string()),
+            filename: sea_orm::Set(filename),
+            content_type: sea_orm::Set(Some("application/msgpack".to_string())),
+            metadata: sea_orm::Set(Some(metadata.into())),
+            version_id: sea_orm::Set(version_id),
+            compressed: sea_orm::Set(None),
+            created_at: sea_orm::Set(now.into()),
+            updated_at: sea_orm::Set(now.into()),
+        };
+
+        Ok(UploadedOperationParams {
+            storage_id,
+            rev,
+            storage_record: record,
+        })
+    }
+
+    /// Fetch operation params from S3
+    /// Returns raw MessagePack encoded bytes
+    pub async fn fetch_operation_params(&self, storage_id: Uuid) -> Result<Vec<u8>> {
+        let storage = self.get_storage_location(storage_id).await?;
+
+        tracing::debug!(
+            "Fetching operation params from storage: storage_id={}, path={}",
+            storage_id,
+            storage.path
+        );
+
+        let response = self
+            .s3_client
+            .get_object()
+            .bucket(&storage.bucket)
+            .key(&storage.path)
+            .version_id(&storage.version_id)
+            .send()
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to fetch operation params: storage_id={}, path={}",
+                    storage_id, storage.path
+                )
+            })?;
+
+        let data = response.body.collect().await?.into_bytes();
+        Ok(data.to_vec())
     }
 }

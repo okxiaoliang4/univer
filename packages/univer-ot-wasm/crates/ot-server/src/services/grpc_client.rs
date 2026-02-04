@@ -317,7 +317,7 @@ impl GrpcClientService {
             anyhow!("Failed to notify document modification: {}", e)
         })?;
 
-        info!(
+        debug!(
             "Notified document modification: doc_id={}, user_id={}",
             doc_id, user_id
         );

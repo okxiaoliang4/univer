@@ -1,16 +1,14 @@
 use axum::{
-    http::Method,
-    routing::{get, post},
-    Router,
+    Router, extract::DefaultBodyLimit, http::Method, routing::{delete, get, post}
 };
 use migration::{Migrator, MigratorTrait};
 use sea_orm::DatabaseConnection;
 use sea_orm::{ConnectOptions, Database};
-use socketioxide_redis::{ClusterAdapter, RedisAdapter, RedisAdapterCtr};
+use socketioxide_redis::{RedisAdapter, RedisAdapterConfig, RedisAdapterCtr};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::{error, info, warn};
+use tracing::{error, info, warn, log::LevelFilter};
 use uuid::Uuid;
 
 // No feature flags needed - mimalloc is always used in server
@@ -78,10 +76,18 @@ async fn main() -> anyhow::Result<()> {
     info!("Connecting to database at {}", config.database_url);
     let mut connect_options = ConnectOptions::new(&config.database_url);
     connect_options
-        .max_connections(100)
-        .min_connections(10)
+        // Increased from 100 to 200 to handle high concurrency
+        // Each OT operation may need a connection for idempotency check + write
+        .max_connections(200)
+        // Increased from 10 to 20 for faster warmup under load
+        .min_connections(20)
         .connect_timeout(Duration::from_secs(10))
-        .acquire_timeout(Duration::from_secs(30))
+        // Reduced from 30s to 5s - if we can't get a connection in 5s, better to fail fast
+        // Long waits accumulate and make the situation worse
+        .acquire_timeout(Duration::from_secs(5))
+        // Increased threshold from 10ms to 50ms to reduce log noise
+        // Focus on truly problematic queries (>50ms usually means contention)
+        .sqlx_slow_statements_logging_settings(LevelFilter::Warn, Duration::from_millis(50))
         .idle_timeout(Duration::from_secs(600))
         .max_lifetime(Duration::from_secs(1800));
 
@@ -136,38 +142,72 @@ async fn main() -> anyhow::Result<()> {
 
     // Create application state
     info!("Creating server state");
-    let state = match ServerState::new(
-        db,
-        config.s3_endpoint.clone(),
-        config.s3_region.clone(),
-        config.s3_bucket.clone(),
-        config.s3_access_key.clone(),
-        config.s3_secret_key.clone(),
-        config.server_env.clone(),
-        config.redis_url.clone(),
-        config.awareness_redis_enabled,
-        config.awareness_ttl_seconds,
-        etcd_service,
-        grpc_client,
-        auth_service,
-    )
-    .await
-    {
-        state => {
-            info!("Server state created successfully");
-            Arc::new(state)
-        }
-    };
+    info!(
+        "Write-behind config: batch_size={}, flush_interval_ms={}, worker_count={}",
+        config.writebehind_batch_size,
+        config.writebehind_flush_interval_ms,
+        config.writebehind_worker_count
+    );
+
+    let state = Arc::new(
+        ServerState::new(
+            db,
+            config.s3_endpoint.clone(),
+            config.s3_region.clone(),
+            config.s3_bucket.clone(),
+            config.s3_access_key.clone(),
+            config.s3_secret_key.clone(),
+            config.server_env.clone(),
+            config.redis_url.clone(),
+            config.awareness_redis_enabled,
+            config.awareness_ttl_seconds,
+            etcd_service,
+            grpc_client,
+            auth_service,
+            config.writebehind_batch_size,
+            config.writebehind_flush_interval_ms,
+            config.writebehind_worker_count,
+            config.writebehind_ttl_seconds,
+        )
+        .await,
+    );
+    info!("Server state created successfully");
+
+    // Start write-behind workers
+    info!("Starting write-behind workers");
+    // First, flush any pending operations from previous run (recovery)
+    if let Err(e) = state.flush_writebehind().await {
+        warn!("Failed to flush pending write-behind operations on startup: {}", e);
+    }
+    let writebehind_handles = state.start_writebehind_workers();
     // Create Socket.IO layer with state
     let client = redis::Client::open(config.redis_url.clone())?;
-    let adapter = RedisAdapterCtr::new_with_redis(&client).await?;
+
+    // Configure Redis adapter with increased timeouts and buffers for high load
+    // - request_timeout: 15s (from 5s) for cross-instance broadcast under load
+    // - stream_buffer: 4096 (from 1024) for handling message bursts
+    // - ack_response_buffer: 1024 (from 255) for high-throughput ack responses
+    let redis_adapter_config = RedisAdapterConfig::default()
+        .with_request_timeout(Duration::from_secs(15))
+        .with_stream_buffer(4096)
+        .with_ack_response_buffer(1024);
+    let adapter = RedisAdapterCtr::new_with_redis_config(&client, redis_adapter_config).await?;
 
     info!("Initializing Socket.IO layer");
+    // Configure Socket.IO with optimized timeouts for production load:
+    // - ping_interval: 15s (from 25s) for faster disconnect detection
+    // - ping_timeout: 30s (from 20s) more time for client response under load
+    // - max_buffer_size: 256 (from 128) for high-throughput broadcasting
+    // - ack_timeout: 10s (from 5s) more time for client ack under network latency
     let (layer, io) = SocketIo::builder()
+        .ping_interval(Duration::from_secs(15))
+        .ping_timeout(Duration::from_secs(30))
+        .max_buffer_size(256)
+        .ack_timeout(Duration::from_secs(10))
         .with_state(state.clone())
         .with_adapter::<RedisAdapter<_>>(adapter)
         .build_layer();
-    info!("Socket.IO layer initialized");
+    info!("Socket.IO layer initialized with optimized config: ping_interval=15s, ping_timeout=30s, max_buffer_size=256, ack_timeout=10s");
 
     let instance_id = Uuid::new_v4();
     info!("Registering instance {} with etcd", instance_id);
@@ -212,23 +252,47 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(api::health_check))
         .route("/metrics", get(metrics::metrics_handler))
+        // Document CRUD
         .route("/api/documents", post(api::create_document))
-        .route("/api/documents/{doc_id}", get(api::get_document))
+        .route(
+            "/api/documents/latest-snapshots",
+            post(api::get_latest_snapshots),
+        )
+        .route(
+            "/api/documents/{doc_id}",
+            get(api::get_document).delete(api::delete_document),
+        )
+        .route(
+            "/api/documents/{doc_id}/clone",
+            post(api::clone_document),
+        )
         .route(
             "/api/documents/{doc_id}/restore",
             post(api::restore_document),
         )
+        .route(
+            "/api/documents/{doc_id}/changeset",
+            post(api::broadcast_op),
+        )
+        // Snapshots
         .route(
             "/api/documents/{doc_id}/snapshots",
             get(api::get_snapshot_list),
         )
         .route(
             "/api/documents/{doc_id}/snapshots/{snapshot_id}",
-            post(api::update_snapshot_name),
+            get(api::get_snapshot).post(api::update_snapshot_name),
         )
+        // Operations
         .route(
             "/api/documents/{doc_id}/operations",
             get(api::get_operations),
+        )
+        // Storage
+        .route("/api/sign-urls", post(api::sign_object_urls))
+        .route(
+            "/api/storage/{storage_id}/doc-id",
+            get(api::get_doc_id_from_storage_id),
         )
         .layer(
             ServiceBuilder::new()
@@ -248,6 +312,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .layer(layer),
         )
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(state.clone());
 
     // Start HTTP server
@@ -290,7 +355,12 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting HTTP server");
     if let Err(e) = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal(registration, grpc_server))
+        .with_graceful_shutdown(shutdown_signal(
+            registration,
+            grpc_server,
+            state.clone(),
+            writebehind_handles,
+        ))
         .await
     {
         error!("HTTP server error: {}", e);
@@ -305,12 +375,32 @@ async fn main() -> anyhow::Result<()> {
 async fn shutdown_signal(
     registration: services::etcd::EtcdRegistration,
     grpc_server: tokio::task::JoinHandle<anyhow::Result<()>>,
+    state: Arc<ServerState>,
+    writebehind_handles: Vec<tokio::task::JoinHandle<()>>,
 ) {
     info!("Waiting for shutdown signal");
     if let Err(e) = tokio::signal::ctrl_c().await {
         warn!("Failed to wait for shutdown signal: {}", e);
     } else {
         info!("Shutdown signal received");
+    }
+
+    // Shutdown write-behind workers first (to stop accepting new work)
+    if !writebehind_handles.is_empty() {
+        info!("Shutting down write-behind workers");
+        state.shutdown_writebehind();
+
+        // Wait for workers to finish current work (with timeout)
+        for handle in writebehind_handles {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
+        }
+
+        // Flush any remaining pending operations
+        info!("Flushing remaining write-behind operations");
+        match state.flush_writebehind().await {
+            Ok(count) => info!("Flushed {} pending operations", count),
+            Err(e) => warn!("Failed to flush pending operations: {}", e),
+        }
     }
 
     info!("Revoking etcd registration");

@@ -16,7 +16,7 @@ use socketioxide::extract::{Data, SocketRef, State};
 use std::collections::HashSet;
 use std::sync::OnceLock;
 use std::time::Instant;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 /// Socket authentication data stored in socket extensions
@@ -241,7 +241,7 @@ async fn on_changeset<A: Adapter>(
     ack: AckSender<A>,
     state: State<AppState>,
 ) {
-    info!(
+    debug!(
         "·: socket_id={:?}, doc_id={}, base_rev={}",
         socket.id, req.doc_id, req.base_rev
     );
@@ -377,11 +377,10 @@ async fn handle_join_doc<A: Adapter>(
         .ok_or_else(|| anyhow::anyhow!("Document not found: {}", req.doc_id))?;
 
     // Join the room
-    let room = format!("doc:{}", req.doc_id);
-    socket.join(room.clone());
+    socket.join(format!("doc:{}", req.doc_id));
     info!(
         "Socket {} (user {}) joined room {}",
-        socket.id, auth_data.user_info.uid, room
+        socket.id, auth_data.user_info.uid, req.doc_id
     );
 
     // Track socket joining document
@@ -470,7 +469,7 @@ async fn handle_changeset<A: Adapter>(
     state: &AppState,
     req: ChangesetRequest,
 ) -> Result<ChangesetAck> {
-    info!(
+    debug!(
         "Handling changeset: doc_id={}, base_rev={}, mutations_count={}",
         req.doc_id,
         req.base_rev,
@@ -520,10 +519,16 @@ async fn handle_changeset<A: Adapter>(
             .unwrap_or_else(|| format!("socket:{}", socket.id)),
     };
 
-    // Apply changeset via OTService (using Redis lock for distributed serialization)
-    let result = state.ot_service.apply_changeset(doc_id, changeset).await?;
+    // Apply changeset via DocumentActorManager
+    // Within a single instance: requests are serialized via Actor's mpsc channel (no lock contention)
+    // Across instances: OTService's distributed lock ensures cross-instance coordination
+    // This reduces lock contention from N:1 (all requests) to M:1 (one per instance)
+    let result = state
+        .document_actor_manager
+        .apply_changeset(doc_id, changeset)
+        .await?;
 
-    info!(
+    debug!(
         "Changeset applied successfully: doc_id={}, user_id={}, server_rev={}, mutations_count={}",
         req.doc_id,
         auth_data.user_info.uid,
@@ -535,7 +540,7 @@ async fn handle_changeset<A: Adapter>(
     let ack_response = ChangesetAck {
         status: "ok".to_string(),
         server_rev: Some(result.server_rev),
-        op_ids: Some(result.op_ids.clone()),
+        op_ids: Some(result.op_ids),
         message: None,
     };
 
@@ -561,7 +566,7 @@ async fn handle_changeset<A: Adapter>(
                 {
                     Ok(_) => {
                         metrics::record_broadcast_latency(broadcast_start.elapsed().as_secs_f64());
-                        info!(
+                        debug!(
                             "Broadcasted changeset_pushed to room {}: server_rev={}",
                             room, pushed.server_rev
                         );
@@ -697,54 +702,78 @@ async fn handle_disconnect<A: Adapter>(socket: &SocketRef<A>, state: &AppState) 
         .map(|auth| (auth.user_info.uid.clone(), true))
         .unwrap_or_else(|| ("unknown".to_string(), false));
 
-    info!(
+    debug!(
         "Socket {} (user {}) disconnecting, had_auth_data={}",
         socket_id, user_id, had_auth_data
     );
 
-    // Invalidate permission cache for this socket
-    state.auth_service.invalidate_socket_cache(&socket_id);
-
-    // Decrement online users counter
+    // Decrement online users counter (fast, in-memory)
     metrics::decrement_online_users();
 
-    // Decrement WebSocket connections counter
+    // Decrement WebSocket connections counter (fast, in-memory)
     metrics::decrement_websocket_connections();
 
+    // Collect room data synchronously while we have access to the socket
     let rooms = socket.rooms().into_iter().collect::<Vec<_>>();
     let room_count = rooms.len();
 
-    for room in rooms {
-        if let Some(doc_id) = room.strip_prefix("doc:") {
-            // Increment user leaves counter
-            metrics::increment_user_leaves();
+    // Extract doc_ids for async cleanup
+    let doc_ids: Vec<String> = rooms
+        .iter()
+        .filter_map(|room| room.strip_prefix("doc:").map(|s| s.to_string()))
+        .collect();
 
-            // Clean up awareness state
-            if let Err(e) = state
-                .awareness_service
-                .remove_by_socket(doc_id, &socket_id)
-                .await
-            {
-                warn!("Error removing client awareness: {}", e);
-            }
+    // Synchronous cleanup: track socket leaving and update metrics
+    // These operations are fast (DashMap is lock-free) and must be accurate
+    for doc_id in &doc_ids {
+        // Increment user leaves counter
+        metrics::increment_user_leaves();
 
-            // Track socket leaving document
-            let is_document_empty = track_socket_leave(doc_id, &socket_id);
+        // Track socket leaving document (fast, lock-free DashMap operation)
+        let is_document_empty = track_socket_leave(doc_id, &socket_id);
 
-            // If this was the last socket in this document, decrement online documents and active sessions
-            if is_document_empty {
-                metrics::decrement_online_documents();
-                metrics::decrement_active_sessions();
-                info!("Document {} now offline (last user disconnected)", doc_id);
-            }
+        // If this was the last socket in this document, decrement online documents and active sessions
+        if is_document_empty {
+            metrics::decrement_online_documents();
+            metrics::decrement_active_sessions();
+            info!("Document {} now offline (last user disconnected)", doc_id);
         }
     }
 
-    // Log cleanup summary for debugging memory issues
-    // Note: socket.extensions will be automatically dropped when the socket is dropped by socketioxide.
-    // This log helps verify the disconnect handler completed successfully.
+    // Log synchronous cleanup completion
     info!(
-        "Disconnect cleanup completed: socket_id={}, user_id={}, rooms_cleaned={}",
+        "Disconnect sync cleanup done: socket_id={}, user_id={}, rooms={}",
         socket_id, user_id, room_count
     );
+
+    // Spawn async cleanup tasks (awareness state removal, permission cache invalidation)
+    // These involve Redis/network calls and should not block the disconnect handler
+    let auth_service = state.auth_service.clone();
+    let awareness_service = state.awareness_service.clone();
+    let socket_id_for_cleanup = socket_id.clone();
+    let user_id_for_cleanup = user_id.clone();
+
+    tokio::spawn(async move {
+        // Invalidate permission cache for this socket
+        auth_service.invalidate_socket_cache(&socket_id_for_cleanup);
+
+        // Clean up awareness state for all documents (involves Redis calls)
+        for doc_id in doc_ids {
+            if let Err(e) = awareness_service
+                .remove_by_socket(&doc_id, &socket_id_for_cleanup)
+                .await
+            {
+                warn!(
+                    "Error removing client awareness: doc_id={}, socket_id={}, error={}",
+                    doc_id, socket_id_for_cleanup, e
+                );
+            }
+        }
+
+        // Log async cleanup completion
+        info!(
+            "Disconnect async cleanup done: socket_id={}, user_id={}",
+            socket_id_for_cleanup, user_id_for_cleanup
+        );
+    });
 }

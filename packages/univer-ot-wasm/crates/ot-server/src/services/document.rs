@@ -1,4 +1,6 @@
 use crate::database::entities::{document_snapshot, documents, operation_log};
+use crate::metrics;
+use crate::services::cache::CacheService;
 use crate::services::params_codec;
 use crate::services::storage::{StoredSnapshot, StorageService};
 use anyhow::{Context, Result};
@@ -17,13 +19,19 @@ use uuid::Uuid;
 pub struct DocumentService {
     db: Arc<DatabaseConnection>,
     storage_service: Arc<StorageService>,
+    cache_service: Arc<CacheService>,
 }
 
 impl DocumentService {
-    pub fn new(db: Arc<DatabaseConnection>, storage_service: Arc<StorageService>) -> Self {
+    pub fn new(
+        db: Arc<DatabaseConnection>,
+        storage_service: Arc<StorageService>,
+        cache_service: Arc<CacheService>,
+    ) -> Self {
         Self {
             db,
             storage_service,
+            cache_service,
         }
     }
 
@@ -748,42 +756,176 @@ impl DocumentService {
         };
 
         let count = operations.len();
-        let result: Result<Vec<OperationInfo>> = operations
-            .into_iter()
-            .map(|op| {
-                let params = params_codec::decode_params_compat(&op.params).with_context(|| {
-                    format!(
-                        "Invalid operation params: doc_id={}, rev={}",
-                        doc_id, op.rev
-                    )
-                })?;
-                Ok(OperationInfo {
-                    rev: op.rev,
-                    user_id: op.user_id.clone(),
-                    mutation_id: op.mutation_id.clone(),
-                    params,
-                    client_id: op.client_id.clone(),
-                    op_id: op.op_id.clone(),
-                    created_at: op.created_at.into(),
-                })
-            })
-            .collect();
-        let result = result?;
 
         // Warn if fetching a large number of operations (potential memory concern)
         if count > 1000 {
             warn!("Large operation query: doc_id={}, count={}, limit={:?}", doc_id, count, limit);
-        } else {
-            info!("Retrieved operations: doc_id={}, count={}", doc_id, count);
         }
+
+        // Collect storage_ids for batch fetch
+        let storage_ids: Vec<Uuid> = operations.iter().map(|op| op.storage_id).collect();
+
+        // Batch fetch params from Redis cache
+        let cached_params = self
+            .cache_service
+            .get_params_cached_batch(&storage_ids)
+            .await
+            .unwrap_or_default();
+
+        let mut result = Vec::with_capacity(count);
+
+        for op in operations {
+            // Try Redis cache first
+            let params_bytes = if let Some(bytes) = cached_params.get(&op.storage_id) {
+                bytes.clone()
+            } else {
+                // Cache miss - fetch from S3
+                let bytes = self
+                    .storage_service
+                    .fetch_operation_params(op.storage_id)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "Failed to fetch params from S3: doc_id={}, rev={}, storage_id={}",
+                            doc_id, op.rev, op.storage_id
+                        )
+                    })?;
+
+                // Cache in Redis for future reads
+                if let Err(e) = self.cache_service.cache_params(op.storage_id, &bytes).await {
+                    warn!("Failed to cache params after S3 fetch: {}", e);
+                }
+
+                bytes
+            };
+
+            // Decode params (try MessagePack first, fall back to JSON for legacy data)
+            let params = params_codec::decode_params_compat(&params_bytes).with_context(|| {
+                format!(
+                    "Invalid operation params: doc_id={}, rev={}, storage_id={}",
+                    doc_id, op.rev, op.storage_id
+                )
+            })?;
+
+            result.push(OperationInfo {
+                rev: op.rev,
+                user_id: op.user_id.clone(),
+                mutation_id: op.mutation_id.clone(),
+                params,
+                client_id: op.client_id.clone(),
+                op_id: op.op_id.clone(),
+                created_at: op.created_at.into(),
+            });
+        }
+
+        info!("Retrieved operations: doc_id={}, count={}", doc_id, count);
         Ok(result)
     }
 
-    /// Get the current version of a document from documents table
-    /// Optimized to select only the current_version field
+    /// Get the current version of a document
+    /// Tries cache first, falls back to database with reconciliation
+    ///
+    /// IMPORTANT: When cache miss occurs, we must reconcile with pending ops
+    /// to prevent the race condition where:
+    /// 1. join_doc returns cached version (e.g., 616)
+    /// 2. Version key expires
+    /// 3. changeset reads stale DB version (e.g., 612)
     pub async fn get_current_version(&self, doc_id: Uuid) -> Result<Option<i64>> {
         debug!("Getting current version: doc_id={}", doc_id);
 
+        // Try cache first
+        match self.cache_service.get_version(doc_id).await {
+            Ok(Some(v)) => {
+                metrics::increment_writebehind_cache_hits();
+                debug!("Cache hit for version: doc_id={}, version={}", doc_id, v);
+                return Ok(Some(v));
+            }
+            Ok(None) => {
+                // Cache miss (key expired) - need to reconcile with pending ops
+                metrics::increment_writebehind_cache_misses();
+                debug!("Cache miss for version: doc_id={}", doc_id);
+                // Fall back to database with reconciliation
+                return self.reconcile_version_on_cache_miss(doc_id, true).await;
+            }
+            Err(e) => {
+                // Redis error (timeout/connection issue) - skip reconciliation
+                // If get_version failed, get_max_cached_rev will also fail
+                debug!("Cache error getting version: doc_id={}, error={}", doc_id, e);
+                metrics::increment_writebehind_cache_misses();
+                // Fall back directly to DB without reconciliation
+                return self.get_current_version_from_db(doc_id).await;
+            }
+        }
+    }
+
+    /// Reconcile version when cache misses (version key expired)
+    ///
+    /// This handles the race condition where the version key expires but pending
+    /// operations still exist in the cache. The real version is:
+    /// max(db_version, max_cached_rev)
+    ///
+    /// `try_cache_ops`: if true, attempt to read pending ops from cache
+    /// Set to false when Redis is known to be unavailable to avoid redundant timeouts
+    async fn reconcile_version_on_cache_miss(&self, doc_id: Uuid, try_cache_ops: bool) -> Result<Option<i64>> {
+        // Step 1: Get version from database
+        let db_version = match self.get_current_version_from_db(doc_id).await? {
+            Some(v) => v,
+            None => return Ok(None), // Document doesn't exist
+        };
+
+        // Step 2: Check for pending ops in cache (ops sorted set might outlive version key)
+        // Skip if Redis is known to be unavailable
+        if !try_cache_ops {
+            return Ok(Some(db_version));
+        }
+
+        let max_cached_rev = match self.cache_service.get_max_cached_rev(doc_id).await {
+            Ok(Some(rev)) => rev,
+            Ok(None) => {
+                // No pending ops - DB version is authoritative
+                debug!(
+                    "No pending ops in cache: doc_id={}, using db_version={}",
+                    doc_id, db_version
+                );
+                // Initialize cache with DB version (ignore error - non-critical)
+                let _ = self.cache_service.set_version(doc_id, db_version).await;
+                return Ok(Some(db_version));
+            }
+            Err(e) => {
+                // Redis error checking ops - use DB version as fallback
+                // Use debug level to reduce log noise during Redis issues
+                debug!(
+                    "Failed to check pending ops (using db_version): doc_id={}, error={}",
+                    doc_id, e
+                );
+                return Ok(Some(db_version));
+            }
+        };
+
+        // Step 3: Real version is the maximum of DB version and cached ops
+        let real_version = db_version.max(max_cached_rev);
+
+        if real_version > db_version {
+            info!(
+                "Version reconciliation: doc_id={}, db_version={}, max_cached_rev={}, real_version={}",
+                doc_id, db_version, max_cached_rev, real_version
+            );
+            metrics::increment_version_reconciliations();
+        }
+
+        // Step 4: Update cache with reconciled version (ignore error - non-critical)
+        if let Err(e) = self.cache_service.set_version(doc_id, real_version).await {
+            debug!(
+                "Failed to update cache with reconciled version: doc_id={}, error={}",
+                doc_id, e
+            );
+        }
+
+        Ok(Some(real_version))
+    }
+
+    /// Get the current version directly from database (internal use)
+    async fn get_current_version_from_db(&self, doc_id: Uuid) -> Result<Option<i64>> {
         let version = match documents::Entity::find_by_id(doc_id)
             .select_only()
             .column(documents::Column::CurrentVersion)
@@ -800,7 +942,7 @@ impl DocumentService {
 
         match version {
             Some(v) => {
-                debug!("Found current version: doc_id={}, version={}", doc_id, v);
+                debug!("Found current version from DB: doc_id={}, version={}", doc_id, v);
                 Ok(Some(v))
             }
             None => {
@@ -848,14 +990,100 @@ impl DocumentService {
     /// Get operations since a specific revision (for OT transformation).
     /// Note: This returns ALL operations since the revision without limit,
     /// as OT transformation requires complete operation history for correctness.
+    ///
+    /// When write-behind caching is enabled, this method:
+    /// 1. First reads from the Redis cache
+    /// 2. Supplements from DB if cache doesn't cover the full range
+    /// 3. Fetches params from Redis cache or S3 as needed
     pub async fn get_operations_since(
         &self,
         doc_id: Uuid,
         since_rev: i64,
     ) -> Result<Vec<OperationInfo>> {
         debug!("Getting operations since revision: doc_id={}, since_rev={}", doc_id, since_rev);
-        // Pass None for limit as OT transformation needs all operations
-        self.get_operations(doc_id, since_rev + 1, None, None).await
+
+        // Try cache first
+        match self.cache_service.get_ops_since(doc_id, since_rev).await {
+            Ok(cached_ops) => {
+                if cached_ops.is_empty() {
+                    // Nothing in cache - use DB
+                    metrics::increment_writebehind_cache_misses();
+                    return self
+                        .get_operations(doc_id, since_rev + 1, None, None)
+                        .await;
+                }
+
+                let first_cached_rev = cached_ops.first().map(|o| o.rev).unwrap_or(i64::MAX);
+
+                if first_cached_rev > since_rev + 1 {
+                    // Gap between requested and cached - need to supplement from DB
+                    debug!(
+                        "Cache gap detected: since_rev={}, first_cached_rev={}",
+                        since_rev, first_cached_rev
+                    );
+
+                    // Get operations from DB for the gap
+                    let db_ops = self
+                        .get_operations(doc_id, since_rev + 1, Some(first_cached_rev - 1), None)
+                        .await?;
+
+                    // Convert cached ops and combine with DB ops
+                    let mut result = db_ops;
+                    let cached_converted = self.convert_cached_ops_to_operation_info(cached_ops)?;
+                    result.extend(cached_converted);
+
+                    debug!(
+                        "Combined DB + cache operations: doc_id={}, total={}",
+                        doc_id,
+                        result.len()
+                    );
+                    return Ok(result);
+                }
+
+                // Cache has all the ops we need
+                metrics::increment_writebehind_cache_hits();
+                debug!(
+                    "Cache hit for operations: doc_id={}, count={}",
+                    doc_id,
+                    cached_ops.len()
+                );
+
+                self.convert_cached_ops_to_operation_info(cached_ops)
+            }
+            Err(e) => {
+                // Cache error - fall back to DB
+                warn!("Cache error getting operations, falling back to DB: {}", e);
+                metrics::increment_writebehind_cache_misses();
+                self.get_operations(doc_id, since_rev + 1, None, None).await
+            }
+        }
+    }
+
+    /// Convert cached operations to OperationInfo
+    /// Cached ops have params directly (they haven't been flushed to S3 yet)
+    fn convert_cached_ops_to_operation_info(
+        &self,
+        ops: Vec<crate::services::cache::CachedOperationInfo>,
+    ) -> Result<Vec<OperationInfo>> {
+        let mut result = Vec::with_capacity(ops.len());
+
+        for op in ops {
+            // Decode MessagePack params to JSON
+            let params = params_codec::decode_params(&op.params)
+                .with_context(|| format!("Failed to decode params for rev={}", op.rev))?;
+
+            result.push(OperationInfo {
+                rev: op.rev,
+                user_id: op.user_id,
+                mutation_id: op.mutation_id,
+                params,
+                client_id: op.client_id,
+                op_id: op.op_id,
+                created_at: op.created_at,
+            });
+        }
+
+        Ok(result)
     }
 
     /// Stream operations for memory-efficient processing of large result sets.
@@ -904,10 +1132,35 @@ impl DocumentService {
         let mut count = 0;
 
         while let Some(op) = stream.try_next().await? {
-            let params = params_codec::decode_params_compat(&op.params).with_context(|| {
+            // Fetch params from cache or S3
+            let params_bytes = match self.cache_service.get_params_cached(op.storage_id).await {
+                Ok(Some(bytes)) => bytes,
+                _ => {
+                    // Cache miss - fetch from S3
+                    let bytes = self
+                        .storage_service
+                        .fetch_operation_params(op.storage_id)
+                        .await
+                        .with_context(|| {
+                            format!(
+                                "Failed to fetch params during stream: doc_id={}, rev={}, storage_id={}",
+                                doc_id, op.rev, op.storage_id
+                            )
+                        })?;
+
+                    // Cache in Redis for future reads
+                    if let Err(e) = self.cache_service.cache_params(op.storage_id, &bytes).await {
+                        warn!("Failed to cache params after S3 fetch: {}", e);
+                    }
+
+                    bytes
+                }
+            };
+
+            let params = params_codec::decode_params_compat(&params_bytes).with_context(|| {
                 format!(
-                    "Invalid operation params during stream: doc_id={}, rev={}",
-                    doc_id, op.rev
+                    "Invalid operation params during stream: doc_id={}, rev={}, storage_id={}",
+                    doc_id, op.rev, op.storage_id
                 )
             })?;
 

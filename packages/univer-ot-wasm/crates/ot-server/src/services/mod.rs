@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod awareness;
+pub mod cache;
 pub mod document;
 pub mod document_actor;
 pub mod etcd;
@@ -8,9 +9,11 @@ pub mod op_queue;
 pub mod ot;
 pub mod params_codec;
 pub mod storage;
+pub mod writebehind;
 
 pub use auth::AuthService;
 pub use awareness::AwarenessService;
+pub use cache::{CacheConfig, CacheService};
 pub use document::DocumentService;
 pub use document_actor::DocumentActorManager;
 pub use etcd::EtcdService;
@@ -18,3 +21,4 @@ pub use grpc_client::GrpcClientService;
 pub use op_queue::OpQueueService;
 pub use ot::OTService;
 pub use storage::StorageService;
+pub use writebehind::{WriteBehindConfig, WriteBehindWorker};

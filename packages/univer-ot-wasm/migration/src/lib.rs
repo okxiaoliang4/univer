@@ -9,6 +9,7 @@ mod m20250128_000001_add_desc_version_index;
 mod m20250129_000001_operation_logs_params_to_text;
 mod m20260202_000001_operation_logs_params_to_binary;
 mod m20260204_000001_operation_logs_params_to_storage_id;
+mod m20260205_000001_drop_redundant_indexes;
 
 pub struct Migrator;
 
@@ -25,6 +26,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250129_000001_operation_logs_params_to_text::Migration),
             Box::new(m20260202_000001_operation_logs_params_to_binary::Migration),
             Box::new(m20260204_000001_operation_logs_params_to_storage_id::Migration),
+            Box::new(m20260205_000001_drop_redundant_indexes::Migration),
         ]
     }
 }

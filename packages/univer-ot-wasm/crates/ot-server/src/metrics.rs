@@ -75,6 +75,19 @@ static OT_WEBSOCKET_CONNECTIONS: OnceLock<IntGauge> = OnceLock::new();
 static OT_WEBSOCKET_CONNECTIONS_PEAK: OnceLock<IntGauge> = OnceLock::new();
 
 // ============================================================================
+// OT Lock Metrics
+// ============================================================================
+
+/// Total number of lock acquisition timeouts
+static OT_LOCK_TIMEOUTS: OnceLock<IntCounter> = OnceLock::new();
+/// Histogram of lock acquisition retry counts
+static OT_LOCK_RETRIES: OnceLock<Histogram> = OnceLock::new();
+/// Histogram of lock wait time in seconds
+static OT_LOCK_WAIT_TIME: OnceLock<Histogram> = OnceLock::new();
+/// Histogram of lock hold time in seconds
+static OT_LOCK_HOLD_TIME: OnceLock<Histogram> = OnceLock::new();
+
+// ============================================================================
 // OT Conflict Resolution Metrics
 // ============================================================================
 
@@ -99,6 +112,10 @@ static OT_STATE_SYNCS: OnceLock<IntCounter> = OnceLock::new();
 static OT_STATE_REPAIRS: OnceLock<IntCounter> = OnceLock::new();
 /// Histogram of version vector drift (difference between client and server versions)
 static OT_VERSION_DRIFT: OnceLock<Histogram> = OnceLock::new();
+/// Total number of changesets rejected due to excessive version drift
+static OT_VERSION_DRIFT_REJECTIONS: OnceLock<IntCounter> = OnceLock::new();
+/// Total number of version reconciliations (cache miss with pending ops)
+static OT_VERSION_RECONCILIATIONS: OnceLock<IntCounter> = OnceLock::new();
 
 // ============================================================================
 // OT Session Metrics
@@ -129,6 +146,36 @@ static OT_OPS_PER_DOCUMENT: OnceLock<Histogram> = OnceLock::new();
 static OT_DOCUMENT_SIZE: OnceLock<Histogram> = OnceLock::new();
 /// Total number of document snapshots created
 static OT_SNAPSHOTS_CREATED: OnceLock<IntCounter> = OnceLock::new();
+
+// ============================================================================
+// Write-Behind Caching Metrics
+// ============================================================================
+
+/// Total number of operations buffered in write-behind cache
+static WRITEBEHIND_OPS_BUFFERED: OnceLock<IntCounter> = OnceLock::new();
+/// Total number of operations flushed from cache to database
+static WRITEBEHIND_OPS_FLUSHED: OnceLock<IntCounter> = OnceLock::new();
+/// Histogram of flush latency in seconds
+static WRITEBEHIND_FLUSH_LATENCY: OnceLock<Histogram> = OnceLock::new();
+/// Current queue depth (pending documents to flush)
+static WRITEBEHIND_QUEUE_DEPTH: OnceLock<IntGauge> = OnceLock::new();
+/// Total number of cache hits
+static WRITEBEHIND_CACHE_HITS: OnceLock<IntCounter> = OnceLock::new();
+/// Total number of cache misses
+static WRITEBEHIND_CACHE_MISSES: OnceLock<IntCounter> = OnceLock::new();
+/// Total number of fallbacks to synchronous DB write
+static WRITEBEHIND_FALLBACKS: OnceLock<IntCounter> = OnceLock::new();
+/// Total number of skipped flushes (due to lock contention)
+static WRITEBEHIND_SKIPPED: OnceLock<IntCounter> = OnceLock::new();
+
+// ============================================================================
+// Redis Resilience Metrics
+// ============================================================================
+
+/// Total number of Redis operation retries
+static REDIS_RETRIES_TOTAL: OnceLock<IntCounter> = OnceLock::new();
+/// Total number of Redis operation timeouts
+static REDIS_TIMEOUTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
 
 /// Initialize OpenTelemetry with Prometheus exporter
 pub fn init_opentelemetry() {
@@ -301,6 +348,52 @@ pub fn init_ot_performance_metrics() {
     info!("OT performance metrics initialized");
 }
 
+/// Initialize OT lock metrics
+pub fn init_ot_lock_metrics() {
+    OT_LOCK_TIMEOUTS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "ot_lock_timeouts_total",
+            "Total number of lock acquisition timeouts"
+        ))
+        .expect("Failed to register ot_lock_timeouts_total")
+    });
+
+    // Lock retries histogram: buckets from 1 to 50 retries
+    let retry_buckets = vec![1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 50.0];
+    OT_LOCK_RETRIES.get_or_init(|| {
+        register_histogram!(histogram_opts!(
+            "ot_lock_retries",
+            "Number of lock acquisition retries",
+            retry_buckets
+        ))
+        .expect("Failed to register ot_lock_retries")
+    });
+
+    // Lock wait time histogram: buckets from 1ms to 10s
+    let wait_time_buckets = exponential_buckets(0.001, 2.0, 14)
+        .expect("Failed to create lock wait time buckets");
+    OT_LOCK_WAIT_TIME.get_or_init(|| {
+        register_histogram!(histogram_opts!(
+            "ot_lock_wait_time_seconds",
+            "Time spent waiting to acquire lock",
+            wait_time_buckets.clone()
+        ))
+        .expect("Failed to register ot_lock_wait_time_seconds")
+    });
+
+    // Lock hold time histogram: buckets from 1ms to 30s
+    OT_LOCK_HOLD_TIME.get_or_init(|| {
+        register_histogram!(histogram_opts!(
+            "ot_lock_hold_time_seconds",
+            "Time lock was held",
+            wait_time_buckets
+        ))
+        .expect("Failed to register ot_lock_hold_time_seconds")
+    });
+
+    info!("OT lock metrics initialized");
+}
+
 /// Initialize OT conflict resolution metrics
 pub fn init_ot_conflict_metrics() {
     OT_CONFLICTS_TOTAL.get_or_init(|| {
@@ -376,6 +469,22 @@ pub fn init_ot_consistency_metrics() {
             drift_buckets
         ))
         .expect("Failed to register ot_version_drift")
+    });
+
+    OT_VERSION_DRIFT_REJECTIONS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "ot_version_drift_rejections_total",
+            "Total number of changesets rejected due to excessive version drift"
+        ))
+        .expect("Failed to register ot_version_drift_rejections_total")
+    });
+
+    OT_VERSION_RECONCILIATIONS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "ot_version_reconciliations_total",
+            "Total number of version reconciliations (cache miss with pending ops)"
+        ))
+        .expect("Failed to register ot_version_reconciliations_total")
     });
 
     info!("OT consistency metrics initialized");
@@ -487,15 +596,107 @@ pub fn init_ot_document_metrics() {
     info!("OT document metrics initialized");
 }
 
+/// Initialize write-behind caching metrics
+pub fn init_writebehind_metrics() {
+    WRITEBEHIND_OPS_BUFFERED.get_or_init(|| {
+        register_int_counter!(opts!(
+            "writebehind_ops_buffered_total",
+            "Total number of operations buffered in write-behind cache"
+        ))
+        .expect("Failed to register writebehind_ops_buffered_total")
+    });
+
+    WRITEBEHIND_OPS_FLUSHED.get_or_init(|| {
+        register_int_counter!(opts!(
+            "writebehind_ops_flushed_total",
+            "Total number of operations flushed from cache to database"
+        ))
+        .expect("Failed to register writebehind_ops_flushed_total")
+    });
+
+    // Flush latency histogram: buckets from 1ms to 10s
+    let latency_buckets =
+        exponential_buckets(0.001, 2.0, 14).expect("Failed to create flush latency buckets");
+    WRITEBEHIND_FLUSH_LATENCY.get_or_init(|| {
+        register_histogram!(histogram_opts!(
+            "writebehind_flush_latency_seconds",
+            "Time to flush operations from cache to database",
+            latency_buckets
+        ))
+        .expect("Failed to register writebehind_flush_latency_seconds")
+    });
+
+    WRITEBEHIND_QUEUE_DEPTH.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "writebehind_queue_depth",
+            "Current number of documents pending flush"
+        ))
+        .expect("Failed to register writebehind_queue_depth")
+    });
+
+    WRITEBEHIND_CACHE_HITS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "writebehind_cache_hits_total",
+            "Total number of cache hits"
+        ))
+        .expect("Failed to register writebehind_cache_hits_total")
+    });
+
+    WRITEBEHIND_CACHE_MISSES.get_or_init(|| {
+        register_int_counter!(opts!(
+            "writebehind_cache_misses_total",
+            "Total number of cache misses"
+        ))
+        .expect("Failed to register writebehind_cache_misses_total")
+    });
+
+    WRITEBEHIND_FALLBACKS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "writebehind_fallbacks_total",
+            "Total number of fallbacks to synchronous DB write"
+        ))
+        .expect("Failed to register writebehind_fallbacks_total")
+    });
+
+    WRITEBEHIND_SKIPPED.get_or_init(|| {
+        register_int_counter!(opts!(
+            "writebehind_skipped_total",
+            "Total number of skipped flushes due to lock contention"
+        ))
+        .expect("Failed to register writebehind_skipped_total")
+    });
+
+    // Redis resilience metrics
+    REDIS_RETRIES_TOTAL.get_or_init(|| {
+        register_int_counter!(opts!(
+            "redis_retries_total",
+            "Total number of Redis operation retries"
+        ))
+        .expect("Failed to register redis_retries_total")
+    });
+
+    REDIS_TIMEOUTS_TOTAL.get_or_init(|| {
+        register_int_counter!(opts!(
+            "redis_timeouts_total",
+            "Total number of Redis operation timeouts"
+        ))
+        .expect("Failed to register redis_timeouts_total")
+    });
+
+    info!("Write-behind caching metrics initialized");
+}
+
 /// Initialize all OT metrics
 ///
 /// This is a convenience function that initializes all OT-related metrics at once.
 pub fn init_all_ot_metrics() {
     init_ot_performance_metrics();
+    init_ot_lock_metrics();
     init_ot_conflict_metrics();
     init_ot_consistency_metrics();
     init_ot_session_metrics();
     init_ot_document_metrics();
+    init_writebehind_metrics();
     info!("All OT metrics initialized");
 }
 
@@ -587,6 +788,38 @@ pub fn set_websocket_connections(count: i64) {
 }
 
 // ============================================================================
+// OT Lock Metric Helpers
+// ============================================================================
+
+/// Increment the lock timeouts counter
+pub fn increment_lock_timeouts() {
+    if let Some(counter) = OT_LOCK_TIMEOUTS.get() {
+        counter.inc();
+    }
+}
+
+/// Record the number of lock acquisition retries
+pub fn record_lock_retries(retries: f64) {
+    if let Some(histogram) = OT_LOCK_RETRIES.get() {
+        histogram.observe(retries);
+    }
+}
+
+/// Record the time spent waiting to acquire lock
+pub fn record_lock_wait_time(wait_seconds: f64) {
+    if let Some(histogram) = OT_LOCK_WAIT_TIME.get() {
+        histogram.observe(wait_seconds);
+    }
+}
+
+/// Record the time lock was held
+pub fn record_lock_hold_time(hold_seconds: f64) {
+    if let Some(histogram) = OT_LOCK_HOLD_TIME.get() {
+        histogram.observe(hold_seconds);
+    }
+}
+
+// ============================================================================
 // OT Conflict Metric Helpers
 // ============================================================================
 
@@ -647,6 +880,21 @@ pub fn increment_state_repairs() {
 pub fn record_version_drift(drift: f64) {
     if let Some(histogram) = OT_VERSION_DRIFT.get() {
         histogram.observe(drift);
+    }
+}
+
+/// Increment the version drift rejections counter
+pub fn increment_version_drift_rejections() {
+    if let Some(counter) = OT_VERSION_DRIFT_REJECTIONS.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the version reconciliations counter
+/// Called when cache miss occurs but pending ops exist in cache
+pub fn increment_version_reconciliations() {
+    if let Some(counter) = OT_VERSION_RECONCILIATIONS.get() {
+        counter.inc();
     }
 }
 
@@ -730,6 +978,98 @@ pub fn record_document_size(size_bytes: f64) {
 /// Increment the snapshots created counter
 pub fn increment_snapshots_created() {
     if let Some(counter) = OT_SNAPSHOTS_CREATED.get() {
+        counter.inc();
+    }
+}
+
+// ============================================================================
+// Write-Behind Caching Metric Helpers
+// ============================================================================
+
+/// Increment the operations buffered counter
+pub fn increment_writebehind_ops_buffered() {
+    if let Some(counter) = WRITEBEHIND_OPS_BUFFERED.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the operations buffered counter by a specific amount
+pub fn increment_writebehind_ops_buffered_by(count: u64) {
+    if let Some(counter) = WRITEBEHIND_OPS_BUFFERED.get() {
+        counter.inc_by(count);
+    }
+}
+
+/// Increment the operations flushed counter
+pub fn increment_writebehind_ops_flushed() {
+    if let Some(counter) = WRITEBEHIND_OPS_FLUSHED.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the operations flushed counter by a specific amount
+pub fn increment_writebehind_ops_flushed_by(count: u64) {
+    if let Some(counter) = WRITEBEHIND_OPS_FLUSHED.get() {
+        counter.inc_by(count);
+    }
+}
+
+/// Record the flush latency
+pub fn record_writebehind_flush_latency(latency_seconds: f64) {
+    if let Some(histogram) = WRITEBEHIND_FLUSH_LATENCY.get() {
+        histogram.observe(latency_seconds);
+    }
+}
+
+/// Set the current queue depth
+pub fn set_writebehind_queue_depth(depth: i64) {
+    if let Some(gauge) = WRITEBEHIND_QUEUE_DEPTH.get() {
+        gauge.set(depth);
+    }
+}
+
+/// Increment the cache hits counter
+pub fn increment_writebehind_cache_hits() {
+    if let Some(counter) = WRITEBEHIND_CACHE_HITS.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the cache misses counter
+pub fn increment_writebehind_cache_misses() {
+    if let Some(counter) = WRITEBEHIND_CACHE_MISSES.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the fallbacks counter
+pub fn increment_writebehind_fallbacks() {
+    if let Some(counter) = WRITEBEHIND_FALLBACKS.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the skipped flushes counter (due to lock contention)
+pub fn increment_writebehind_skipped() {
+    if let Some(counter) = WRITEBEHIND_SKIPPED.get() {
+        counter.inc();
+    }
+}
+
+// ============================================================================
+// Redis Resilience Metrics Functions
+// ============================================================================
+
+/// Increment the Redis retries counter
+pub fn increment_redis_retries() {
+    if let Some(counter) = REDIS_RETRIES_TOTAL.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the Redis timeouts counter
+pub fn increment_redis_timeouts() {
+    if let Some(counter) = REDIS_TIMEOUTS_TOTAL.get() {
         counter.inc();
     }
 }

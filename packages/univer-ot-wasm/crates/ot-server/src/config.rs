@@ -24,6 +24,12 @@ pub struct Config {
     pub user_rpc_prefix: String,
     pub document_rpc_prefix: String,
     pub permission_cache_ttl_seconds: u64,
+    // Write-behind caching configuration
+    pub writebehind_enabled: bool,
+    pub writebehind_batch_size: usize,
+    pub writebehind_flush_interval_ms: u64,
+    pub writebehind_worker_count: usize,
+    pub writebehind_ttl_seconds: u64,
 }
 
 impl Config {
@@ -82,12 +88,33 @@ impl Config {
                 .unwrap_or_else(|_| "300".to_string())
                 .parse()
                 .expect("PERMISSION_CACHE_TTL_SECONDS must be a valid u64"),
+            // Write-behind caching configuration
+            writebehind_enabled: env::var("WRITEBEHIND_ENABLED")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .expect("WRITEBEHIND_ENABLED must be a valid bool"),
+            writebehind_batch_size: env::var("WRITEBEHIND_BATCH_SIZE")
+                .unwrap_or_else(|_| "1000".to_string())
+                .parse()
+                .expect("WRITEBEHIND_BATCH_SIZE must be a valid usize"),
+            writebehind_flush_interval_ms: env::var("WRITEBEHIND_FLUSH_INTERVAL_MS")
+                .unwrap_or_else(|_| "100".to_string())
+                .parse()
+                .expect("WRITEBEHIND_FLUSH_INTERVAL_MS must be a valid u64"),
+            writebehind_worker_count: env::var("WRITEBEHIND_WORKER_COUNT")
+                .unwrap_or_else(|_| "4".to_string())
+                .parse()
+                .expect("WRITEBEHIND_WORKER_COUNT must be a valid usize"),
+            writebehind_ttl_seconds: env::var("WRITEBEHIND_TTL_SECONDS")
+                .unwrap_or_else(|_| "3600".to_string())
+                .parse()
+                .expect("WRITEBEHIND_TTL_SECONDS must be a valid u64"),
         }
     }
 
     pub fn log_summary(&self) {
         info!(
-            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}",
+            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}, writebehind_enabled={}, writebehind_batch_size={}, writebehind_flush_interval_ms={}, writebehind_worker_count={}, writebehind_ttl_seconds={}",
             redact_url(&self.database_url),
             self.server_env,
             self.server_port,
@@ -107,7 +134,12 @@ impl Config {
             self.etcd_registration_ip,
             self.user_rpc_prefix,
             self.document_rpc_prefix,
-            self.permission_cache_ttl_seconds
+            self.permission_cache_ttl_seconds,
+            self.writebehind_enabled,
+            self.writebehind_batch_size,
+            self.writebehind_flush_interval_ms,
+            self.writebehind_worker_count,
+            self.writebehind_ttl_seconds
         );
     }
 }
