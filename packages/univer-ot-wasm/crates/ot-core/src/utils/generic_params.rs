@@ -106,6 +106,37 @@ pub struct GenericRowColParams {
     pub other: serde_json::Map<String, serde_json::Value>,
 }
 
+/// Generic parameters for mutations with only a `col` field (column index)
+///
+/// Used by: SetSheetsFilterCriteria, etc.
+/// Only affected by column operations (InsertCols, RemoveCols, MoveCols).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenericColParams {
+    pub unit_id: String,
+    #[serde(alias = "subUnitId", alias = "sheetId")]
+    pub sub_unit_id: String,
+    #[serde(alias = "column")]
+    pub col: i32,
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Generic parameters for mutations with only a `row` field (row index)
+///
+/// Used by mutations that reference a single row position.
+/// Only affected by row operations (InsertRows, RemoveRows, MoveRows).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenericRowParams {
+    pub unit_id: String,
+    #[serde(alias = "subUnitId", alias = "sheetId")]
+    pub sub_unit_id: String,
+    pub row: i32,
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, serde_json::Value>,
+}
+
 // ============================================================================
 // HasLocation Trait - for types that have unit/subunit location
 // ============================================================================
@@ -152,6 +183,16 @@ impl WorksheetParams for GenericColDataParams {
 }
 
 impl WorksheetParams for GenericRowColParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl WorksheetParams for GenericColParams {
+    fn unit_id(&self) -> &str { &self.unit_id }
+    fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
+}
+
+impl WorksheetParams for GenericRowParams {
     fn unit_id(&self) -> &str { &self.unit_id }
     fn sub_unit_id(&self) -> &str { &self.sub_unit_id }
 }

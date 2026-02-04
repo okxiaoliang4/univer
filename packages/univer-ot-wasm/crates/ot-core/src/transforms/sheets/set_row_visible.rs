@@ -1,4 +1,8 @@
-use crate::mutations::sheets::{SetRowVisibleMutation, SetRowHiddenMutation, InsertRowMutation, RemoveRowMutation};
+use crate::mutations::sheets::{
+    SetRowVisibleMutation, SetRowHiddenMutation,
+    InsertRowMutation, RemoveRowMutation,
+    MoveRowsMutation, RemoveSheetMutation,
+};
 use crate::registry::{MutationId, TransformRegistry};
 use crate::utils::generic_params::GenericRangesParams;
 use crate::utils::transform_helpers::lww_transform;
@@ -25,8 +29,12 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Shift transforms for SetRowVisible (row-only operations)
     registry.register_bidirectional_ref(InsertRowMutation::ID, SET_ROW_VISIBLE_ID, shared::insert_row_shift::<GenericRangesParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, SET_ROW_VISIBLE_ID, shared::remove_row_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, SET_ROW_VISIBLE_ID, shared::move_rows_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, SET_ROW_VISIBLE_ID, shared::remove_sheet_shift::<GenericRangesParams>());
 
     // Shift transforms for SetRowHidden (row-only operations)
     registry.register_bidirectional_ref(InsertRowMutation::ID, SET_ROW_HIDDEN_ID, shared::insert_row_shift::<GenericRangesParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, SET_ROW_HIDDEN_ID, shared::remove_row_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, SET_ROW_HIDDEN_ID, shared::move_rows_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, SET_ROW_HIDDEN_ID, shared::remove_sheet_shift::<GenericRangesParams>());
 }
