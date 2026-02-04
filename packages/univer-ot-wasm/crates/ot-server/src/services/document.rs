@@ -2,6 +2,7 @@ use crate::database::entities::{document_snapshot, documents, operation_log};
 use crate::services::params_codec;
 use crate::services::storage::{StoredSnapshot, StorageService};
 use anyhow::{Context, Result};
+use futures::TryStreamExt;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, TransactionTrait,
@@ -779,21 +780,28 @@ impl DocumentService {
     }
 
     /// Get the current version of a document from documents table
+    /// Optimized to select only the current_version field
     pub async fn get_current_version(&self, doc_id: Uuid) -> Result<Option<i64>> {
         debug!("Getting current version: doc_id={}", doc_id);
 
-        let document = match documents::Entity::find_by_id(doc_id).one(&*self.db).await {
-            Ok(doc) => doc,
+        let version = match documents::Entity::find_by_id(doc_id)
+            .select_only()
+            .column(documents::Column::CurrentVersion)
+            .into_tuple::<i64>()
+            .one(&*self.db)
+            .await
+        {
+            Ok(v) => v,
             Err(e) => {
                 error!("Failed to query document version: doc_id={}, error={}", doc_id, e);
                 return Err(e.into());
             }
         };
 
-        match document {
-            Some(d) => {
-                debug!("Found current version: doc_id={}, version={}", doc_id, d.current_version);
-                Ok(Some(d.current_version))
+        match version {
+            Some(v) => {
+                debug!("Found current version: doc_id={}, version={}", doc_id, v);
+                Ok(Some(v))
             }
             None => {
                 debug!("Document not found: doc_id={}", doc_id);
@@ -848,6 +856,77 @@ impl DocumentService {
         debug!("Getting operations since revision: doc_id={}, since_rev={}", doc_id, since_rev);
         // Pass None for limit as OT transformation needs all operations
         self.get_operations(doc_id, since_rev + 1, None, None).await
+    }
+
+    /// Stream operations for memory-efficient processing of large result sets.
+    /// This avoids loading all operations into memory at once, which is beneficial
+    /// when processing thousands of operations.
+    ///
+    /// # Arguments
+    /// * `doc_id` - The document ID
+    /// * `from_rev` - Start revision (inclusive)
+    /// * `to_rev` - Optional end revision (inclusive)
+    /// * `processor` - Async callback to process each operation
+    ///
+    /// # Example
+    /// ```ignore
+    /// service.stream_operations(doc_id, 1, None, |op| async {
+    ///     println!("Processing op: rev={}", op.rev);
+    ///     Ok(())
+    /// }).await?;
+    /// ```
+    pub async fn stream_operations<F, Fut>(
+        &self,
+        doc_id: Uuid,
+        from_rev: i64,
+        to_rev: Option<i64>,
+        mut processor: F,
+    ) -> Result<()>
+    where
+        F: FnMut(OperationInfo) -> Fut,
+        Fut: std::future::Future<Output = Result<()>>,
+    {
+        debug!(
+            "Streaming operations: doc_id={}, from_rev={}, to_rev={:?}",
+            doc_id, from_rev, to_rev
+        );
+
+        let mut query = operation_log::Entity::find()
+            .filter(operation_log::Column::DocId.eq(doc_id))
+            .filter(operation_log::Column::Rev.gte(from_rev))
+            .order_by_asc(operation_log::Column::Rev);
+
+        if let Some(to_rev) = to_rev {
+            query = query.filter(operation_log::Column::Rev.lte(to_rev));
+        }
+
+        let mut stream = query.stream(&*self.db).await?;
+        let mut count = 0;
+
+        while let Some(op) = stream.try_next().await? {
+            let params = params_codec::decode_params_compat(&op.params).with_context(|| {
+                format!(
+                    "Invalid operation params during stream: doc_id={}, rev={}",
+                    doc_id, op.rev
+                )
+            })?;
+
+            processor(OperationInfo {
+                rev: op.rev,
+                user_id: op.user_id,
+                mutation_id: op.mutation_id,
+                params,
+                client_id: op.client_id,
+                op_id: op.op_id,
+                created_at: op.created_at.into(),
+            })
+            .await?;
+
+            count += 1;
+        }
+
+        debug!("Streamed {} operations for doc_id={}", count, doc_id);
+        Ok(())
     }
 }
 

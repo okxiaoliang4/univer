@@ -4,10 +4,10 @@ use axum::{
     Router,
 };
 use migration::{Migrator, MigratorTrait};
-use sea_orm::Database;
 use sea_orm::DatabaseConnection;
+use sea_orm::{ConnectOptions, Database};
 use socketioxide_redis::{ClusterAdapter, RedisAdapter, RedisAdapterCtr};
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info, warn};
@@ -29,8 +29,8 @@ mod types;
 
 use config::Config;
 use handlers::{api, socketio};
-use state::ServerState;
 use socketioxide::SocketIo;
+use state::ServerState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -69,11 +69,23 @@ async fn main() -> anyhow::Result<()> {
     };
     config.log_summary();
     info!("Starting OT server on port {}", config.server_port);
-    info!("gRPC server will listen on port {}", config.grpc_server_port);
+    info!(
+        "gRPC server will listen on port {}",
+        config.grpc_server_port
+    );
 
     // Connect to database
     info!("Connecting to database at {}", config.database_url);
-    let db: DatabaseConnection = match Database::connect(&config.database_url).await {
+    let mut connect_options = ConnectOptions::new(&config.database_url);
+    connect_options
+        .max_connections(100)
+        .min_connections(10)
+        .connect_timeout(Duration::from_secs(10))
+        .acquire_timeout(Duration::from_secs(30))
+        .idle_timeout(Duration::from_secs(600))
+        .max_lifetime(Duration::from_secs(1800));
+
+    let db: DatabaseConnection = match Database::connect(connect_options).await {
         Ok(db) => {
             info!("Connected to database successfully");
             db
@@ -107,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize gRPC client service for external service calls
     info!("Initializing gRPC client service");
-    let grpc_client = Arc::new( services::GrpcClientService::new(
+    let grpc_client = Arc::new(services::GrpcClientService::new(
         etcd_service.clone(),
         config.user_rpc_prefix.clone(),
         config.document_rpc_prefix.clone(),
@@ -170,7 +182,8 @@ async fn main() -> anyhow::Result<()> {
     let endpoint = format!("{}:{}", registration_ip, config.grpc_server_port);
     info!("Registering endpoint: {}", endpoint);
     // etcd_service was moved earlier, so we need to clone or Arc it if necessary.
-    let registration = match state.etcd_service
+    let registration = match state
+        .etcd_service
         .register_with_lease(
             "ot-collaboration",
             instance_id,
@@ -201,8 +214,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/metrics", get(metrics::metrics_handler))
         .route("/api/documents", post(api::create_document))
         .route("/api/documents/{doc_id}", get(api::get_document))
-        .route("/api/documents/{doc_id}/restore", post(api::restore_document))
-        .route("/api/documents/{doc_id}/snapshots", get(api::get_snapshot_list))
+        .route(
+            "/api/documents/{doc_id}/restore",
+            post(api::restore_document),
+        )
+        .route(
+            "/api/documents/{doc_id}/snapshots",
+            get(api::get_snapshot_list),
+        )
         .route(
             "/api/documents/{doc_id}/snapshots/{snapshot_id}",
             post(api::update_snapshot_name),

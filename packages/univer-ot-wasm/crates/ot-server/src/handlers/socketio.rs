@@ -12,9 +12,7 @@ use dashmap::DashMap;
 use ot_core::MutationInfoWithOpId;
 use socketioxide::adapter::Adapter;
 use socketioxide::extract::AckSender;
-use socketioxide::{
-    extract::{Data, SocketRef, State},
-};
+use socketioxide::extract::{Data, SocketRef, State};
 use std::collections::HashSet;
 use std::sync::OnceLock;
 use std::time::Instant;
@@ -40,7 +38,9 @@ fn get_document_sockets() -> &'static DashMap<String, HashSet<String>> {
 /// Returns true if this is a new document (first socket)
 fn track_socket_join(doc_id: &str, socket_id: &str) -> bool {
     let doc_sockets = get_document_sockets();
-    let mut entry = doc_sockets.entry(doc_id.to_string()).or_insert_with(HashSet::new);
+    let mut entry = doc_sockets
+        .entry(doc_id.to_string())
+        .or_insert_with(HashSet::new);
     let was_empty = entry.is_empty();
     entry.insert(socket_id.to_string());
     was_empty
@@ -89,9 +89,19 @@ fn extract_auth_token_from_query<A: Adapter>(socket: &SocketRef<A>) -> Option<St
 }
 
 /// Handle socket connection
-pub async fn on_connect<A: Adapter>(socket: SocketRef<A>, Data(auth): Data<AuthRequest>, state: State<AppState>) {
-    info!(">>> [CONNECT] Socket connected to /ws namespace: socket_id={:?}", socket.id);
-    info!(">>> [CONNECT] Auth token present: {}", !auth.token.is_empty());
+pub async fn on_connect<A: Adapter>(
+    socket: SocketRef<A>,
+    Data(auth): Data<AuthRequest>,
+    state: State<AppState>,
+) {
+    info!(
+        ">>> [CONNECT] Socket connected to /ws namespace: socket_id={:?}",
+        socket.id
+    );
+    info!(
+        ">>> [CONNECT] Auth token present: {}",
+        !auth.token.is_empty()
+    );
 
     // Extract auth token from handshake auth data or fallback to query string
     let token = if !auth.token.is_empty() {
@@ -99,7 +109,10 @@ pub async fn on_connect<A: Adapter>(socket: SocketRef<A>, Data(auth): Data<AuthR
     } else if let Some(t) = extract_auth_token_from_query(&socket) {
         t
     } else {
-        warn!("Socket {} connected without auth token, disconnecting", socket.id);
+        warn!(
+            "Socket {} connected without auth token, disconnecting",
+            socket.id
+        );
         socket.disconnect().ok();
         return;
     };
@@ -114,10 +127,7 @@ pub async fn on_connect<A: Adapter>(socket: SocketRef<A>, Data(auth): Data<AuthR
             info
         }
         Err(e) => {
-            warn!(
-                "Socket {} auth failed: {}, disconnecting",
-                socket.id, e
-            );
+            warn!("Socket {} auth failed: {}, disconnecting", socket.id, e);
             socket.disconnect().ok();
             return;
         }
@@ -152,10 +162,16 @@ async fn on_join_doc<A: Adapter>(
     state: State<AppState>,
     ack: AckSender<A>,
 ) {
-    info!(">>> [join_doc] Received request: socket_id={}, doc_id={}", socket.id, req.doc_id);
+    info!(
+        ">>> [join_doc] Received request: socket_id={}, doc_id={}",
+        socket.id, req.doc_id
+    );
     match handle_join_doc(&socket, &state, req.clone()).await {
         Ok(ack_data) => {
-            info!(">>> [join_doc] Success: doc_id={}, version={:?}", req.doc_id, ack_data.version);
+            info!(
+                ">>> [join_doc] Success: doc_id={}, version={:?}",
+                req.doc_id, ack_data.version
+            );
             match serde_json::to_value(&ack_data) {
                 Ok(json) => {
                     info!(">>> [join_doc] Sending ACK: {:?}", json);
@@ -257,11 +273,17 @@ async fn on_fetch_ops<A: Adapter>(
     ack: AckSender<A>,
     state: State<AppState>,
 ) {
-    info!(">>> [fetch_ops] Received request: socket_id={}, doc_id={}, start_rev={}", socket.id, req.doc_id, req.start_rev);
+    info!(
+        ">>> [fetch_ops] Received request: socket_id={}, doc_id={}, start_rev={}",
+        socket.id, req.doc_id, req.start_rev
+    );
     match handle_fetch_ops(&socket, &state, req.clone()).await {
         Ok(ack_data) => {
             let ops_count = ack_data.operations.as_ref().map(|o| o.len()).unwrap_or(0);
-            info!(">>> [fetch_ops] Success: doc_id={}, ops_count={}", req.doc_id, ops_count);
+            info!(
+                ">>> [fetch_ops] Success: doc_id={}, ops_count={}",
+                req.doc_id, ops_count
+            );
             match serde_json::to_value(&ack_data) {
                 Ok(json) => {
                     info!(">>> [fetch_ops] Sending ACK with {} operations", ops_count);
@@ -298,7 +320,6 @@ async fn on_presence_update<A: Adapter>(
     Data(req): Data<PresenceUpdateRequest>,
     state: State<AppState>,
 ) {
-    info!("Handling presence_update: {:?}", req);
     if let Err(e) = handle_presence_update(&socket, &state, req).await {
         warn!("Error handling presence_update: {}", e);
     }
@@ -499,11 +520,8 @@ async fn handle_changeset<A: Adapter>(
             .unwrap_or_else(|| format!("socket:{}", socket.id)),
     };
 
-    // Apply changeset via OTService
-    let result = state
-        .document_actor_manager
-        .apply_changeset(doc_id, changeset)
-        .await?;
+    // Apply changeset via OTService (using Redis lock for distributed serialization)
+    let result = state.ot_service.apply_changeset(doc_id, changeset).await?;
 
     info!(
         "Changeset applied successfully: doc_id={}, user_id={}, server_rev={}, mutations_count={}",
@@ -513,11 +531,57 @@ async fn handle_changeset<A: Adapter>(
         result.mutations.len()
     );
 
-    // Notify document service about the modification (fire and forget)
+    // Prepare ACK response first (before broadcast)
+    let ack_response = ChangesetAck {
+        status: "ok".to_string(),
+        server_rev: Some(result.server_rev),
+        op_ids: Some(result.op_ids.clone()),
+        message: None,
+    };
+
+    // Broadcast to room asynchronously (fire-and-forget, doesn't block ACK)
+    let room = format!("doc:{}", req.doc_id);
+    let pushed = ChangesetPushed {
+        doc_id: req.doc_id.clone(),
+        server_rev: result.server_rev,
+        user_id: result.user_id.clone(),
+    };
+    let socket_clone = socket.clone();
     let grpc_client = state.grpc_client.clone();
     let user_id = auth_data.user_info.uid.clone();
     let doc_id_for_notify = req.doc_id.clone();
     tokio::spawn(async move {
+        let broadcast_start = Instant::now();
+        match serde_json::to_value(&pushed) {
+            Ok(json) => {
+                match socket_clone
+                    .to(room.clone())
+                    .emit("changeset_pushed", &json)
+                    .await
+                {
+                    Ok(_) => {
+                        metrics::record_broadcast_latency(broadcast_start.elapsed().as_secs_f64());
+                        info!(
+                            "Broadcasted changeset_pushed to room {}: server_rev={}",
+                            room, pushed.server_rev
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to broadcast changeset_pushed to room {}: {}",
+                            room, e
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                error!(
+                    "Failed to serialize changeset_pushed for room {}: {}",
+                    room, e
+                );
+            }
+        }
+
         if let Err(e) = grpc_client
             .notify_modify_document(&user_id, &doc_id_for_notify)
             .await
@@ -529,54 +593,7 @@ async fn handle_changeset<A: Adapter>(
         }
     });
 
-    // Broadcast to room (excluding sender)
-    let room = format!("doc:{}", req.doc_id);
-    let pushed = ChangesetPushed {
-        doc_id: req.doc_id.clone(),
-        server_rev: result.server_rev,
-        user_id: result.user_id.clone(),
-    };
-
-    // Start timing for broadcast latency
-    let broadcast_start = Instant::now();
-
-    match serde_json::to_value(&pushed) {
-        Ok(json) => {
-            match socket
-                .to(room.clone())
-                .emit("changeset_pushed", &json)
-                .await
-            {
-                Ok(_) => {
-                    // Record broadcast latency
-                    metrics::record_broadcast_latency(broadcast_start.elapsed().as_secs_f64());
-                    info!(
-                        "Broadcasted changeset_pushed to room {}: server_rev={}",
-                        room, result.server_rev
-                    );
-                }
-                Err(e) => {
-                    error!(
-                        "Failed to broadcast changeset_pushed to room {}: {}",
-                        room, e
-                    );
-                }
-            }
-        }
-        Err(e) => {
-            error!(
-                "Failed to serialize changeset_pushed for room {}: {}",
-                room, e
-            );
-        }
-    }
-
-    Ok(ChangesetAck {
-        status: "ok".to_string(),
-        server_rev: Some(result.server_rev),
-        op_ids: Some(result.op_ids.clone()),
-        message: None,
-    })
+    Ok(ack_response)
 }
 
 async fn handle_fetch_ops<A: Adapter>(

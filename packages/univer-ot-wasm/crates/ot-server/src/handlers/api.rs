@@ -4,9 +4,10 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
+use ot_core::MutationInfoWithOpId;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use tracing::error;
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -100,6 +101,74 @@ pub struct OperationResponse {
     pub client_id: String,
     pub op_id: String,
     pub created_at: String,
+}
+
+// === New request/response types for additional endpoints ===
+
+#[derive(Debug, Deserialize)]
+pub struct CloneDocumentRequest {
+    pub creator_id: String,
+    pub snapshot_id: Option<String>,
+    pub doc_type: Option<i16>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CloneDocumentResponse {
+    pub doc_id: String,
+    pub size: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteDocumentQuery {
+    pub is_soft: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetLatestSnapshotsRequest {
+    pub doc_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GetLatestSnapshotsResponse {
+    pub snapshots: std::collections::HashMap<String, SnapshotResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SignObjectUrlsRequest {
+    pub storage_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SignObjectUrlsResponse {
+    pub urls: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GetDocIdResponse {
+    pub doc_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BroadcastOpRequest {
+    pub base_rev: i64,
+    pub user_id: String,
+    pub client_id: String,
+    pub mutations: Vec<MutationInput>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MutationInput {
+    pub id: String,
+    pub params: JsonValue,
+    pub op_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadcastOpResponse {
+    pub success: bool,
+    pub server_rev: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 /// POST /api/documents - Create a new document
@@ -279,6 +348,291 @@ pub async fn get_operations(
 
     Ok(Json(OperationsResponse {
         operations: operation_responses,
+    }))
+}
+
+/// POST /api/documents/:doc_id/clone - Clone a document
+pub async fn clone_document(
+    State(state): State<AppState>,
+    Path(doc_id): Path<String>,
+    Json(req): Json<CloneDocumentRequest>,
+) -> Result<Json<CloneDocumentResponse>, StatusCode> {
+    info!(
+        "clone_document request: doc_id={}, creator_id={}, snapshot_id={:?}",
+        doc_id, req.creator_id, req.snapshot_id
+    );
+
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|e| {
+        error!("Invalid doc_id: {} - {}", doc_id, e);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    let snapshot_id = req
+        .snapshot_id
+        .map(|s| Uuid::parse_str(&s))
+        .transpose()
+        .map_err(|e| {
+            error!("Invalid snapshot_id: {}", e);
+            StatusCode::BAD_REQUEST
+        })?;
+
+    let (new_doc_id, size) = state
+        .document_service
+        .clone_document(doc_uuid, req.creator_id, snapshot_id, req.doc_type)
+        .await
+        .map_err(|e| {
+            error!("Failed to clone document: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    info!(
+        "Document cloned successfully: source={}, new_doc_id={}, size={}",
+        doc_id, new_doc_id, size
+    );
+
+    Ok(Json(CloneDocumentResponse {
+        doc_id: new_doc_id.to_string(),
+        size,
+    }))
+}
+
+/// DELETE /api/documents/:doc_id - Delete a document
+pub async fn delete_document(
+    State(state): State<AppState>,
+    Path(doc_id): Path<String>,
+    Query(query): Query<DeleteDocumentQuery>,
+) -> Result<StatusCode, StatusCode> {
+    let is_soft = query.is_soft.unwrap_or(false);
+    info!("delete_document request: doc_id={}, is_soft={}", doc_id, is_soft);
+
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|e| {
+        error!("Invalid doc_id: {} - {}", doc_id, e);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    state
+        .document_service
+        .delete_document(doc_uuid, is_soft)
+        .await
+        .map_err(|e| {
+            error!("Failed to delete document: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    info!("Document deleted successfully: doc_id={}, is_soft={}", doc_id, is_soft);
+    Ok(StatusCode::OK)
+}
+
+/// GET /api/documents/:doc_id/snapshots/:snapshot_id - Get a specific snapshot
+pub async fn get_snapshot(
+    State(state): State<AppState>,
+    Path((doc_id, snapshot_id)): Path<(String, String)>,
+) -> Result<Json<SnapshotResponse>, StatusCode> {
+    info!(
+        "get_snapshot request: doc_id={}, snapshot_id={}",
+        doc_id, snapshot_id
+    );
+
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|e| {
+        error!("Invalid doc_id: {} - {}", doc_id, e);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    let snapshot_uuid = Uuid::parse_str(&snapshot_id).map_err(|e| {
+        error!("Invalid snapshot_id: {} - {}", snapshot_id, e);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    let snapshot = state
+        .document_service
+        .get_doc_snapshot(doc_uuid, Some(snapshot_uuid))
+        .await
+        .map_err(|e| {
+            error!("Failed to get snapshot: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or_else(|| {
+            warn!("Snapshot not found: doc_id={}, snapshot_id={}", doc_id, snapshot_id);
+            StatusCode::NOT_FOUND
+        })?;
+
+    Ok(Json(to_snapshot_response(snapshot)))
+}
+
+/// POST /api/documents/latest-snapshots - Get latest snapshots for multiple documents
+pub async fn get_latest_snapshots(
+    State(state): State<AppState>,
+    Json(req): Json<GetLatestSnapshotsRequest>,
+) -> Result<Json<GetLatestSnapshotsResponse>, StatusCode> {
+    info!(
+        "get_latest_snapshots request: doc_ids_count={}",
+        req.doc_ids.len()
+    );
+
+    let doc_ids: Vec<Uuid> = req
+        .doc_ids
+        .iter()
+        .map(|id| Uuid::parse_str(id))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| {
+            error!("Invalid doc_id in request: {}", e);
+            StatusCode::BAD_REQUEST
+        })?;
+
+    let snapshots = state
+        .document_service
+        .get_latest_snapshots(doc_ids.clone())
+        .await
+        .map_err(|e| {
+            error!("Failed to get latest snapshots: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    info!(
+        "Retrieved latest snapshots: requested={}, returned={}",
+        doc_ids.len(),
+        snapshots.len()
+    );
+
+    let snapshot_map = snapshots
+        .into_iter()
+        .map(|(doc_id, snapshot)| (doc_id.to_string(), to_snapshot_response(snapshot)))
+        .collect();
+
+    Ok(Json(GetLatestSnapshotsResponse {
+        snapshots: snapshot_map,
+    }))
+}
+
+/// POST /api/sign-urls - Sign object URLs for storage IDs
+pub async fn sign_object_urls(
+    State(state): State<AppState>,
+    Json(req): Json<SignObjectUrlsRequest>,
+) -> Result<Json<SignObjectUrlsResponse>, StatusCode> {
+    info!(
+        "sign_object_urls request: storage_ids_count={}",
+        req.storage_ids.len()
+    );
+
+    let storage_ids: Vec<Uuid> = req
+        .storage_ids
+        .iter()
+        .map(|id| Uuid::parse_str(id))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| {
+            error!("Invalid storage_id in request: {}", e);
+            StatusCode::BAD_REQUEST
+        })?;
+
+    let urls = state
+        .document_service
+        .sign_object_urls(storage_ids.clone())
+        .await
+        .map_err(|e| {
+            error!("Failed to sign object URLs: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    info!(
+        "Signed object URLs: requested={}, returned={}",
+        storage_ids.len(),
+        urls.len()
+    );
+
+    let url_map = urls
+        .into_iter()
+        .map(|(id, url)| (id.to_string(), url))
+        .collect();
+
+    Ok(Json(SignObjectUrlsResponse { urls: url_map }))
+}
+
+/// GET /api/storage/:storage_id/doc-id - Get document ID from storage ID
+pub async fn get_doc_id_from_storage_id(
+    State(state): State<AppState>,
+    Path(storage_id): Path<String>,
+) -> Result<Json<GetDocIdResponse>, StatusCode> {
+    info!("get_doc_id_from_storage_id request: storage_id={}", storage_id);
+
+    let storage_uuid = Uuid::parse_str(&storage_id).map_err(|e| {
+        error!("Invalid storage_id: {} - {}", storage_id, e);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    let doc_id = state
+        .document_service
+        .get_doc_id_by_storage_id(storage_uuid)
+        .await
+        .map_err(|e| {
+            error!("Failed to get doc_id: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or_else(|| {
+            warn!("Document not found for storage_id: {}", storage_id);
+            StatusCode::NOT_FOUND
+        })?;
+
+    info!(
+        "Found doc_id for storage_id: storage_id={}, doc_id={}",
+        storage_id, doc_id
+    );
+
+    Ok(Json(GetDocIdResponse {
+        doc_id: doc_id.to_string(),
+    }))
+}
+
+/// POST /api/documents/:doc_id/changeset - Apply a changeset (broadcast operation)
+pub async fn broadcast_op(
+    State(state): State<AppState>,
+    Path(doc_id): Path<String>,
+    Json(req): Json<BroadcastOpRequest>,
+) -> Result<Json<BroadcastOpResponse>, StatusCode> {
+    info!(
+        "broadcast_op request: doc_id={}, base_rev={}, user_id={}, mutations_count={}",
+        doc_id, req.base_rev, req.user_id, req.mutations.len()
+    );
+
+    let doc_uuid = Uuid::parse_str(&doc_id).map_err(|e| {
+        error!("Invalid doc_id: {} - {}", doc_id, e);
+        StatusCode::BAD_REQUEST
+    })?;
+
+    let mutations: Vec<MutationInfoWithOpId> = req
+        .mutations
+        .into_iter()
+        .map(|m| MutationInfoWithOpId {
+            id: m.id,
+            params: m.params,
+            op_id: m.op_id,
+        })
+        .collect();
+
+    let changeset = crate::services::ot::Changeset {
+        base_rev: req.base_rev,
+        user_id: req.user_id.clone(),
+        mutations,
+        client_id: req.client_id.clone(),
+    };
+
+    let result = state
+        .document_actor_manager
+        .apply_changeset(doc_uuid, changeset)
+        .await
+        .map_err(|e| {
+            error!("Failed to apply changeset: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    info!(
+        "broadcast_op completed: doc_id={}, server_rev={}",
+        doc_id, result.server_rev
+    );
+
+    Ok(Json(BroadcastOpResponse {
+        success: true,
+        server_rev: result.server_rev,
+        error: None,
     }))
 }
 
