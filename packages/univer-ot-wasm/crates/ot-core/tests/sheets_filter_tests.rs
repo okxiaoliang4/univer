@@ -21,18 +21,19 @@ fn test_set_sheets_filter_range_vs_set_sheets_filter_range_lww() {
 }
 
 #[test]
-fn test_set_sheets_filter_criteria_vs_set_sheets_filter_criteria_identity() {
+fn test_set_sheets_filter_criteria_vs_set_sheets_filter_criteria_lww() {
     let service = TransformService::new();
     let m1 = MutationInfo {
         id: "sheet.mutation.set-sheets-filter-criteria".to_string(),
-        params: json!({"unitId": "w1", "subUnitId": "s1", "criteria": {}}),
+        params: json!({"unitId": "w1", "subUnitId": "s1", "col": 0, "criteria": {}}),
     };
     let m2 = MutationInfo {
         id: "sheet.mutation.set-sheets-filter-criteria".to_string(),
-        params: json!({"unitId": "w1", "subUnitId": "s1", "criteria": {}}),
+        params: json!({"unitId": "w1", "subUnitId": "s1", "col": 0, "criteria": {}}),
     };
     let result = service.transform(&m1, &m2);
-    assert!(result.m1_prime.is_some());
+    // LWW: m2 wins, m1 is removed
+    assert!(result.m1_prime.is_none());
     assert!(result.m2_prime.is_some());
 }
 

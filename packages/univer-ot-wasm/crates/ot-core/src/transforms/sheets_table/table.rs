@@ -1,4 +1,7 @@
-use crate::mutations::sheets::{InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation};
+use crate::mutations::sheets::{
+    InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation,
+    MoveRowsMutation, MoveColsMutation, MoveRangeMutation, RemoveSheetMutation,
+};
 use crate::mutations::sheets_table::{
     AddSheetTableMutation, AddSheetTableParams,
     SetSheetTableMutation, SetSheetTableMutationParams,
@@ -33,12 +36,20 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_bidirectional_ref(InsertColMutation::ID, ADD_TABLE_ID, shared::insert_col_shift::<AddSheetTableParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, ADD_TABLE_ID, shared::remove_row_shift::<AddSheetTableParams>());
     registry.register_bidirectional_ref(RemoveColMutation::ID, ADD_TABLE_ID, shared::remove_col_shift::<AddSheetTableParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, ADD_TABLE_ID, shared::move_rows_shift::<AddSheetTableParams>());
+    registry.register_bidirectional_ref(MoveColsMutation::ID, ADD_TABLE_ID, shared::move_cols_shift::<AddSheetTableParams>());
+    registry.register_bidirectional_ref(MoveRangeMutation::ID, ADD_TABLE_ID, shared::move_range_shift::<AddSheetTableParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, ADD_TABLE_ID, shared::remove_sheet_shift::<AddSheetTableParams>());
 
     // Shift transforms for SetSheetTable (has config.update_range.new_range)
     registry.register_bidirectional_ref(InsertRowMutation::ID, SET_TABLE_ID, shared::insert_row_shift::<SetSheetTableMutationParams>());
     registry.register_bidirectional_ref(InsertColMutation::ID, SET_TABLE_ID, shared::insert_col_shift::<SetSheetTableMutationParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, SET_TABLE_ID, shared::remove_row_shift::<SetSheetTableMutationParams>());
     registry.register_bidirectional_ref(RemoveColMutation::ID, SET_TABLE_ID, shared::remove_col_shift::<SetSheetTableMutationParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, SET_TABLE_ID, shared::move_rows_shift::<SetSheetTableMutationParams>());
+    registry.register_bidirectional_ref(MoveColsMutation::ID, SET_TABLE_ID, shared::move_cols_shift::<SetSheetTableMutationParams>());
+    registry.register_bidirectional_ref(MoveRangeMutation::ID, SET_TABLE_ID, shared::move_range_shift::<SetSheetTableMutationParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, SET_TABLE_ID, shared::remove_sheet_shift::<SetSheetTableMutationParams>());
 
     // NOTE: SetSheetTableFilter and DeleteSheetTable don't have position fields
 }

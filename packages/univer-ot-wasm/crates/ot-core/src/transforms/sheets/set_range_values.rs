@@ -6,6 +6,7 @@
 use crate::mutations::sheets::{
     SetRangeValuesMutation, InsertRowMutation, InsertColMutation,
     RemoveRowMutation, RemoveColMutation, SetRangeValuesMutationParams,
+    MoveRowsMutation, MoveColsMutation, MoveRangeMutation, RemoveSheetMutation,
 };
 use crate::registry::{MutationId, TransformFnRef, TransformRegistry};
 use crate::types::{MutationInfo, MutationOutcome, TransformResultRef};
@@ -51,6 +52,34 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
         RemoveColMutation::ID,
         MUTATION_ID,
         shared::remove_col_shift::<GenericCellValueParams>(),
+    );
+
+    // MoveRows vs SetRangeValues: shift cell row keys for moved rows
+    registry.register_bidirectional_ref(
+        MoveRowsMutation::ID,
+        MUTATION_ID,
+        shared::move_rows_shift::<GenericCellValueParams>(),
+    );
+
+    // MoveCols vs SetRangeValues: shift cell column keys for moved cols
+    registry.register_bidirectional_ref(
+        MoveColsMutation::ID,
+        MUTATION_ID,
+        shared::move_cols_shift::<GenericCellValueParams>(),
+    );
+
+    // MoveRange vs SetRangeValues: shift cells within moved range
+    registry.register_bidirectional_ref(
+        MoveRangeMutation::ID,
+        MUTATION_ID,
+        shared::move_range_shift::<GenericCellValueParams>(),
+    );
+
+    // RemoveSheet vs SetRangeValues: remove mutation if sheet is deleted
+    registry.register_bidirectional_ref(
+        RemoveSheetMutation::ID,
+        MUTATION_ID,
+        shared::remove_sheet_shift::<GenericCellValueParams>(),
     );
 }
 

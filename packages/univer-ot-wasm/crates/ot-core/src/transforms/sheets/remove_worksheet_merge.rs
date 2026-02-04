@@ -6,6 +6,7 @@
 use crate::mutations::sheets::{
     RemoveWorksheetMergeMutation, InsertRowMutation, InsertColMutation,
     RemoveRowMutation, RemoveColMutation,
+    MoveRowsMutation, MoveColsMutation, MoveRangeMutation, RemoveSheetMutation,
 };
 use crate::registry::{MutationId, TransformRegistry};
 use crate::utils::generic_params::GenericRangesParams;
@@ -40,5 +41,33 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
         RemoveColMutation::ID,
         MUTATION_ID,
         shared::remove_col_shift::<GenericRangesParams>(),
+    );
+
+    // MoveRows vs RemoveWorksheetMerge
+    registry.register_bidirectional_ref(
+        MoveRowsMutation::ID,
+        MUTATION_ID,
+        shared::move_rows_shift::<GenericRangesParams>(),
+    );
+
+    // MoveCols vs RemoveWorksheetMerge
+    registry.register_bidirectional_ref(
+        MoveColsMutation::ID,
+        MUTATION_ID,
+        shared::move_cols_shift::<GenericRangesParams>(),
+    );
+
+    // MoveRange vs RemoveWorksheetMerge
+    registry.register_bidirectional_ref(
+        MoveRangeMutation::ID,
+        MUTATION_ID,
+        shared::move_range_shift::<GenericRangesParams>(),
+    );
+
+    // RemoveSheet vs RemoveWorksheetMerge
+    registry.register_bidirectional_ref(
+        RemoveSheetMutation::ID,
+        MUTATION_ID,
+        shared::remove_sheet_shift::<GenericRangesParams>(),
     );
 }

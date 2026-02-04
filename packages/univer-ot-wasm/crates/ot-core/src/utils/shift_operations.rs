@@ -112,56 +112,6 @@ pub trait Shiftable: WorksheetParams {
 impl Shiftable for GenericRangesParams {
     fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
         match op {
-            ShiftOperation::InsertRows { start, count } => {
-                if self.ranges.is_empty() {
-                    return ShiftResult::Unchanged;
-                }
-                for range in &mut self.ranges {
-                    range.shift_for_row_insert(*start, *count);
-                }
-                ShiftResult::Modified
-            }
-
-            ShiftOperation::RemoveRows { start, end } => {
-                if self.ranges.is_empty() {
-                    return ShiftResult::Unchanged;
-                }
-                let before_len = self.ranges.len();
-                self.ranges.retain_mut(|range| range.shift_for_row_remove(*start, *end));
-                if self.ranges.is_empty() {
-                    ShiftResult::Removed
-                } else if self.ranges.len() < before_len {
-                    ShiftResult::Modified
-                } else {
-                    ShiftResult::Modified // Content may have changed even if count is same
-                }
-            }
-
-            ShiftOperation::InsertCols { start, count } => {
-                if self.ranges.is_empty() {
-                    return ShiftResult::Unchanged;
-                }
-                for range in &mut self.ranges {
-                    range.shift_for_col_insert(*start, *count);
-                }
-                ShiftResult::Modified
-            }
-
-            ShiftOperation::RemoveCols { start, end } => {
-                if self.ranges.is_empty() {
-                    return ShiftResult::Unchanged;
-                }
-                let before_len = self.ranges.len();
-                self.ranges.retain_mut(|range| range.shift_for_col_remove(*start, *end));
-                if self.ranges.is_empty() {
-                    ShiftResult::Removed
-                } else if self.ranges.len() < before_len {
-                    ShiftResult::Modified
-                } else {
-                    ShiftResult::Modified
-                }
-            }
-
             ShiftOperation::RemoveSheet { sub_unit_id } => {
                 if &self.sub_unit_params.sub_unit_id == sub_unit_id {
                     ShiftResult::Removed
@@ -169,8 +119,17 @@ impl Shiftable for GenericRangesParams {
                     ShiftResult::Unchanged
                 }
             }
-
-            _ => ShiftResult::Unchanged, // Move operations not implemented yet
+            // All position-based operations (Insert/Remove/Move for rows/cols/range)
+            _ => {
+                if self.ranges.is_empty() {
+                    return ShiftResult::Unchanged;
+                }
+                if shift_ranges_vec(&mut self.ranges, op) {
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Removed
+                }
+            }
         }
     }
 }
@@ -211,6 +170,21 @@ impl Shiftable for GenericCellValueParams {
                 }
             }
 
+            ShiftOperation::MoveRows { from_start, from_end, to } => {
+                shift_cell_value_for_row_move(cell_value, *from_start, *from_end, *to);
+                ShiftResult::Modified
+            }
+
+            ShiftOperation::MoveCols { from_start, from_end, to } => {
+                shift_cell_value_for_col_move(cell_value, *from_start, *from_end, *to);
+                ShiftResult::Modified
+            }
+
+            ShiftOperation::MoveRange { from, to } => {
+                shift_cell_value_for_range_move(cell_value, from, to);
+                ShiftResult::Modified
+            }
+
             ShiftOperation::RemoveSheet { sub_unit_id } => {
                 if &self.sub_unit_params.sub_unit_id == sub_unit_id {
                     ShiftResult::Removed
@@ -218,8 +192,6 @@ impl Shiftable for GenericCellValueParams {
                     ShiftResult::Unchanged
                 }
             }
-
-            _ => ShiftResult::Unchanged,
         }
     }
 }
@@ -245,6 +217,11 @@ impl Shiftable for GenericRowDataParams {
                 }
             }
 
+            ShiftOperation::MoveRows { from_start, from_end, to } => {
+                shift_hashmap_keys_for_row_move(&mut self.row_data, *from_start, *from_end, *to);
+                ShiftResult::Modified
+            }
+
             ShiftOperation::RemoveSheet { sub_unit_id } => {
                 if &self.sub_unit_params.sub_unit_id == sub_unit_id {
                     ShiftResult::Removed
@@ -253,7 +230,7 @@ impl Shiftable for GenericRowDataParams {
                 }
             }
 
-            // Row data is not affected by column operations
+            // Row data is not affected by column operations or MoveRange
             _ => ShiftResult::Unchanged,
         }
     }
@@ -280,6 +257,11 @@ impl Shiftable for GenericColDataParams {
                 }
             }
 
+            ShiftOperation::MoveCols { from_start, from_end, to } => {
+                shift_hashmap_keys_for_col_move(&mut self.column_data, *from_start, *from_end, *to);
+                ShiftResult::Modified
+            }
+
             ShiftOperation::RemoveSheet { sub_unit_id } => {
                 if &self.sub_unit_params.sub_unit_id == sub_unit_id {
                     ShiftResult::Removed
@@ -288,7 +270,7 @@ impl Shiftable for GenericColDataParams {
                 }
             }
 
-            // Column data is not affected by row operations
+            // Column data is not affected by row operations or MoveRange
             _ => ShiftResult::Unchanged,
         }
     }
@@ -323,6 +305,21 @@ impl Shiftable for GenericRangeParams {
                 }
             }
 
+            ShiftOperation::MoveRows { from_start, from_end, to } => {
+                shift_range_for_move_rows(&mut self.range, *from_start, *from_end, *to);
+                ShiftResult::Modified
+            }
+
+            ShiftOperation::MoveCols { from_start, from_end, to } => {
+                shift_range_for_move_cols(&mut self.range, *from_start, *from_end, *to);
+                ShiftResult::Modified
+            }
+
+            ShiftOperation::MoveRange { from, to } => {
+                shift_range_for_move_range(&mut self.range, from, to);
+                ShiftResult::Modified
+            }
+
             ShiftOperation::RemoveSheet { sub_unit_id } => {
                 if &self.sub_unit_params.sub_unit_id == sub_unit_id {
                     ShiftResult::Removed
@@ -330,8 +327,6 @@ impl Shiftable for GenericRangeParams {
                     ShiftResult::Unchanged
                 }
             }
-
-            _ => ShiftResult::Unchanged, // Move operations not implemented yet
         }
     }
 }
@@ -339,6 +334,92 @@ impl Shiftable for GenericRangeParams {
 impl Shiftable for GenericRowColParams {
     fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
       shift_row_col(&mut self.row, &mut self.col, op)
+    }
+}
+
+impl Shiftable for GenericColParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::InsertCols { start, count } => {
+                if self.col >= *start {
+                    self.col += *count;
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            ShiftOperation::RemoveCols { start, end } => {
+                if self.col >= *start && self.col <= *end {
+                    ShiftResult::Removed
+                } else if self.col > *end {
+                    self.col -= end - start + 1;
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            ShiftOperation::MoveCols { from_start, from_end, to } => {
+                let old_col = self.col;
+                shift_col_for_move_cols(&mut self.col, *from_start, *from_end, *to);
+                if self.col != old_col {
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    ShiftResult::Removed
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            // Row operations don't affect col-only params
+            _ => ShiftResult::Unchanged,
+        }
+    }
+}
+
+impl Shiftable for GenericRowParams {
+    fn apply_shift(&mut self, op: &ShiftOperation) -> ShiftResult {
+        match op {
+            ShiftOperation::InsertRows { start, count } => {
+                if self.row >= *start {
+                    self.row += *count;
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            ShiftOperation::RemoveRows { start, end } => {
+                if self.row >= *start && self.row <= *end {
+                    ShiftResult::Removed
+                } else if self.row > *end {
+                    self.row -= end - start + 1;
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            ShiftOperation::MoveRows { from_start, from_end, to } => {
+                let old_row = self.row;
+                shift_row_for_move_rows(&mut self.row, *from_start, *from_end, *to);
+                if self.row != old_row {
+                    ShiftResult::Modified
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            ShiftOperation::RemoveSheet { sub_unit_id } => {
+                if &self.sub_unit_id == sub_unit_id {
+                    ShiftResult::Removed
+                } else {
+                    ShiftResult::Unchanged
+                }
+            }
+            // Column operations don't affect row-only params
+            _ => ShiftResult::Unchanged,
+        }
     }
 }
 
@@ -365,12 +446,113 @@ pub fn shift_ranges_vec(ranges: &mut Vec<IRange>, op: &ShiftOperation) -> bool {
             ranges.retain_mut(|range| range.shift_for_col_remove(*start, *end));
             !ranges.is_empty()
         }
-        _ => true,
+        ShiftOperation::MoveRows { from_start, from_end, to } => {
+            for range in ranges.iter_mut() {
+                shift_range_for_move_rows(range, *from_start, *from_end, *to);
+            }
+            true
+        }
+        ShiftOperation::MoveCols { from_start, from_end, to } => {
+            for range in ranges.iter_mut() {
+                shift_range_for_move_cols(range, *from_start, *from_end, *to);
+            }
+            true
+        }
+        ShiftOperation::MoveRange { from, to } => {
+            for range in ranges.iter_mut() {
+                shift_range_for_move_range(range, from, to);
+            }
+            true
+        }
+        ShiftOperation::RemoveSheet { .. } => true, // Handled at mutation level
     }
 }
 
+/// Shift a single row index for row move operation
+pub fn shift_row_for_move_rows(row: &mut i32, from_start: i32, from_end: i32, to: i32) {
+    let count = from_end - from_start + 1;
+
+    if *row >= from_start && *row <= from_end {
+        // Row is in the moved range - it moves with the range
+        let offset = *row - from_start;
+        if to > from_end {
+            // Moving down: new position is to - count + offset
+            *row = to - count + offset;
+        } else {
+            // Moving up: new position is to + offset
+            *row = to + offset;
+        }
+    } else if to > from_end {
+        // Moving down
+        if *row > from_end && *row < to {
+            // Rows between source and target shift up
+            *row -= count;
+        }
+    } else {
+        // Moving up
+        if *row >= to && *row < from_start {
+            // Rows between target and source shift down
+            *row += count;
+        }
+    }
+}
+
+/// Shift a single col index for col move operation
+pub fn shift_col_for_move_cols(col: &mut i32, from_start: i32, from_end: i32, to: i32) {
+    let count = from_end - from_start + 1;
+
+    if *col >= from_start && *col <= from_end {
+        // Col is in the moved range - it moves with the range
+        let offset = *col - from_start;
+        if to > from_end {
+            *col = to - count + offset;
+        } else {
+            *col = to + offset;
+        }
+    } else if to > from_end {
+        if *col > from_end && *col < to {
+            *col -= count;
+        }
+    } else {
+        if *col >= to && *col < from_start {
+            *col += count;
+        }
+    }
+}
+
+/// Shift a range for row move operation
+pub fn shift_range_for_move_rows(range: &mut IRange, from_start: i32, from_end: i32, to: i32) {
+    shift_row_for_move_rows(&mut range.start_row, from_start, from_end, to);
+    shift_row_for_move_rows(&mut range.end_row, from_start, from_end, to);
+}
+
+/// Shift a range for col move operation
+pub fn shift_range_for_move_cols(range: &mut IRange, from_start: i32, from_end: i32, to: i32) {
+    shift_col_for_move_cols(&mut range.start_column, from_start, from_end, to);
+    shift_col_for_move_cols(&mut range.end_column, from_start, from_end, to);
+}
+
+/// Shift a range for move range operation
+/// If the range overlaps with the moved range, it needs to be adjusted
+pub fn shift_range_for_move_range(range: &mut IRange, from: &IRange, to: &IRange) {
+    // Check if range is completely within the moved range
+    if range.start_row >= from.start_row && range.end_row <= from.end_row
+        && range.start_column >= from.start_column && range.end_column <= from.end_column
+    {
+        // Range moves with the source range
+        let row_offset = to.start_row - from.start_row;
+        let col_offset = to.start_column - from.start_column;
+        range.start_row += row_offset;
+        range.end_row += row_offset;
+        range.start_column += col_offset;
+        range.end_column += col_offset;
+    }
+    // For partial overlaps, we keep the range unchanged (simplified behavior)
+    // More complex scenarios would require splitting or clipping ranges
+}
+
 /// Helper: Apply shift operation to a single row/col position
-/// Returns Some(new_position) if the position should be kept, None if removed
+/// Returns ShiftResult indicating whether the position was modified, removed, or unchanged
 pub fn shift_row_col(row: &mut i32, col: &mut i32, op: &ShiftOperation) -> ShiftResult {
     match op {
         ShiftOperation::InsertRows { start, count } => {
@@ -409,7 +591,39 @@ pub fn shift_row_col(row: &mut i32, col: &mut i32, op: &ShiftOperation) -> Shift
                 ShiftResult::Unchanged
             }
         }
-        _ => ShiftResult::Unchanged,
+        ShiftOperation::MoveRows { from_start, from_end, to } => {
+            let old_row = *row;
+            shift_row_for_move_rows(row, *from_start, *from_end, *to);
+            if *row != old_row {
+                ShiftResult::Modified
+            } else {
+                ShiftResult::Unchanged
+            }
+        }
+        ShiftOperation::MoveCols { from_start, from_end, to } => {
+            let old_col = *col;
+            shift_col_for_move_cols(col, *from_start, *from_end, *to);
+            if *col != old_col {
+                ShiftResult::Modified
+            } else {
+                ShiftResult::Unchanged
+            }
+        }
+        ShiftOperation::MoveRange { from, to } => {
+            // Check if position is within the moved range
+            if *row >= from.start_row && *row <= from.end_row
+                && *col >= from.start_column && *col <= from.end_column
+            {
+                let row_offset = to.start_row - from.start_row;
+                let col_offset = to.start_column - from.start_column;
+                *row += row_offset;
+                *col += col_offset;
+                ShiftResult::Modified
+            } else {
+                ShiftResult::Unchanged
+            }
+        }
+        ShiftOperation::RemoveSheet { .. } => ShiftResult::Unchanged, // Handled at mutation level
     }
 }
 

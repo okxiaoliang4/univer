@@ -353,13 +353,14 @@ fn test_remove_cols_vs_add_merge_shifts_ranges() {
 }
 
 // ============================================================================
-// AddWorksheetMergeMutation vs AddWorksheetMergeMutation (identity)
+// AddWorksheetMergeMutation vs AddWorksheetMergeMutation (range-level conflict)
 // ============================================================================
 
 #[test]
-fn test_add_merge_vs_add_merge_identity() {
+fn test_add_merge_vs_add_merge_no_overlap_identity() {
     let service = TransformService::new();
 
+    // Two non-overlapping merge operations
     let m1 = MutationInfo {
         id: "sheet.mutation.add-worksheet-merge".to_string(),
         params: json!({
@@ -384,8 +385,257 @@ fn test_add_merge_vs_add_merge_identity() {
 
     let result = service.transform(&m1, &m2);
 
-    // Both should execute (identity)
+    // Both should execute (identity - no overlap)
     assert!(result.m1_prime.is_some());
     assert!(result.m2_prime.is_some());
     assert!(result.error.is_none());
+
+    // Verify m1 is unchanged
+    let m1_prime = result.m1_prime.unwrap();
+    let ranges = m1_prime.params["ranges"].as_array().unwrap();
+    assert_eq!(ranges.len(), 1);
+    assert_eq!(ranges[0]["startRow"].as_i64().unwrap(), 0);
+    assert_eq!(ranges[0]["endRow"].as_i64().unwrap(), 2);
+}
+
+#[test]
+fn test_add_merge_vs_add_merge_full_overlap_m1_removed() {
+    let service = TransformService::new();
+
+    // m1 and m2 have overlapping ranges (same range)
+    let m1 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 }
+            ]
+        }),
+    };
+
+    let m2 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 }  // Same range as m1
+            ]
+        }),
+    };
+
+    let result = service.transform(&m1, &m2);
+
+    // m1 should be removed (m2 wins for conflicting range)
+    assert!(result.m1_prime.is_none(), "m1 should be removed when fully overlapping");
+    assert!(result.m2_prime.is_some(), "m2 should remain");
+    assert!(result.error.is_none());
+}
+
+#[test]
+fn test_add_merge_vs_add_merge_partial_overlap_filters_m1() {
+    let service = TransformService::new();
+
+    // m1 has two ranges: one overlaps with m2, one doesn't
+    let m1 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 },   // Overlaps with m2
+                { "startRow": 10, "endRow": 12, "startColumn": 0, "endColumn": 2 }  // No overlap
+            ]
+        }),
+    };
+
+    let m2 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 1, "endRow": 3, "startColumn": 1, "endColumn": 3 }  // Overlaps with m1's first range
+            ]
+        }),
+    };
+
+    let result = service.transform(&m1, &m2);
+
+    // m1 should be modified (only keep non-overlapping range)
+    assert!(result.m1_prime.is_some());
+    assert!(result.m2_prime.is_some());
+    assert!(result.error.is_none());
+
+    let m1_prime = result.m1_prime.unwrap();
+    let ranges = m1_prime.params["ranges"].as_array().unwrap();
+
+    // Only the non-overlapping range should remain
+    assert_eq!(ranges.len(), 1, "Only non-overlapping range should remain");
+    assert_eq!(ranges[0]["startRow"].as_i64().unwrap(), 10);
+    assert_eq!(ranges[0]["endRow"].as_i64().unwrap(), 12);
+}
+
+#[test]
+fn test_add_merge_vs_add_merge_different_sheets_no_conflict() {
+    let service = TransformService::new();
+
+    // Same ranges but different sheets - no conflict
+    let m1 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 }
+            ]
+        }),
+    };
+
+    let m2 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet2",  // Different sheet
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 }  // Same range but different sheet
+            ]
+        }),
+    };
+
+    let result = service.transform(&m1, &m2);
+
+    // Both should execute (different sheets - no conflict)
+    assert!(result.m1_prime.is_some());
+    assert!(result.m2_prime.is_some());
+    assert!(result.error.is_none());
+
+    // m1 should be unchanged
+    let m1_prime = result.m1_prime.unwrap();
+    let ranges = m1_prime.params["ranges"].as_array().unwrap();
+    assert_eq!(ranges.len(), 1);
+}
+
+#[test]
+fn test_add_merge_vs_add_merge_adjacent_no_overlap() {
+    let service = TransformService::new();
+
+    // Adjacent ranges (touching but not overlapping)
+    let m1 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 }
+            ]
+        }),
+    };
+
+    let m2 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 3, "endRow": 5, "startColumn": 0, "endColumn": 2 }  // Adjacent (starts at row 3)
+            ]
+        }),
+    };
+
+    let result = service.transform(&m1, &m2);
+
+    // Both should execute (adjacent but not overlapping)
+    assert!(result.m1_prime.is_some());
+    assert!(result.m2_prime.is_some());
+    assert!(result.error.is_none());
+
+    let m1_prime = result.m1_prime.unwrap();
+    let ranges = m1_prime.params["ranges"].as_array().unwrap();
+    assert_eq!(ranges.len(), 1, "Adjacent ranges should not conflict");
+}
+
+#[test]
+fn test_add_merge_vs_add_merge_single_cell_overlap() {
+    let service = TransformService::new();
+
+    // Ranges that overlap at just one cell
+    let m1 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 }
+            ]
+        }),
+    };
+
+    let m2 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 2, "endRow": 4, "startColumn": 2, "endColumn": 4 }  // Overlaps at cell (2,2)
+            ]
+        }),
+    };
+
+    let result = service.transform(&m1, &m2);
+
+    // m1 should be removed (single cell overlap is still an overlap)
+    assert!(result.m1_prime.is_none(), "m1 should be removed even for single-cell overlap");
+    assert!(result.m2_prime.is_some());
+    assert!(result.error.is_none());
+}
+
+#[test]
+fn test_add_merge_vs_add_merge_multiple_overlaps() {
+    let service = TransformService::new();
+
+    // m1 has 3 ranges, m2 has 2 ranges
+    // m1[0] overlaps with m2[0]
+    // m1[1] overlaps with m2[1]
+    // m1[2] has no overlap
+    let m1 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 0, "endRow": 2, "startColumn": 0, "endColumn": 2 },   // Overlaps m2[0]
+                { "startRow": 5, "endRow": 7, "startColumn": 5, "endColumn": 7 },   // Overlaps m2[1]
+                { "startRow": 20, "endRow": 22, "startColumn": 0, "endColumn": 2 }  // No overlap
+            ]
+        }),
+    };
+
+    let m2 = MutationInfo {
+        id: "sheet.mutation.add-worksheet-merge".to_string(),
+        params: json!({
+            "unitId": "workbook1",
+            "subUnitId": "sheet1",
+            "ranges": [
+                { "startRow": 1, "endRow": 3, "startColumn": 1, "endColumn": 3 },  // Overlaps m1[0]
+                { "startRow": 6, "endRow": 8, "startColumn": 6, "endColumn": 8 }   // Overlaps m1[1]
+            ]
+        }),
+    };
+
+    let result = service.transform(&m1, &m2);
+
+    // m1 should be modified (only keep range[2])
+    assert!(result.m1_prime.is_some());
+    assert!(result.m2_prime.is_some());
+    assert!(result.error.is_none());
+
+    let m1_prime = result.m1_prime.unwrap();
+    let ranges = m1_prime.params["ranges"].as_array().unwrap();
+
+    // Only the non-overlapping range should remain
+    assert_eq!(ranges.len(), 1, "Only non-overlapping range should remain");
+    assert_eq!(ranges[0]["startRow"].as_i64().unwrap(), 20);
+    assert_eq!(ranges[0]["endRow"].as_i64().unwrap(), 22);
 }

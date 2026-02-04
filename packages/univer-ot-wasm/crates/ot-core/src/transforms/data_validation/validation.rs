@@ -1,4 +1,7 @@
-use crate::mutations::sheets::{InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation};
+use crate::mutations::sheets::{
+    InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation,
+    MoveRowsMutation, MoveColsMutation, MoveRangeMutation, RemoveSheetMutation,
+};
 use crate::mutations::data_validation::{
     AddDataValidationMutation, AddDataValidationMutationParams,
     RemoveDataValidationMutation,
@@ -30,13 +33,20 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_bidirectional_ref(InsertColMutation::ID, ADD_RULE_ID, shared::insert_col_shift::<AddDataValidationMutationParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, ADD_RULE_ID, shared::remove_row_shift::<AddDataValidationMutationParams>());
     registry.register_bidirectional_ref(RemoveColMutation::ID, ADD_RULE_ID, shared::remove_col_shift::<AddDataValidationMutationParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, ADD_RULE_ID, shared::move_rows_shift::<AddDataValidationMutationParams>());
+    registry.register_bidirectional_ref(MoveColsMutation::ID, ADD_RULE_ID, shared::move_cols_shift::<AddDataValidationMutationParams>());
+    registry.register_bidirectional_ref(MoveRangeMutation::ID, ADD_RULE_ID, shared::move_range_shift::<AddDataValidationMutationParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, ADD_RULE_ID, shared::remove_sheet_shift::<AddDataValidationMutationParams>());
 
     // Shift transforms for UpdateDataValidation (has payload.ranges in Range/All variants)
     registry.register_bidirectional_ref(InsertRowMutation::ID, UPDATE_RULE_ID, shared::insert_row_shift::<UpdateDataValidationMutationParams>());
     registry.register_bidirectional_ref(InsertColMutation::ID, UPDATE_RULE_ID, shared::insert_col_shift::<UpdateDataValidationMutationParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, UPDATE_RULE_ID, shared::remove_row_shift::<UpdateDataValidationMutationParams>());
     registry.register_bidirectional_ref(RemoveColMutation::ID, UPDATE_RULE_ID, shared::remove_col_shift::<UpdateDataValidationMutationParams>());
-
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, UPDATE_RULE_ID, shared::move_rows_shift::<UpdateDataValidationMutationParams>());
+    registry.register_bidirectional_ref(MoveColsMutation::ID, UPDATE_RULE_ID, shared::move_cols_shift::<UpdateDataValidationMutationParams>());
+    registry.register_bidirectional_ref(MoveRangeMutation::ID, UPDATE_RULE_ID, shared::move_range_shift::<UpdateDataValidationMutationParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, UPDATE_RULE_ID, shared::remove_sheet_shift::<UpdateDataValidationMutationParams>());
 
     // NOTE: RemoveDataValidation only has rule_id, no position fields
 }

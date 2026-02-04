@@ -9,7 +9,11 @@
 //! The first two have `ranges: Vec<IRange>` field that needs shift transforms.
 //! The third has a different structure and currently only needs LWW.
 
-use crate::mutations::sheets::{SetWorksheetRowHeightMutation, SetWorksheetRowIsAutoHeightMutation, SetWorksheetRowAutoHeightMutation, InsertRowMutation, RemoveRowMutation};
+use crate::mutations::sheets::{
+    SetWorksheetRowHeightMutation, SetWorksheetRowIsAutoHeightMutation, SetWorksheetRowAutoHeightMutation,
+    InsertRowMutation, RemoveRowMutation,
+    MoveRowsMutation, RemoveSheetMutation,
+};
 use crate::registry::{MutationId, TransformRegistry};
 use crate::utils::generic_params::GenericRangesParams;
 use crate::utils::transform_helpers::lww_transform;
@@ -34,8 +38,12 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     // Shift transforms for SetWorksheetRowHeight (row-only operations)
     registry.register_bidirectional_ref(InsertRowMutation::ID, MUTATION_ID, shared::insert_row_shift::<GenericRangesParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, MUTATION_ID, shared::remove_row_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, MUTATION_ID, shared::move_rows_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, MUTATION_ID, shared::remove_sheet_shift::<GenericRangesParams>());
 
     // Shift transforms for SetWorksheetRowIsAutoHeight (row-only operations)
     registry.register_bidirectional_ref(InsertRowMutation::ID, MUTATION_ID_IS_AUTO_HEIGHT, shared::insert_row_shift::<GenericRangesParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, MUTATION_ID_IS_AUTO_HEIGHT, shared::remove_row_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, MUTATION_ID_IS_AUTO_HEIGHT, shared::move_rows_shift::<GenericRangesParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, MUTATION_ID_IS_AUTO_HEIGHT, shared::remove_sheet_shift::<GenericRangesParams>());
 }

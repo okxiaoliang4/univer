@@ -1,4 +1,7 @@
-use crate::mutations::sheets::{InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation};
+use crate::mutations::sheets::{
+    InsertRowMutation, InsertColMutation, RemoveRowMutation, RemoveColMutation,
+    MoveRowsMutation, MoveColsMutation, MoveRangeMutation, RemoveSheetMutation,
+};
 use crate::mutations::thread_comment::{
     AddCommentMutation, AddCommentMutationParams,
     UpdateCommentMutation, UpdateCommentRefMutation, UpdateCommentRefMutationParams,
@@ -39,12 +42,20 @@ pub fn register_transforms(registry: &mut TransformRegistry) {
     registry.register_bidirectional_ref(InsertColMutation::ID, ADD_COMMENT_ID, shared::insert_col_shift::<AddCommentMutationParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, ADD_COMMENT_ID, shared::remove_row_shift::<AddCommentMutationParams>());
     registry.register_bidirectional_ref(RemoveColMutation::ID, ADD_COMMENT_ID, shared::remove_col_shift::<AddCommentMutationParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, ADD_COMMENT_ID, shared::move_rows_shift::<AddCommentMutationParams>());
+    registry.register_bidirectional_ref(MoveColsMutation::ID, ADD_COMMENT_ID, shared::move_cols_shift::<AddCommentMutationParams>());
+    registry.register_bidirectional_ref(MoveRangeMutation::ID, ADD_COMMENT_ID, shared::move_range_shift::<AddCommentMutationParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, ADD_COMMENT_ID, shared::remove_sheet_shift::<AddCommentMutationParams>());
 
     // Shift transforms for UpdateCommentRef (has payload.ref cell reference)
     registry.register_bidirectional_ref(InsertRowMutation::ID, UPDATE_COMMENT_REF_ID, shared::insert_row_shift::<UpdateCommentRefMutationParams>());
     registry.register_bidirectional_ref(InsertColMutation::ID, UPDATE_COMMENT_REF_ID, shared::insert_col_shift::<UpdateCommentRefMutationParams>());
     registry.register_bidirectional_ref(RemoveRowMutation::ID, UPDATE_COMMENT_REF_ID, shared::remove_row_shift::<UpdateCommentRefMutationParams>());
     registry.register_bidirectional_ref(RemoveColMutation::ID, UPDATE_COMMENT_REF_ID, shared::remove_col_shift::<UpdateCommentRefMutationParams>());
+    registry.register_bidirectional_ref(MoveRowsMutation::ID, UPDATE_COMMENT_REF_ID, shared::move_rows_shift::<UpdateCommentRefMutationParams>());
+    registry.register_bidirectional_ref(MoveColsMutation::ID, UPDATE_COMMENT_REF_ID, shared::move_cols_shift::<UpdateCommentRefMutationParams>());
+    registry.register_bidirectional_ref(MoveRangeMutation::ID, UPDATE_COMMENT_REF_ID, shared::move_range_shift::<UpdateCommentRefMutationParams>());
+    registry.register_bidirectional_ref(RemoveSheetMutation::ID, UPDATE_COMMENT_REF_ID, shared::remove_sheet_shift::<UpdateCommentRefMutationParams>());
 
     // NOTE: UpdateComment, ResolveComment, DeleteComment use IDs, no position fields
 }
