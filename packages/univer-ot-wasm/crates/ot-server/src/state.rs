@@ -44,6 +44,7 @@ impl ServerState {
         writebehind_flush_interval_ms: u64,
         writebehind_worker_count: usize,
         writebehind_ttl_seconds: u64,
+        params_inline_threshold_bytes: usize,
     ) -> Self {
         let db_arc = Arc::new(db);
         let storage_service = Arc::new(
@@ -101,6 +102,7 @@ impl ServerState {
             batch_size: writebehind_batch_size,
             flush_interval_ms: writebehind_flush_interval_ms,
             worker_count: writebehind_worker_count,
+            params_inline_threshold_bytes,
             ..Default::default()
         };
         let writebehind_worker = Arc::new(WriteBehindWorker::new(

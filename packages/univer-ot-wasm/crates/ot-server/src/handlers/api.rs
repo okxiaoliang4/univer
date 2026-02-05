@@ -98,7 +98,6 @@ pub struct OperationResponse {
     pub user_id: String,
     pub mutation_id: String,
     pub params: JsonValue,
-    pub client_id: String,
     pub op_id: String,
     pub created_at: String,
 }
@@ -340,7 +339,6 @@ pub async fn get_operations(
             user_id: op.user_id,
             mutation_id: op.mutation_id,
             params: op.params,
-            client_id: op.client_id,
             op_id: op.op_id,
             created_at: op.created_at.to_rfc3339(),
         })

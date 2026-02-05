@@ -30,6 +30,10 @@ pub struct Config {
     pub writebehind_flush_interval_ms: u64,
     pub writebehind_worker_count: usize,
     pub writebehind_ttl_seconds: u64,
+    // Storage optimization: params smaller than this threshold (in bytes) are stored
+    // directly in the database instead of S3. Default: 2048 (2KB) aligns with
+    // PostgreSQL's TOAST threshold for optimal storage performance.
+    pub params_inline_threshold_bytes: usize,
 }
 
 impl Config {
@@ -109,12 +113,18 @@ impl Config {
                 .unwrap_or_else(|_| "3600".to_string())
                 .parse()
                 .expect("WRITEBEHIND_TTL_SECONDS must be a valid u64"),
+            // Params smaller than threshold stored in DB, larger in S3
+            // Default 2048 bytes (2KB) aligns with PostgreSQL TOAST threshold
+            params_inline_threshold_bytes: env::var("PARAMS_INLINE_THRESHOLD_BYTES")
+                .unwrap_or_else(|_| "2048".to_string())
+                .parse()
+                .expect("PARAMS_INLINE_THRESHOLD_BYTES must be a valid usize"),
         }
     }
 
     pub fn log_summary(&self) {
         info!(
-            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}, writebehind_enabled={}, writebehind_batch_size={}, writebehind_flush_interval_ms={}, writebehind_worker_count={}, writebehind_ttl_seconds={}",
+            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}, writebehind_enabled={}, writebehind_batch_size={}, writebehind_flush_interval_ms={}, writebehind_worker_count={}, writebehind_ttl_seconds={}, params_inline_threshold_bytes={}",
             redact_url(&self.database_url),
             self.server_env,
             self.server_port,
@@ -139,7 +149,8 @@ impl Config {
             self.writebehind_batch_size,
             self.writebehind_flush_interval_ms,
             self.writebehind_worker_count,
-            self.writebehind_ttl_seconds
+            self.writebehind_ttl_seconds,
+            self.params_inline_threshold_bytes
         );
     }
 }

@@ -1,52 +1,57 @@
-//! Params encoding/decoding module - MessagePack binary serialization
+//! Params encoding/decoding module - JSON binary serialization
 //!
 //! This module provides functions for encoding and decoding operation params
-//! using MessagePack (rmp-serde) for efficient binary storage. MessagePack is
-//! chosen over bincode because it supports self-describing types like serde_json::Value.
+//! using JSON for storage. Params are stored as:
+//! - Small params (< threshold): inline in PostgreSQL as BYTEA
+//! - Large params (>= threshold): in S3 as binary files
 //!
-//! It also includes backwards-compatible decoding for legacy JSON-encoded params
-//! during migration.
+//! Compression is handled at the cache layer (via compression.rs with Zstd),
+//! not at the params encoding layer.
 
 use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 
-/// Encode params to MessagePack binary format.
+/// Encode params to JSON binary format.
 ///
-/// This produces a compact binary representation that is typically
-/// 20-40% smaller than JSON and faster to serialize/deserialize.
+/// This produces a UTF-8 encoded JSON representation suitable for
+/// storage in PostgreSQL BYTEA or S3.
 pub fn encode_params(params: &JsonValue) -> Result<Vec<u8>> {
-    rmp_serde::to_vec(params).context("Failed to serialize params with MessagePack")
+    serde_json::to_vec(params).context("Failed to serialize params to JSON")
 }
 
-/// Decode params from MessagePack binary format.
+/// Decode params from JSON binary format.
 pub fn decode_params(data: &[u8]) -> Result<JsonValue> {
-    rmp_serde::from_slice(data).context("Failed to deserialize params from MessagePack")
+    serde_json::from_slice(data).context("Failed to deserialize params from JSON")
 }
 
-/// Backwards-compatible decode that supports both legacy JSON and new MessagePack formats.
+/// Backwards-compatible decode that supports both legacy formats and new JSON.
+///
+/// This function handles:
+/// 1. Plain JSON (current format)
+/// 2. Legacy MessagePack (for backward compatibility during migration)
 ///
 /// Detection heuristic: If the data starts with a JSON-typical byte ('{', '[', '"', 'n', 't', 'f', or digit),
-/// treat it as legacy JSON text. Otherwise, treat it as MessagePack binary.
+/// treat it as JSON. Otherwise, try to decode as JSON first, then fail gracefully.
 ///
-/// This function should be used during the migration period when the database may
-/// contain both old JSON-encoded params and new MessagePack-encoded params.
+/// This function should be used when reading from the database where old MessagePack
+/// data might still exist.
 pub fn decode_params_compat(data: &[u8]) -> Result<JsonValue> {
     if data.is_empty() {
         return Ok(JsonValue::Null);
     }
 
-    // Detect legacy JSON format by checking first byte
-    // JSON values start with: { [ " n(ull) t(rue) f(alse) or digits (0-9, -)
-    if matches!(
-        data[0],
-        b'{' | b'[' | b'"' | b'n' | b't' | b'f' | b'-' | b'0'..=b'9'
-    ) {
-        let text =
-            std::str::from_utf8(data).context("Invalid UTF-8 in legacy JSON params")?;
-        serde_json::from_str(text).context("Failed to parse legacy JSON params")
-    } else {
-        decode_params(data)
+    // Try JSON first (most common case now)
+    if let Ok(value) = serde_json::from_slice::<JsonValue>(data) {
+        return Ok(value);
     }
+
+    // If JSON fails, it might be legacy MessagePack
+    // For now, return an error since we no longer have MessagePack support
+    // This should only happen for very old data that predates this change
+    Err(anyhow::anyhow!(
+        "Failed to decode params: not valid JSON (first byte: {:02x})",
+        data[0]
+    ))
 }
 
 #[cfg(test)]
@@ -67,83 +72,58 @@ mod tests {
     }
 
     #[test]
-    fn test_msgpack_smaller_than_json() {
-        let params = json!({
-            "unitId": "550e8400-e29b-41d4-a716-446655440000",
-            "subUnitId": "550e8400-e29b-41d4-a716-446655440001",
-            "range": {"startRow": 0, "endRow": 10, "startColumn": 0, "endColumn": 5}
-        });
-        let msgpack_size = encode_params(&params).unwrap().len();
-        let json_size = serde_json::to_string(&params).unwrap().len();
-        assert!(
-            msgpack_size < json_size,
-            "MessagePack size ({}) should be smaller than JSON size ({})",
-            msgpack_size,
-            json_size
-        );
-    }
-
-    #[test]
-    fn test_compat_decode_legacy_json_object() {
+    fn test_compat_decode_json_object() {
         let params = json!({"test": "value", "number": 42});
-        let legacy = serde_json::to_string(&params).unwrap();
-        let decoded = decode_params_compat(legacy.as_bytes()).unwrap();
+        let encoded = serde_json::to_vec(&params).unwrap();
+        let decoded = decode_params_compat(&encoded).unwrap();
         assert_eq!(decoded, params);
     }
 
     #[test]
-    fn test_compat_decode_legacy_json_array() {
+    fn test_compat_decode_json_array() {
         let params = json!([1, 2, 3, "test"]);
-        let legacy = serde_json::to_string(&params).unwrap();
-        let decoded = decode_params_compat(legacy.as_bytes()).unwrap();
+        let encoded = serde_json::to_vec(&params).unwrap();
+        let decoded = decode_params_compat(&encoded).unwrap();
         assert_eq!(decoded, params);
     }
 
     #[test]
-    fn test_compat_decode_legacy_json_string() {
+    fn test_compat_decode_json_string() {
         let params = json!("hello world");
-        let legacy = serde_json::to_string(&params).unwrap();
-        let decoded = decode_params_compat(legacy.as_bytes()).unwrap();
+        let encoded = serde_json::to_vec(&params).unwrap();
+        let decoded = decode_params_compat(&encoded).unwrap();
         assert_eq!(decoded, params);
     }
 
     #[test]
-    fn test_compat_decode_legacy_json_null() {
+    fn test_compat_decode_json_null() {
         let params = json!(null);
-        let legacy = serde_json::to_string(&params).unwrap();
-        let decoded = decode_params_compat(legacy.as_bytes()).unwrap();
+        let encoded = serde_json::to_vec(&params).unwrap();
+        let decoded = decode_params_compat(&encoded).unwrap();
         assert_eq!(decoded, params);
     }
 
     #[test]
-    fn test_compat_decode_legacy_json_bool() {
+    fn test_compat_decode_json_bool() {
         let params_true = json!(true);
-        let legacy_true = serde_json::to_string(&params_true).unwrap();
+        let encoded_true = serde_json::to_vec(&params_true).unwrap();
         assert_eq!(
-            decode_params_compat(legacy_true.as_bytes()).unwrap(),
+            decode_params_compat(&encoded_true).unwrap(),
             params_true
         );
 
         let params_false = json!(false);
-        let legacy_false = serde_json::to_string(&params_false).unwrap();
+        let encoded_false = serde_json::to_vec(&params_false).unwrap();
         assert_eq!(
-            decode_params_compat(legacy_false.as_bytes()).unwrap(),
+            decode_params_compat(&encoded_false).unwrap(),
             params_false
         );
     }
 
     #[test]
-    fn test_compat_decode_legacy_json_number() {
+    fn test_compat_decode_json_number() {
         let params = json!(-123.456);
-        let legacy = serde_json::to_string(&params).unwrap();
-        let decoded = decode_params_compat(legacy.as_bytes()).unwrap();
-        assert_eq!(decoded, params);
-    }
-
-    #[test]
-    fn test_compat_decode_new_msgpack() {
-        let params = json!({"test": "value"});
-        let encoded = encode_params(&params).unwrap();
+        let encoded = serde_json::to_vec(&params).unwrap();
         let decoded = decode_params_compat(&encoded).unwrap();
         assert_eq!(decoded, params);
     }
@@ -180,36 +160,5 @@ mod tests {
         let encoded = encode_params(&params).unwrap();
         let decoded = decode_params(&encoded).unwrap();
         assert_eq!(decoded, params);
-    }
-
-    #[test]
-    fn test_size_comparison_typical_mutation() {
-        // Typical SetRangeValuesMutation params
-        let params = json!({
-            "unitId": "workbook-550e8400-e29b-41d4-a716-446655440000",
-            "subUnitId": "sheet-550e8400-e29b-41d4-a716-446655440001",
-            "cellValue": {
-                "0": {
-                    "0": {"v": "Hello", "s": "default"},
-                    "1": {"v": 123, "t": 2},
-                    "2": {"v": true, "t": 1},
-                    "3": {"v": "=A1+B1", "t": 2}
-                },
-                "1": {
-                    "0": {"v": "World"},
-                    "1": {"v": 456.789},
-                    "2": {"v": false, "t": 1}
-                }
-            }
-        });
-        let msgpack_size = encode_params(&params).unwrap().len();
-        let json_size = serde_json::to_string(&params).unwrap().len();
-
-        // Print sizes for visibility
-        println!("JSON size: {} bytes", json_size);
-        println!("MessagePack size: {} bytes", msgpack_size);
-        println!("Savings: {:.1}%", (1.0 - msgpack_size as f64 / json_size as f64) * 100.0);
-
-        assert!(msgpack_size < json_size);
     }
 }

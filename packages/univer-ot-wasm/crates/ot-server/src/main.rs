@@ -3,7 +3,7 @@ use axum::{
 };
 use migration::{Migrator, MigratorTrait};
 use sea_orm::DatabaseConnection;
-use sea_orm::{ConnectOptions, Database};
+use sea_orm::{ConnectOptions, Database, DbBackend, FromQueryResult, Statement};
 use socketioxide_redis::{RedisAdapter, RedisAdapterConfig, RedisAdapterCtr};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower::ServiceBuilder;
@@ -29,6 +29,79 @@ use config::Config;
 use handlers::{api, socketio};
 use socketioxide::SocketIo;
 use state::ServerState;
+
+/// Recover consistency between operation_logs and documents tables
+///
+/// This handles the case where a crash occurred after COPY to operation_logs
+/// but before documents.current_version was updated. On restart, we scan for
+/// documents where operation_logs.max(rev) > documents.current_version and fix them.
+///
+/// This ensures no data loss on abnormal shutdown - operations already in
+/// operation_logs will have their version properly reflected in the documents table.
+async fn recover_consistency(db: &DatabaseConnection) -> anyhow::Result<usize> {
+    use database::entities::{documents, operation_log};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, QueryOrder, sea_query::Expr};
+
+    info!("Checking consistency between operation_logs and documents...");
+
+    // Query for documents where operation_logs.max(rev) > documents.current_version
+    // This indicates a crash happened after COPY but before version update
+    #[derive(Debug, FromQueryResult)]
+    struct InconsistentDoc {
+        doc_id: Uuid,
+        current_version: i64,
+        actual_max_rev: i64,
+    }
+
+    let inconsistent_docs: Vec<InconsistentDoc> = InconsistentDoc::find_by_statement(
+        Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"
+            SELECT o.doc_id, d.current_version, MAX(o.rev) as actual_max_rev
+            FROM operation_logs o
+            JOIN documents d ON o.doc_id = d.id
+            GROUP BY o.doc_id, d.current_version
+            HAVING MAX(o.rev) > d.current_version
+            "#,
+            [],
+        ),
+    )
+    .all(db)
+    .await?;
+
+    if inconsistent_docs.is_empty() {
+        info!("Consistency check complete. No inconsistencies found.");
+        return Ok(0);
+    }
+
+    let count = inconsistent_docs.len();
+    warn!(
+        "Found {} documents with inconsistent versions. Fixing...",
+        count
+    );
+
+    // Fix each inconsistent document using SeaORM's update_many
+    for doc in &inconsistent_docs {
+        warn!(
+            "Fixing doc {}: current_version={} -> actual_max_rev={}",
+            doc.doc_id, doc.current_version, doc.actual_max_rev
+        );
+
+        // Update documents.current_version to match operation_logs.max(rev)
+        documents::Entity::update_many()
+            .col_expr(documents::Column::CurrentVersion, Expr::value(doc.actual_max_rev))
+            .col_expr(documents::Column::UpdatedAt, Expr::value(chrono::Utc::now()))
+            .filter(documents::Column::Id.eq(doc.doc_id))
+            .exec(db)
+            .await?;
+    }
+
+    info!(
+        "Consistency recovery complete. Fixed {} documents.",
+        count
+    );
+    Ok(count)
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -88,6 +161,7 @@ async fn main() -> anyhow::Result<()> {
         // Increased threshold from 10ms to 50ms to reduce log noise
         // Focus on truly problematic queries (>50ms usually means contention)
         .sqlx_slow_statements_logging_settings(LevelFilter::Warn, Duration::from_millis(50))
+        .sqlx_logging_level(LevelFilter::Debug)
         .idle_timeout(Duration::from_secs(600))
         .max_lifetime(Duration::from_secs(1800));
 
@@ -109,6 +183,23 @@ async fn main() -> anyhow::Result<()> {
         return Err(e.into());
     }
     info!("Database migrations completed successfully");
+
+    // Recover consistency on startup
+    // This fixes documents where operation_logs.max(rev) > documents.current_version
+    // which can happen if a crash occurs after COPY but before version update
+    match recover_consistency(&db).await {
+        Ok(fixed) if fixed > 0 => {
+            info!("Recovered {} documents with inconsistent versions", fixed);
+        }
+        Ok(_) => {
+            info!("No consistency issues found");
+        }
+        Err(e) => {
+            warn!("Consistency recovery failed (continuing anyway): {}", e);
+            // Don't fail startup - the inconsistency will be detected and fixed
+            // when the affected documents are next accessed
+        }
+    }
 
     // Connect to etcd first (needed for auth service discovery)
     info!("Connecting to etcd at {:?}", config.etcd_endpoints);
@@ -143,10 +234,11 @@ async fn main() -> anyhow::Result<()> {
     // Create application state
     info!("Creating server state");
     info!(
-        "Write-behind config: batch_size={}, flush_interval_ms={}, worker_count={}",
+        "Write-behind config: batch_size={}, flush_interval_ms={}, worker_count={}, params_inline_threshold={}",
         config.writebehind_batch_size,
         config.writebehind_flush_interval_ms,
-        config.writebehind_worker_count
+        config.writebehind_worker_count,
+        config.params_inline_threshold_bytes
     );
 
     let state = Arc::new(
@@ -168,6 +260,7 @@ async fn main() -> anyhow::Result<()> {
             config.writebehind_flush_interval_ms,
             config.writebehind_worker_count,
             config.writebehind_ttl_seconds,
+            config.params_inline_threshold_bytes,
         )
         .await,
     );

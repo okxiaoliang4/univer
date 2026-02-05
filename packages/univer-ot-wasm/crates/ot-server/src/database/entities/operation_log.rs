@@ -14,10 +14,15 @@ pub struct Model {
     pub user_id: String,
     #[sea_orm(column_name = "mutation_id")]
     pub mutation_id: String,
+    /// Storage ID for S3-stored params (large operations >= threshold)
+    /// NULL when params are stored inline in the `params` column
     #[sea_orm(column_name = "storage_id")]
-    pub storage_id: Uuid,
-    #[sea_orm(column_name = "client_id")]
-    pub client_id: String,
+    pub storage_id: Option<Uuid>,
+    /// Inline params for small operations (< threshold, typically 2KB)
+    /// NULL when params are stored in S3 (referenced by storage_id)
+    /// MessagePack encoded bytes
+    #[sea_orm(column_name = "params")]
+    pub params: Option<Vec<u8>>,
     #[sea_orm(column_name = "op_id")]
     pub op_id: String,
     #[sea_orm(column_name = "created_at")]

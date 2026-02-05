@@ -108,15 +108,15 @@ impl OTService {
             // Redis TTL is 1 hour - sufficient for all reasonable retry scenarios
             // If Redis misses, treat as new operation - OT transform handles correctness
             let cached_rev = self.cache_service
-                .check_idempotency(doc_id, &changeset.client_id, &first_mutation.op_id)
+                .check_idempotency(doc_id, &first_mutation.op_id)
                 .await
                 .ok()
                 .flatten();
 
             if let Some(rev) = cached_rev {
                 debug!(
-                    "Idempotency cache hit: doc_id={}, client_id={}, op_id={}, rev={}",
-                    doc_id, changeset.client_id, first_mutation.op_id, rev
+                    "Idempotency cache hit: doc_id={}, op_id={}, rev={}",
+                    doc_id, first_mutation.op_id, rev
                 );
                 return self.build_duplicate_response(doc_id, rev, &changeset).await;
             }
@@ -432,7 +432,6 @@ impl OTService {
             .map(|m| m.op_id.clone())
             .collect();
         let user_id = changeset.user_id;
-        let client_id = changeset.client_id;
 
         // Convert to internal format
         let m1_internal: Vec<MutationInfo> = changeset
@@ -485,7 +484,6 @@ impl OTService {
                 user_id: user_id.clone(),
                 mutation_id: m1_prime.id.clone(),
                 params: params_bytes, // Stored directly, uploaded to S3 asynchronously
-                client_id: client_id.clone(),
                 op_id: op_id.clone(),
                 created_at: now.timestamp_millis(),
             });
@@ -603,7 +601,6 @@ impl OTService {
                 user_id: op.user_id,
                 mutation_id: op.mutation_id,
                 params,
-                client_id: op.client_id,
                 op_id: op.op_id,
                 created_at: op.created_at,
             });

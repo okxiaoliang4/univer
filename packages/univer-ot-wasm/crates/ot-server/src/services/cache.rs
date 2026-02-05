@@ -6,11 +6,26 @@
 //!
 //! ## Redis Data Structures
 //!
-//! - `ot:doc:{doc_id}:version` - String containing current version number
-//! - `ot:doc:{doc_id}:ops` - Sorted Set of pending operations (score = rev)
+//! - `ot:doc:{doc_id}:version` - String containing current (logical) version number
+//! - `ot:doc:{doc_id}:db_version` - String containing last persisted DB version (write-behind optimization)
+//! - `ot:doc:{doc_id}:ops` - Sorted Set for operation index (member=opId, score=rev)
+//! - `ot:doc:{doc_id}:ops:data` - Hash for operation data (field=opId, value=Zstd compressed JSON)
 //! - `ot:writebehind:queue` - List of document IDs pending flush
-//! - `ot:writebehind:set` - Set for deduplication of pending docs
 //! - `ot:writebehind:lock:{doc_id}` - Lock to prevent concurrent flushes
+//!
+//! ## Idempotency Design
+//!
+//! Uses opId as natural idempotency key:
+//! - opId is client-generated unique identifier for each operation
+//! - ZADD with same opId automatically overwrites (no duplicates)
+//! - ZSCORE check replaces separate idempotency Hash (simpler, less memory)
+//!
+//! ## Version Concepts
+//!
+//! - `version` (cached_version): The latest logical version including pending ops not yet flushed
+//! - `db_version`: The last version successfully persisted to PostgreSQL
+//!
+//! The difference (cached_version - db_version) represents operations pending flush.
 //!
 //! ## Connection Management
 //!
@@ -30,6 +45,7 @@
 //! Configuration: MAX_RETRIES=3, initial backoff=5ms, max backoff=50ms
 
 use crate::metrics;
+use crate::services::compression::{deserialize_smart, serialize_smart};
 use anyhow::{Context, Result};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -48,8 +64,7 @@ pub struct OperationEntry {
     pub rev: i64,
     pub user_id: String,
     pub mutation_id: String,
-    pub params: Vec<u8>, // MessagePack encoded params - uploaded to S3 by write-behind worker
-    pub client_id: String,
+    pub params: Vec<u8>, // Raw params bytes - uploaded to S3 by write-behind worker if large
     pub op_id: String,
     pub created_at: i64, // Unix timestamp in milliseconds
 }
@@ -61,8 +76,7 @@ pub struct CachedOperationInfo {
     pub rev: i64,
     pub user_id: String,
     pub mutation_id: String,
-    pub params: Vec<u8>, // MessagePack encoded params
-    pub client_id: String,
+    pub params: Vec<u8>, // Raw params bytes
     pub op_id: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -108,7 +122,8 @@ const KEY_PREFIX_VERSION: &str = "ot:doc:";
 const KEY_SUFFIX_VERSION: &str = ":version";
 const KEY_PREFIX_OPS: &str = "ot:doc:";
 const KEY_SUFFIX_OPS: &str = ":ops";
-const KEY_SUFFIX_IDEMPOTENCY: &str = ":idempotency"; // Hash for {client_id}:{op_id} -> rev
+const KEY_SUFFIX_OPS_DATA: &str = ":ops:data"; // Hash for opId -> Zstd compressed JSON data
+const KEY_SUFFIX_DB_VERSION: &str = ":db_version"; // Persisted DB version (for write-behind optimization)
 // Use hash tag {wb} to ensure queue operations work in Redis Cluster
 const KEY_WRITEBEHIND_QUEUE: &str = "ot:{wb}:queue";
 const KEY_PREFIX_LOCK: &str = "ot:writebehind:lock:";
@@ -200,9 +215,14 @@ impl CacheService {
         format!("{}{}{}", KEY_PREFIX_VERSION, doc_id, KEY_SUFFIX_VERSION)
     }
 
-    /// Get the operations key for a document
+    /// Get the operations index key for a document (Sorted Set: member=opId, score=rev)
     fn ops_key(doc_id: Uuid) -> String {
         format!("{}{}{}", KEY_PREFIX_OPS, doc_id, KEY_SUFFIX_OPS)
+    }
+
+    /// Get the operations data key for a document (Hash: field=opId, value=Zstd JSON)
+    fn ops_data_key(doc_id: Uuid) -> String {
+        format!("{}{}{}", KEY_PREFIX_OPS, doc_id, KEY_SUFFIX_OPS_DATA)
     }
 
     /// Get the flush lock key for a document
@@ -215,14 +235,10 @@ impl CacheService {
         format!("{}{}", KEY_PREFIX_PARAMS, storage_id)
     }
 
-    /// Get the idempotency hash key for a document
-    fn idempotency_key(doc_id: Uuid) -> String {
-        format!("{}{}{}", KEY_PREFIX_OPS, doc_id, KEY_SUFFIX_IDEMPOTENCY)
-    }
-
-    /// Get the idempotency field name for a client_id and op_id
-    fn idempotency_field(client_id: &str, op_id: &str) -> String {
-        format!("{}:{}", client_id, op_id)
+    /// Get the DB version key for a document
+    /// This stores the last flushed (persisted) version, separate from cached version
+    fn db_version_key(doc_id: Uuid) -> String {
+        format!("{}{}{}", KEY_PREFIX_VERSION, doc_id, KEY_SUFFIX_DB_VERSION)
     }
 
     /// Execute a Redis operation with retry and timeout
@@ -363,82 +379,98 @@ impl CacheService {
     }
 
     // ========================================================================
-    // Idempotency Cache (fast duplicate detection)
+    // DB Version Management (Write-Behind Optimization)
+    // ========================================================================
+
+    /// Get the persisted DB version from cache
+    ///
+    /// This is the version that has been flushed to PostgreSQL, used by write-behind
+    /// workers to avoid querying the database on every flush cycle.
+    ///
+    /// Returns None if:
+    /// - Key doesn't exist (cold start, needs DB query to initialize)
+    /// - Key expired (rare, uses longer TTL than cached version)
+    pub async fn get_db_version(&self, doc_id: Uuid) -> Result<Option<i64>> {
+        let key = Self::db_version_key(doc_id);
+
+        let version: Option<i64> = self
+            .with_retry("get_db_version", |mut conn| {
+                let key = key.clone();
+                async move { conn.get(&key).await }
+            })
+            .await?;
+
+        debug!(
+            "Cache get_db_version: doc_id={}, version={:?}",
+            doc_id, version
+        );
+        Ok(version)
+    }
+
+    /// Set the persisted DB version in cache
+    ///
+    /// Called after successful flush to PostgreSQL. Uses a longer TTL (24 hours)
+    /// since this represents durable state and only changes on successful flushes.
+    ///
+    /// If this key expires, the write-behind worker will fall back to querying
+    /// the database once and re-caching the result.
+    pub async fn set_db_version(&self, doc_id: Uuid, version: i64) -> Result<()> {
+        let key = Self::db_version_key(doc_id);
+        // Use 24 hour TTL - longer than cached_version since DB version changes less frequently
+        // and represents durable state. Expiry just means one DB query on next flush.
+        let ttl = 86400u64;
+
+        self.with_retry("set_db_version", |mut conn| {
+            let key = key.clone();
+            async move { conn.set_ex::<_, _, ()>(&key, version, ttl).await }
+        })
+        .await?;
+
+        debug!(
+            "Cache set_db_version: doc_id={}, version={}",
+            doc_id, version
+        );
+        Ok(())
+    }
+
+    // ========================================================================
+    // Idempotency Check (using Sorted Set ZSCORE)
     // ========================================================================
 
     /// Check if an operation was already processed (idempotency check)
     /// Returns Some(rev) if the operation exists, None otherwise
+    ///
+    /// Uses ZSCORE on the ops Sorted Set instead of a separate idempotency Hash.
+    /// This is more efficient (one less key) and naturally idempotent.
     ///
     /// This is much faster than DB lookup (~1ms vs 10-200ms), reducing load
     /// on the database connection pool during high-concurrency scenarios.
     pub async fn check_idempotency(
         &self,
         doc_id: Uuid,
-        client_id: &str,
         op_id: &str,
     ) -> Result<Option<i64>> {
-        let key = Self::idempotency_key(doc_id);
-        let field = Self::idempotency_field(client_id, op_id);
+        let ops_key = Self::ops_key(doc_id);
+        let op_id_owned = op_id.to_string();
 
-        let rev: Option<i64> = self.with_retry("check_idempotency", |mut conn| {
-            let key = key.clone();
-            let field = field.clone();
-            async move { conn.hget(&key, &field).await }
+        // ZSCORE returns the score (rev) if member exists, None otherwise
+        let rev: Option<f64> = self.with_retry("check_idempotency", |mut conn| {
+            let key = ops_key.clone();
+            let op_id = op_id_owned.clone();
+            async move { conn.zscore(&key, &op_id).await }
         }).await?;
+
+        let rev = rev.map(|r| r as i64);
 
         if rev.is_some() {
             debug!(
-                "Cache idempotency hit: doc_id={}, client_id={}, op_id={}, rev={:?}",
-                doc_id, client_id, op_id, rev
+                "Cache idempotency hit: doc_id={}, op_id={}, rev={:?}",
+                doc_id, op_id, rev
             );
             metrics::increment_writebehind_cache_hits();
         }
 
         Ok(rev)
-    }
-
-    /// Set idempotency entry for an operation (called after successful processing)
-    /// Uses retry with exponential backoff for high concurrency resilience
-    pub async fn set_idempotency(
-        &self,
-        doc_id: Uuid,
-        client_id: &str,
-        op_id: &str,
-        rev: i64,
-    ) -> Result<()> {
-        let key = Self::idempotency_key(doc_id);
-        let field = Self::idempotency_field(client_id, op_id);
-        let ttl = self.config.ttl_seconds;
-
-        // Use HSET + EXPIRE atomically via Lua script
-        let script = redis::Script::new(
-            r#"
-            redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
-            redis.call('EXPIRE', KEYS[1], ARGV[3])
-            return 1
-            "#,
-        );
-
-        self.with_retry("set_idempotency", |mut conn| {
-            let key = key.clone();
-            let field = field.clone();
-            let script = script.clone();
-            async move {
-                script
-                    .key(&key)
-                    .arg(&field)
-                    .arg(rev)
-                    .arg(ttl)
-                    .invoke_async::<i64>(&mut conn)
-                    .await
-            }
-        }).await?;
-
-        debug!(
-            "Cache set_idempotency: doc_id={}, client_id={}, op_id={}, rev={}",
-            doc_id, client_id, op_id, rev
-        );
-        Ok(())
     }
 
     // ========================================================================
@@ -449,9 +481,13 @@ impl CacheService {
     ///
     /// This atomically:
     /// 1. Updates the version
-    /// 2. Adds all operations to the sorted set
-    /// 3. Populates idempotency hash for fast duplicate detection
+    /// 2. Adds all operations to the Sorted Set (member=opId, score=rev)
+    /// 3. Stores operation data in Hash (field=opId, value=Zstd compressed JSON)
     /// 4. Sets TTL on all keys
+    ///
+    /// The opId-as-member design provides natural idempotency:
+    /// - ZADD with same opId will overwrite (no duplicates)
+    /// - HSET with same opId will overwrite
     ///
     /// Uses retry with exponential backoff for high concurrency resilience
     pub async fn write_ops(
@@ -466,33 +502,32 @@ impl CacheService {
 
         let version_key = Self::version_key(doc_id);
         let ops_key = Self::ops_key(doc_id);
-        let idempotency_key = Self::idempotency_key(doc_id);
+        let ops_data_key = Self::ops_data_key(doc_id);
         let ttl_seconds = self.config.ttl_seconds;
 
-        // Pre-serialize operations to avoid repeated serialization in retry loop
-        // Format: [new_version, ttl, ops_count, rev1, data1, field1, rev2, data2, field2, ...]
+        // Pre-serialize operations with Zstd compression
+        // Format: [new_version, ttl, ops_count, op_id1, rev1, data1, op_id2, rev2, data2, ...]
         let ops_count = ops.len();
-        let mut args: Vec<String> = vec![
-            new_version.to_string(),
-            ttl_seconds.to_string(),
-            ops_count.to_string(),
+        let mut args: Vec<Vec<u8>> = vec![
+            new_version.to_string().into_bytes(),
+            ttl_seconds.to_string().into_bytes(),
+            ops_count.to_string().into_bytes(),
         ];
 
         for op in ops {
-            let serialized =
-                serde_json::to_string(op).context("Failed to serialize operation")?;
-            let idempotency_field = Self::idempotency_field(&op.client_id, &op.op_id);
-            args.push(op.rev.to_string());
-            args.push(serialized);
-            args.push(idempotency_field);
+            // Serialize with smart compression (JSON + Zstd for large data)
+            let serialized = serialize_smart(op).context("Failed to serialize operation")?;
+            args.push(op.op_id.clone().into_bytes()); // opId as member
+            args.push(op.rev.to_string().into_bytes());
+            args.push(serialized); // Zstd compressed JSON
         }
 
-        // Use Lua script for atomicity - updates ops, version, AND idempotency hash
+        // Use Lua script for atomicity - Sorted Set + Hash structure
         let script = redis::Script::new(
             r#"
             local version_key = KEYS[1]
             local ops_key = KEYS[2]
-            local idempotency_key = KEYS[3]
+            local ops_data_key = KEYS[3]
             local new_version = tonumber(ARGV[1])
             local ttl = tonumber(ARGV[2])
             local ops_count = tonumber(ARGV[3])
@@ -500,23 +535,23 @@ impl CacheService {
             -- Set version
             redis.call('SET', version_key, new_version, 'EX', ttl)
 
-            -- Add operations to sorted set and idempotency hash
+            -- Add operations to Sorted Set (opId as member) and Hash (opId -> data)
             for i = 1, ops_count do
                 local base = 3 + (i-1)*3
-                local rev = tonumber(ARGV[base + 1])
-                local data = ARGV[base + 2]
-                local field = ARGV[base + 3]
+                local op_id = ARGV[base + 1]
+                local rev = tonumber(ARGV[base + 2])
+                local data = ARGV[base + 3]
 
-                -- Add to operations sorted set
-                redis.call('ZADD', ops_key, rev, data)
+                -- Sorted Set: opId as member, rev as score (idempotent - ZADD overwrites)
+                redis.call('ZADD', ops_key, rev, op_id)
 
-                -- Add to idempotency hash (client_id:op_id -> rev)
-                redis.call('HSET', idempotency_key, field, rev)
+                -- Hash: opId -> Zstd compressed JSON data
+                redis.call('HSET', ops_data_key, op_id, data)
             end
 
-            -- Set TTL on ops and idempotency keys
+            -- Set TTL on ops index and data keys
             redis.call('EXPIRE', ops_key, ttl)
-            redis.call('EXPIRE', idempotency_key, ttl)
+            redis.call('EXPIRE', ops_data_key, ttl)
 
             return ops_count
             "#,
@@ -525,14 +560,14 @@ impl CacheService {
         let result: i64 = self.with_retry("write_ops", |mut conn| {
             let version_key = version_key.clone();
             let ops_key = ops_key.clone();
-            let idempotency_key = idempotency_key.clone();
+            let ops_data_key = ops_data_key.clone();
             let args = args.clone();
             let script = script.clone();
             async move {
                 script
                     .key(&version_key)
                     .key(&ops_key)
-                    .key(&idempotency_key)
+                    .key(&ops_data_key)
                     .arg(args)
                     .invoke_async(&mut conn)
                     .await
@@ -547,6 +582,12 @@ impl CacheService {
     }
 
     /// Get operations since a specific revision
+    ///
+    /// Uses optimized Lua script to:
+    /// 1. Get opId list from Sorted Set (by score range)
+    /// 2. Batch get data from Hash (HMGET)
+    /// 3. Return in single RTT
+    ///
     /// Uses retry with exponential backoff for high concurrency resilience
     pub async fn get_ops_since(
         &self,
@@ -554,31 +595,62 @@ impl CacheService {
         since_rev: i64,
     ) -> Result<Vec<CachedOperationInfo>> {
         let ops_key = Self::ops_key(doc_id);
-        let min_score = (since_rev + 1) as f64;
+        let ops_data_key = Self::ops_data_key(doc_id);
+        let min_score = since_rev + 1;
 
-        // Get all operations with score > since_rev
-        let ops: Vec<(String, f64)> = self.with_retry("get_ops_since", |mut conn| {
+        // Lua script: ZRANGEBYSCORE + HMGET in single RTT
+        let script = redis::Script::new(
+            r#"
+            local ops_key = KEYS[1]
+            local data_key = KEYS[2]
+            local min_score = ARGV[1]
+
+            -- Get opId list by score range
+            local op_ids = redis.call('ZRANGEBYSCORE', ops_key, min_score, '+inf')
+
+            if #op_ids == 0 then
+                return {}
+            end
+
+            -- Batch get data from Hash
+            local data = redis.call('HMGET', data_key, unpack(op_ids))
+
+            -- Return non-nil data
+            local result = {}
+            for i, d in ipairs(data) do
+                if d then
+                    table.insert(result, d)
+                end
+            end
+            return result
+            "#,
+        );
+
+        let data: Vec<Vec<u8>> = self.with_retry("get_ops_since", |mut conn| {
             let ops_key = ops_key.clone();
+            let ops_data_key = ops_data_key.clone();
+            let script = script.clone();
             async move {
-                conn.zrangebyscore_withscores(
-                    &ops_key,
-                    min_score,
-                    "+inf",
-                ).await
+                script
+                    .key(&ops_key)
+                    .key(&ops_data_key)
+                    .arg(min_score)
+                    .invoke_async(&mut conn)
+                    .await
             }
         }).await?;
 
-        let mut result = Vec::with_capacity(ops.len());
-        for (data, _score) in ops {
+        // Deserialize with Zstd decompression
+        let mut result = Vec::with_capacity(data.len());
+        for bytes in data {
             let entry: OperationEntry =
-                serde_json::from_str(&data).context("Failed to deserialize cached operation")?;
+                deserialize_smart(&bytes).context("Failed to deserialize cached operation")?;
 
             result.push(CachedOperationInfo {
                 rev: entry.rev,
                 user_id: entry.user_id,
                 mutation_id: entry.mutation_id,
                 params: entry.params,
-                client_id: entry.client_id,
                 op_id: entry.op_id,
                 created_at: chrono::DateTime::from_timestamp_millis(entry.created_at)
                     .unwrap_or_else(chrono::Utc::now),
@@ -595,6 +667,12 @@ impl CacheService {
     }
 
     /// Get operations within a revision range for flushing
+    ///
+    /// Uses optimized Lua script to:
+    /// 1. Get opId list from Sorted Set (by score range)
+    /// 2. Batch get data from Hash (HMGET)
+    /// 3. Return in single RTT
+    ///
     /// Uses retry with exponential backoff for high concurrency resilience
     pub async fn get_ops_range(
         &self,
@@ -603,20 +681,57 @@ impl CacheService {
         to_rev: i64,
     ) -> Result<Vec<OperationEntry>> {
         let ops_key = Self::ops_key(doc_id);
-        let min_score = from_rev as f64;
-        let max_score = to_rev as f64;
+        let ops_data_key = Self::ops_data_key(doc_id);
 
-        let ops: Vec<(String, f64)> = self.with_retry("get_ops_range", |mut conn| {
+        // Lua script: ZRANGEBYSCORE + HMGET in single RTT
+        let script = redis::Script::new(
+            r#"
+            local ops_key = KEYS[1]
+            local data_key = KEYS[2]
+            local min_score = ARGV[1]
+            local max_score = ARGV[2]
+
+            -- Get opId list by score range
+            local op_ids = redis.call('ZRANGEBYSCORE', ops_key, min_score, max_score)
+
+            if #op_ids == 0 then
+                return {}
+            end
+
+            -- Batch get data from Hash
+            local data = redis.call('HMGET', data_key, unpack(op_ids))
+
+            -- Return non-nil data
+            local result = {}
+            for i, d in ipairs(data) do
+                if d then
+                    table.insert(result, d)
+                end
+            end
+            return result
+            "#,
+        );
+
+        let data: Vec<Vec<u8>> = self.with_retry("get_ops_range", |mut conn| {
             let ops_key = ops_key.clone();
+            let ops_data_key = ops_data_key.clone();
+            let script = script.clone();
             async move {
-                conn.zrangebyscore_withscores(&ops_key, min_score, max_score).await
+                script
+                    .key(&ops_key)
+                    .key(&ops_data_key)
+                    .arg(from_rev)
+                    .arg(to_rev)
+                    .invoke_async(&mut conn)
+                    .await
             }
         }).await?;
 
-        let mut result = Vec::with_capacity(ops.len());
-        for (data, _score) in ops {
+        // Deserialize with Zstd decompression
+        let mut result = Vec::with_capacity(data.len());
+        for bytes in data {
             let entry: OperationEntry =
-                serde_json::from_str(&data).context("Failed to deserialize cached operation")?;
+                deserialize_smart(&bytes).context("Failed to deserialize cached operation")?;
             result.push(entry);
         }
 
@@ -631,36 +746,70 @@ impl CacheService {
     }
 
     /// Remove operations up to a specific revision (after successful flush)
+    ///
+    /// Atomically removes from both:
+    /// - Sorted Set (index): ZREMRANGEBYSCORE
+    /// - Hash (data): HDEL for each removed opId
+    ///
     /// Uses retry with exponential backoff for high concurrency resilience
     pub async fn remove_ops_up_to(&self, doc_id: Uuid, max_rev: i64) -> Result<usize> {
         let ops_key = Self::ops_key(doc_id);
-        let max_score = max_rev as f64;
+        let ops_data_key = Self::ops_data_key(doc_id);
 
-        // Remove all entries with score <= max_rev
-        let removed: usize = self.with_retry("remove_ops_up_to", |mut conn| {
+        // Lua script: get opIds first, then delete from both Hash and Sorted Set
+        let script = redis::Script::new(
+            r#"
+            local ops_key = KEYS[1]
+            local data_key = KEYS[2]
+            local max_rev = ARGV[1]
+
+            -- Get opIds to be deleted (score <= max_rev)
+            local op_ids = redis.call('ZRANGEBYSCORE', ops_key, '-inf', max_rev)
+
+            if #op_ids > 0 then
+                -- Delete from Hash first
+                redis.call('HDEL', data_key, unpack(op_ids))
+                -- Delete from Sorted Set
+                redis.call('ZREMRANGEBYSCORE', ops_key, '-inf', max_rev)
+            end
+
+            return #op_ids
+            "#,
+        );
+
+        let removed: i64 = self.with_retry("remove_ops_up_to", |mut conn| {
             let ops_key = ops_key.clone();
-            async move { conn.zrembyscore(&ops_key, "-inf", max_score).await }
+            let ops_data_key = ops_data_key.clone();
+            let script = script.clone();
+            async move {
+                script
+                    .key(&ops_key)
+                    .key(&ops_data_key)
+                    .arg(max_rev)
+                    .invoke_async(&mut conn)
+                    .await
+            }
         }).await?;
 
         debug!(
             "Cache remove_ops_up_to: doc_id={}, max_rev={}, removed={}",
             doc_id, max_rev, removed
         );
-        Ok(removed)
+        Ok(removed as usize)
     }
 
     /// Get the minimum revision in the cache for a document
+    /// Uses ZRANGE with WITHSCORES to get the first (lowest score) element
     pub async fn get_min_cached_rev(&self, doc_id: Uuid) -> Result<Option<i64>> {
-        // Get connection from pool
-        let mut conn = self.get_connection();
-
         let ops_key = Self::ops_key(doc_id);
 
-        // Get the first element (lowest score)
-        let result: Vec<(String, f64)> = conn
-            .zrange_withscores(&ops_key, 0, 0)
-            .await
-            .context("Failed to get min revision from cache")?;
+        // Get the first element (lowest score) - returns (opId, score) pairs
+        let result: Vec<(String, f64)> = self.with_retry("get_min_cached_rev", |mut conn| {
+            let ops_key = ops_key.clone();
+            async move {
+                conn.zrange_withscores(&ops_key, 0, 0).await
+            }
+        }).await?;
 
         let min_rev = result.first().map(|(_, score)| *score as i64);
         debug!(
@@ -676,7 +825,7 @@ impl CacheService {
     pub async fn get_max_cached_rev(&self, doc_id: Uuid) -> Result<Option<i64>> {
         let ops_key = Self::ops_key(doc_id);
 
-        // Get the last element (highest score) using ZREVRANGE
+        // Get the last element (highest score) using ZREVRANGE - returns (opId, score) pairs
         let result: Vec<(String, f64)> = self.with_retry("get_max_cached_rev", |mut conn| {
             let ops_key = ops_key.clone();
             async move {
@@ -976,16 +1125,20 @@ impl CacheService {
 
     /// Clear all cache data for a document (for testing or cleanup)
     pub async fn clear_doc_cache(&self, doc_id: Uuid) -> Result<()> {
-        // Get connection from pool
-        let mut conn = self.get_connection();
-
         let version_key = Self::version_key(doc_id);
         let ops_key = Self::ops_key(doc_id);
+        let ops_data_key = Self::ops_data_key(doc_id);
+        let db_version_key = Self::db_version_key(doc_id);
 
-        let _: () = conn
-            .del(&[&version_key, &ops_key])
-            .await
-            .context("Failed to clear document cache")?;
+        self.with_retry("clear_doc_cache", |mut conn| {
+            let keys = vec![
+                version_key.clone(),
+                ops_key.clone(),
+                ops_data_key.clone(),
+                db_version_key.clone(),
+            ];
+            async move { conn.del::<_, ()>(&keys).await }
+        }).await?;
 
         debug!("Cache clear_doc_cache: doc_id={}", doc_id);
         Ok(())
@@ -1005,8 +1158,7 @@ mod tests {
             rev: 42,
             user_id: "user-123".to_string(),
             mutation_id: "sheet.mutation.set-range-values".to_string(),
-            params: vec![1, 2, 3, 4], // MessagePack encoded params
-            client_id: "client-456".to_string(),
+            params: vec![1, 2, 3, 4], // Raw params bytes
             op_id: "op-789".to_string(),
             created_at: 1704067200000,
         };
@@ -1018,6 +1170,45 @@ mod tests {
         assert_eq!(decoded.user_id, entry.user_id);
         assert_eq!(decoded.op_id, entry.op_id);
         assert_eq!(decoded.params, entry.params);
+    }
+
+    #[test]
+    fn test_operation_entry_smart_serialization() {
+        // Test small data (no compression)
+        let small_entry = OperationEntry {
+            rev: 1,
+            user_id: "u".to_string(),
+            mutation_id: "m".to_string(),
+            params: vec![1],
+            op_id: "op-1".to_string(),
+            created_at: 1704067200000,
+        };
+
+        let serialized = serialize_smart(&small_entry).unwrap();
+        // Small data should not be compressed (flag byte = 0)
+        assert_eq!(serialized[0], 0);
+
+        let decoded: OperationEntry = deserialize_smart(&serialized).unwrap();
+        assert_eq!(decoded.rev, small_entry.rev);
+        assert_eq!(decoded.op_id, small_entry.op_id);
+
+        // Test large data (should be compressed)
+        let large_entry = OperationEntry {
+            rev: 42,
+            user_id: "user-123".to_string(),
+            mutation_id: "sheet.mutation.set-range-values".to_string(),
+            params: vec![0; 500], // Large params to trigger compression
+            op_id: "op-789".to_string(),
+            created_at: 1704067200000,
+        };
+
+        let serialized = serialize_smart(&large_entry).unwrap();
+        // Large data should be compressed (flag byte = 1)
+        assert_eq!(serialized[0], 1);
+
+        let decoded: OperationEntry = deserialize_smart(&serialized).unwrap();
+        assert_eq!(decoded.rev, large_entry.rev);
+        assert_eq!(decoded.params.len(), large_entry.params.len());
     }
 
     #[test]
@@ -1041,6 +1232,12 @@ mod tests {
         assert_eq!(
             ops_key,
             "ot:doc:550e8400-e29b-41d4-a716-446655440000:ops"
+        );
+
+        let ops_data_key = CacheService::ops_data_key(doc_id);
+        assert_eq!(
+            ops_data_key,
+            "ot:doc:550e8400-e29b-41d4-a716-446655440000:ops:data"
         );
 
         let lock_key = CacheService::lock_key("550e8400-e29b-41d4-a716-446655440000");

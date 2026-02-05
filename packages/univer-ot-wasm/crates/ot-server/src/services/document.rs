@@ -722,6 +722,11 @@ impl DocumentService {
     /// The `limit` parameter controls the maximum number of operations returned:
     /// - `Some(n)`: Return at most n operations (capped at MAX_OPERATIONS_LIMIT)
     /// - `None`: No limit (used internally for OT transformation which needs all ops)
+    ///
+    /// Params retrieval priority:
+    /// 1. Inline params (stored directly in DB for small operations)
+    /// 2. Redis cache (for recently accessed large operations)
+    /// 3. S3 storage (fallback for large operations)
     pub async fn get_operations(
         &self,
         doc_id: Uuid,
@@ -762,47 +767,77 @@ impl DocumentService {
             warn!("Large operation query: doc_id={}, count={}, limit={:?}", doc_id, count, limit);
         }
 
-        // Collect storage_ids for batch fetch
-        let storage_ids: Vec<Uuid> = operations.iter().map(|op| op.storage_id).collect();
+        // Collect storage_ids for operations that need S3 fetch (no inline params)
+        let storage_ids: Vec<Uuid> = operations
+            .iter()
+            .filter_map(|op| {
+                // Only need storage_id if params are not stored inline
+                if op.params.is_none() {
+                    op.storage_id
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        // Batch fetch params from Redis cache
-        let cached_params = self
-            .cache_service
-            .get_params_cached_batch(&storage_ids)
-            .await
-            .unwrap_or_default();
+        // Batch fetch params from Redis cache for large operations
+        let cached_params = if !storage_ids.is_empty() {
+            self.cache_service
+                .get_params_cached_batch(&storage_ids)
+                .await
+                .unwrap_or_default()
+        } else {
+            std::collections::HashMap::new()
+        };
 
         let mut result = Vec::with_capacity(count);
+        let mut inline_count = 0;
+        let mut cache_hit_count = 0;
+        let mut s3_fetch_count = 0;
 
         for op in operations {
-            // Try Redis cache first
-            let params_bytes = if let Some(bytes) = cached_params.get(&op.storage_id) {
-                bytes.clone()
-            } else {
-                // Cache miss - fetch from S3
-                let bytes = self
-                    .storage_service
-                    .fetch_operation_params(op.storage_id)
-                    .await
-                    .with_context(|| {
-                        format!(
-                            "Failed to fetch params from S3: doc_id={}, rev={}, storage_id={}",
-                            doc_id, op.rev, op.storage_id
-                        )
-                    })?;
+            // Priority 1: Inline params (small operations stored directly in DB)
+            let params_bytes = if let Some(ref inline_params) = op.params {
+                inline_count += 1;
+                inline_params.clone()
+            } else if let Some(storage_id) = op.storage_id {
+                // Priority 2: Redis cache
+                if let Some(bytes) = cached_params.get(&storage_id) {
+                    cache_hit_count += 1;
+                    bytes.clone()
+                } else {
+                    // Priority 3: Fetch from S3
+                    s3_fetch_count += 1;
+                    let bytes = self
+                        .storage_service
+                        .fetch_operation_params(storage_id)
+                        .await
+                        .with_context(|| {
+                            format!(
+                                "Failed to fetch params from S3: doc_id={}, rev={}, storage_id={}",
+                                doc_id, op.rev, storage_id
+                            )
+                        })?;
 
-                // Cache in Redis for future reads
-                if let Err(e) = self.cache_service.cache_params(op.storage_id, &bytes).await {
-                    warn!("Failed to cache params after S3 fetch: {}", e);
+                    // Cache in Redis for future reads
+                    if let Err(e) = self.cache_service.cache_params(storage_id, &bytes).await {
+                        warn!("Failed to cache params after S3 fetch: {}", e);
+                    }
+
+                    bytes
                 }
-
-                bytes
+            } else {
+                // Neither inline params nor storage_id - data integrity issue
+                return Err(anyhow::anyhow!(
+                    "Operation has neither inline params nor storage_id: doc_id={}, rev={}",
+                    doc_id, op.rev
+                ));
             };
 
             // Decode params (try MessagePack first, fall back to JSON for legacy data)
             let params = params_codec::decode_params_compat(&params_bytes).with_context(|| {
                 format!(
-                    "Invalid operation params: doc_id={}, rev={}, storage_id={}",
+                    "Invalid operation params: doc_id={}, rev={}, storage_id={:?}",
                     doc_id, op.rev, op.storage_id
                 )
             })?;
@@ -812,13 +847,15 @@ impl DocumentService {
                 user_id: op.user_id.clone(),
                 mutation_id: op.mutation_id.clone(),
                 params,
-                client_id: op.client_id.clone(),
                 op_id: op.op_id.clone(),
                 created_at: op.created_at.into(),
             });
         }
 
-        info!("Retrieved operations: doc_id={}, count={}", doc_id, count);
+        info!(
+            "Retrieved operations: doc_id={}, count={}, inline={}, cache_hits={}, s3_fetches={}",
+            doc_id, count, inline_count, cache_hit_count, s3_fetch_count
+        );
         Ok(result)
     }
 
@@ -1077,7 +1114,6 @@ impl DocumentService {
                 user_id: op.user_id,
                 mutation_id: op.mutation_id,
                 params,
-                client_id: op.client_id,
                 op_id: op.op_id,
                 created_at: op.created_at,
             });
@@ -1132,34 +1168,45 @@ impl DocumentService {
         let mut count = 0;
 
         while let Some(op) = stream.try_next().await? {
-            // Fetch params from cache or S3
-            let params_bytes = match self.cache_service.get_params_cached(op.storage_id).await {
-                Ok(Some(bytes)) => bytes,
-                _ => {
-                    // Cache miss - fetch from S3
-                    let bytes = self
-                        .storage_service
-                        .fetch_operation_params(op.storage_id)
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "Failed to fetch params during stream: doc_id={}, rev={}, storage_id={}",
-                                doc_id, op.rev, op.storage_id
-                            )
-                        })?;
+            // Priority 1: Inline params (small operations stored directly in DB)
+            let params_bytes = if let Some(ref inline_params) = op.params {
+                inline_params.clone()
+            } else if let Some(storage_id) = op.storage_id {
+                // Priority 2: Redis cache
+                match self.cache_service.get_params_cached(storage_id).await {
+                    Ok(Some(bytes)) => bytes,
+                    _ => {
+                        // Priority 3: Fetch from S3
+                        let bytes = self
+                            .storage_service
+                            .fetch_operation_params(storage_id)
+                            .await
+                            .with_context(|| {
+                                format!(
+                                    "Failed to fetch params during stream: doc_id={}, rev={}, storage_id={}",
+                                    doc_id, op.rev, storage_id
+                                )
+                            })?;
 
-                    // Cache in Redis for future reads
-                    if let Err(e) = self.cache_service.cache_params(op.storage_id, &bytes).await {
-                        warn!("Failed to cache params after S3 fetch: {}", e);
+                        // Cache in Redis for future reads
+                        if let Err(e) = self.cache_service.cache_params(storage_id, &bytes).await {
+                            warn!("Failed to cache params after S3 fetch: {}", e);
+                        }
+
+                        bytes
                     }
-
-                    bytes
                 }
+            } else {
+                // Neither inline params nor storage_id - data integrity issue
+                return Err(anyhow::anyhow!(
+                    "Operation has neither inline params nor storage_id: doc_id={}, rev={}",
+                    doc_id, op.rev
+                ));
             };
 
             let params = params_codec::decode_params_compat(&params_bytes).with_context(|| {
                 format!(
-                    "Invalid operation params during stream: doc_id={}, rev={}, storage_id={}",
+                    "Invalid operation params during stream: doc_id={}, rev={}, storage_id={:?}",
                     doc_id, op.rev, op.storage_id
                 )
             })?;
@@ -1169,7 +1216,6 @@ impl DocumentService {
                 user_id: op.user_id,
                 mutation_id: op.mutation_id,
                 params,
-                client_id: op.client_id,
                 op_id: op.op_id,
                 created_at: op.created_at.into(),
             })
@@ -1189,7 +1235,6 @@ pub struct OperationInfo {
     pub user_id: String,
     pub mutation_id: String,
     pub params: JsonValue,
-    pub client_id: String,
     pub op_id: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }

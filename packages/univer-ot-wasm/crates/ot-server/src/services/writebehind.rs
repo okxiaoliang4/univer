@@ -23,12 +23,13 @@
 use crate::database::entities::{documents, operation_log, storage};
 use crate::metrics;
 use crate::services::cache::CacheService;
+use crate::services::copy_writer::{copy_operations, CopyOperationData};
 use crate::services::storage::StorageService;
 use anyhow::{Context, Result};
 use futures::future::join_all;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
-    TransactionTrait,
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, TransactionTrait,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -36,6 +37,17 @@ use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+
+/// Prepared flush data for batched COPY
+/// Holds all data needed to complete a flush after preparation
+struct PreparedFlushData {
+    doc_id: String,
+    uuid: Uuid,
+    max_rev: i64,
+    cached_version: i64,
+    copy_data: Vec<CopyOperationData>,
+    ops_count: usize,
+}
 
 /// Configuration for write-behind workers
 #[derive(Debug, Clone)]
@@ -46,17 +58,21 @@ pub struct WriteBehindConfig {
     pub lock_ttl_ms: u64,
     pub max_retry_count: u32,
     pub retry_base_delay_ms: u64,
+    /// Params smaller than this threshold (in bytes) are stored directly in the database.
+    /// Larger params are uploaded to S3. Default: 2048 (2KB) aligns with PostgreSQL TOAST.
+    pub params_inline_threshold_bytes: usize,
 }
 
 impl Default for WriteBehindConfig {
     fn default() -> Self {
         Self {
-            batch_size: 50,      // Reduced from 200 to limit transaction size and COMMIT time
-            flush_interval_ms: 50, // Reduced from 100ms for more responsive flushing
-            worker_count: 8,     // Increased from 4 for higher throughput
-            lock_ttl_ms: 3_000,  // Reduced from 10s to 3s to reduce lock contention
-            max_retry_count: 5,  // Increased from 3 for better resilience
-            retry_base_delay_ms: 50, // Reduced from 100ms for faster retries
+            batch_size: 200,       // Increased to accumulate more ops per flush
+            flush_interval_ms: 200, // Increased to allow more ops to accumulate
+            worker_count: 8,       // Keep 8 workers for parallelism
+            lock_ttl_ms: 5_000,    // Increased to allow larger batches
+            max_retry_count: 5,
+            retry_base_delay_ms: 50,
+            params_inline_threshold_bytes: 2048, // 2KB - aligns with PostgreSQL TOAST threshold
         }
     }
 }
@@ -176,6 +192,7 @@ impl WriteBehindWorker {
     ///
     /// Uses non-blocking dequeue to avoid holding Redis connections.
     /// Workers wait for enqueue notifications or periodic timeout.
+    /// Batches multiple documents into a single COPY for efficiency.
     async fn worker_loop(
         worker_id: usize,
         db: Arc<DatabaseConnection>,
@@ -186,8 +203,7 @@ impl WriteBehindWorker {
         shutdown_notify: Arc<Notify>,
     ) {
         // Maximum documents to process in one batch before yielding
-        // Reduced from 10 to 5 to limit memory usage per worker
-        const MAX_BATCH_SIZE: usize = 5;
+        const MAX_BATCH_SIZE: usize = 10;
 
         loop {
             // Check for shutdown
@@ -197,12 +213,11 @@ impl WriteBehindWorker {
             }
 
             // Wait for enqueue notification or periodic timeout (non-blocking)
-            // This avoids blocking Redis connections with BRPOP
             tokio::select! {
                 _ = cache_service.wait_for_enqueue() => {
                     // New document enqueued, try to dequeue
                 }
-                _ = tokio::time::sleep(Duration::from_millis(config.flush_interval_ms.max(50))) => {
+                _ = tokio::time::sleep(Duration::from_millis(config.flush_interval_ms)) => {
                     // Periodic check in case we missed a notification
                 }
                 _ = shutdown_notify.notified() => {
@@ -211,23 +226,43 @@ impl WriteBehindWorker {
                 }
             }
 
-            // Process documents in batch (non-blocking dequeue)
-            let mut processed = 0;
-            while processed < MAX_BATCH_SIZE {
-                // Check shutdown between documents
+            // Collect documents to process in batch
+            // Strategy: dequeue -> try lock -> only process if lock acquired
+            // This prevents multiple workers from processing the same document
+            let mut doc_ids = Vec::with_capacity(MAX_BATCH_SIZE);
+            let mut dequeue_attempts = 0;
+            const MAX_DEQUEUE_ATTEMPTS: usize = MAX_BATCH_SIZE * 2; // Allow some skips due to lock contention
+
+            while doc_ids.len() < MAX_BATCH_SIZE && dequeue_attempts < MAX_DEQUEUE_ATTEMPTS {
                 if shutdown.load(Ordering::SeqCst) {
                     break;
                 }
 
-                // Non-blocking dequeue - immediately releases Redis connection
-                let doc_id = match cache_service.dequeue_doc_nonblocking().await {
-                    Ok(Some(id)) => id,
-                    Ok(None) => {
-                        // Queue empty, wait for next notification
-                        break;
+                dequeue_attempts += 1;
+
+                match cache_service.dequeue_doc_nonblocking().await {
+                    Ok(Some(id)) => {
+                        // Try to acquire lock immediately after dequeue
+                        // If lock fails, another worker is processing - skip this doc
+                        let lock_acquired = cache_service
+                            .acquire_flush_lock(&id, config.lock_ttl_ms)
+                            .await
+                            .unwrap_or(false);
+
+                        if lock_acquired {
+                            doc_ids.push(id);
+                        } else {
+                            // Another worker has the lock, skip this document
+                            // It will be re-enqueued by that worker if needed
+                            debug!(
+                                "Worker {} skipped doc {} - lock held by another worker",
+                                worker_id, id
+                            );
+                            metrics::increment_writebehind_skipped();
+                        }
                     }
+                    Ok(None) => break, // Queue empty
                     Err(e) => {
-                        // Log with rate limiting to avoid spam
                         static LAST_ERROR_LOG: std::sync::atomic::AtomicU64 =
                             std::sync::atomic::AtomicU64::new(0);
                         let now = std::time::SystemTime::now()
@@ -237,51 +272,326 @@ impl WriteBehindWorker {
                         let last = LAST_ERROR_LOG.load(std::sync::atomic::Ordering::Relaxed);
                         if now - last >= 10 {
                             LAST_ERROR_LOG.store(now, std::sync::atomic::Ordering::Relaxed);
-                            warn!(
-                                "Worker {} failed to dequeue (suppressing for 10s): {}",
-                                worker_id, e
-                            );
+                            warn!("Worker {} dequeue error: {}", worker_id, e);
                         }
-                        // Brief pause on error before retry
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         break;
                     }
-                };
+                }
+            }
 
-                // Process the document
-                debug!("Worker {} processing doc {}", worker_id, doc_id);
+            if doc_ids.is_empty() {
+                continue;
+            }
 
-                match Self::flush_document_with_retry(
-                    &db,
-                    &cache_service,
-                    &storage_service,
-                    &config,
-                    &doc_id,
-                )
-                .await
-                {
-                    Ok(count) => {
-                        debug!(
-                            "Worker {} flushed {} operations for doc {}",
-                            worker_id, count, doc_id
-                        );
-                        metrics::increment_writebehind_ops_flushed_by(count as u64);
+            info!("Worker {} processing {} documents in batch (locked): {:?}", worker_id, doc_ids.len(), doc_ids);
+
+            // Prepare all documents (upload to S3, insert storage records)
+            let mut prepared_data: Vec<PreparedFlushData> = Vec::with_capacity(doc_ids.len());
+            let mut failed_docs: Vec<String> = Vec::new();
+
+            for doc_id in &doc_ids {
+                match Self::prepare_flush(&db, &cache_service, &storage_service, &config, doc_id).await {
+                    Ok(Some(data)) => prepared_data.push(data),
+                    Ok(None) => {
+                        // No operations to flush for this doc
+                        debug!("Worker {} no ops to flush for doc {}", worker_id, doc_id);
                     }
                     Err(e) => {
-                        error!(
-                            "Worker {} failed to flush doc {} after retries: {}",
-                            worker_id, doc_id, e
-                        );
-                        // Re-enqueue for another attempt
-                        if let Err(e) = cache_service.enqueue_doc(&doc_id).await {
-                            error!("Failed to re-enqueue doc {}: {}", doc_id, e);
+                        warn!("Worker {} prepare failed for doc {}: {}", worker_id, doc_id, e);
+                        failed_docs.push(doc_id.clone());
+                    }
+                }
+            }
+
+            // Release locks and re-enqueue failed documents
+            for doc_id in failed_docs {
+                // Release the lock we acquired during dequeue
+                let _ = cache_service.release_flush_lock(&doc_id).await;
+                if let Err(e) = cache_service.enqueue_doc(&doc_id).await {
+                    error!("Failed to re-enqueue doc {}: {}", doc_id, e);
+                }
+            }
+
+            if prepared_data.is_empty() {
+                continue;
+            }
+
+            // Batch COPY all prepared operations
+            let total_ops: usize = prepared_data.iter().map(|d| d.ops_count).sum();
+            let all_copy_data: Vec<CopyOperationData> = prepared_data
+                .iter()
+                .flat_map(|d| d.copy_data.clone())
+                .collect();
+
+            let copy_start = Instant::now();
+            match copy_operations(&db, &all_copy_data).await {
+                Ok(rows) => {
+                    debug!(
+                        "Worker {} COPY inserted {} rows for {} docs in {:?}",
+                        worker_id, rows, prepared_data.len(), copy_start.elapsed()
+                    );
+
+                    // Update versions and cleanup for all successful documents
+                    for data in &prepared_data {
+                        // Update document version
+                        if let Err(e) = documents::Entity::update_many()
+                            .col_expr(documents::Column::CurrentVersion, Expr::value(data.max_rev))
+                            .col_expr(documents::Column::UpdatedAt, Expr::value(chrono::Utc::now()))
+                            .filter(documents::Column::Id.eq(data.uuid))
+                            // .filter(documents::Column::CurrentVersion.lt(data.max_rev))
+                            .exec(db.as_ref())
+                            .await
+                        {
+                            error!("Failed to update version for doc {}: {}", data.doc_id, e);
+                        }
+
+                        // Update db_version cache
+                        if let Err(e) = cache_service.set_db_version(data.uuid, data.max_rev).await {
+                            warn!("Failed to update db_version cache for doc {}: {}", data.doc_id, e);
+                        }
+
+                        // Remove flushed operations from cache
+                        if let Err(e) = cache_service.remove_ops_up_to(data.uuid, data.max_rev).await {
+                            warn!("Failed to remove flushed ops for doc {}: {}", data.doc_id, e);
+                        }
+
+                        // Release flush lock after successful COPY
+                        let _ = cache_service.release_flush_lock(&data.doc_id).await;
+
+                        // Re-enqueue if more operations pending
+                        if data.max_rev < data.cached_version {
+                            let _ = cache_service.enqueue_doc(&data.doc_id).await;
+                        }
+                    }
+
+                    metrics::increment_writebehind_ops_flushed_by(total_ops as u64);
+                }
+                Err(e) => {
+                    let error_str = format!("{:?}", e);
+                    let is_duplicate_key = error_str.contains("duplicate key")
+                        || error_str.contains("23505");
+
+                    if is_duplicate_key {
+                        // Duplicate key error - db_version cache is stale
+                        // Query actual max rev from operation_logs (not documents.current_version)
+                        // because operation_logs may have partial data from a previous crash
+                        warn!("Worker {} COPY duplicate key error, syncing from operation_logs max rev", worker_id);
+
+                        for data in &prepared_data {
+                            // Query actual max rev from operation_logs table
+                            let actual_max_rev = operation_log::Entity::find()
+                                .filter(operation_log::Column::DocId.eq(data.uuid))
+                                .select_only()
+                                .column(operation_log::Column::Rev)
+                                .order_by_desc(operation_log::Column::Rev)
+                                .into_tuple::<i64>()
+                                .one(db.as_ref())
+                                .await
+                                .ok()
+                                .flatten()
+                                .unwrap_or(0);
+
+                            if actual_max_rev > 0 {
+                                // Update cache with actual max rev from operation_logs
+                                let _ = cache_service.set_db_version(data.uuid, actual_max_rev).await;
+                                // Remove already-flushed ops from Redis cache
+                                let _ = cache_service.remove_ops_up_to(data.uuid, actual_max_rev).await;
+                                debug!(
+                                    "Synced db_version for doc {} from operation_logs: max_rev={}",
+                                    data.doc_id, actual_max_rev
+                                );
+
+                                // Also update documents.current_version to match operation_logs
+                                let _ = documents::Entity::update_many()
+                                    .col_expr(documents::Column::CurrentVersion, Expr::value(actual_max_rev))
+                                    .filter(documents::Column::Id.eq(data.uuid))
+                                    .filter(documents::Column::CurrentVersion.lt(actual_max_rev))
+                                    .exec(db.as_ref())
+                                    .await;
+                            }
+
+                            // Release lock and re-enqueue for retry with corrected version
+                            let _ = cache_service.release_flush_lock(&data.doc_id).await;
+                            let _ = cache_service.enqueue_doc(&data.doc_id).await;
+                        }
+                    } else {
+                        error!("Worker {} batch COPY failed: {}, re-enqueueing {} docs",
+                               worker_id, e, prepared_data.len());
+                        // Release locks and re-enqueue all documents for retry
+                        for data in &prepared_data {
+                            let _ = cache_service.release_flush_lock(&data.doc_id).await;
+                            if let Err(e) = cache_service.enqueue_doc(&data.doc_id).await {
+                                error!("Failed to re-enqueue doc {}: {}", data.doc_id, e);
+                            }
                         }
                     }
                 }
-
-                processed += 1;
             }
         }
+    }
+
+    /// Prepare flush data for a document (upload S3, insert storage records)
+    /// Returns PreparedFlushData ready for batched COPY, or None if no ops to flush
+    ///
+    /// IMPORTANT: Caller must have already acquired the flush lock for this document.
+    /// The lock is acquired in worker_loop immediately after dequeue to prevent
+    /// multiple workers from processing the same document.
+    async fn prepare_flush(
+        db: &DatabaseConnection,
+        cache_service: &CacheService,
+        storage_service: &StorageService,
+        config: &WriteBehindConfig,
+        doc_id: &str,
+    ) -> Result<Option<PreparedFlushData>> {
+        let uuid = Uuid::parse_str(doc_id).context("Invalid document ID")?;
+
+        // NOTE: Lock is already acquired by worker_loop after dequeue
+        // No need to acquire lock here - we already have exclusive access
+
+        // Get current DB version
+        let db_version = match cache_service.get_db_version(uuid).await {
+            Ok(Some(v)) => {
+                metrics::increment_db_version_cache_hits();
+                v
+            }
+            Ok(None) | Err(_) => {
+                metrics::increment_db_version_cache_misses();
+                let v = documents::Entity::find_by_id(uuid)
+                    .select_only()
+                    .column(documents::Column::CurrentVersion)
+                    .into_tuple::<i64>()
+                    .one(db)
+                    .await?
+                    .context("Document not found")?;
+                let _ = cache_service.set_db_version(uuid, v).await;
+                v
+            }
+        };
+
+        let cached_version = cache_service.get_version(uuid).await?.unwrap_or(db_version);
+
+        if cached_version <= db_version {
+            info!(
+                "Skipping flush for doc {} - cached_version ({}) <= db_version ({})",
+                doc_id, cached_version, db_version
+            );
+            metrics::increment_writebehind_skipped();
+            // Release lock since we're not going to flush
+            // Lock was acquired in worker_loop after dequeue
+            let _ = cache_service.release_flush_lock(doc_id).await;
+            return Ok(None);
+        }
+
+        // Get operations in batches
+        let from_rev = db_version + 1;
+        let to_rev = (from_rev + config.batch_size as i64 - 1).min(cached_version);
+        let ops = cache_service.get_ops_range(uuid, from_rev, to_rev).await?;
+
+        if ops.is_empty() {
+            info!(
+                "No cached operations found for doc {} in range [{}, {}], cached_version={}, db_version={}",
+                doc_id, from_rev, to_rev, cached_version, db_version
+            );
+            metrics::increment_writebehind_skipped();
+            // Release lock since we're not going to flush
+            let _ = cache_service.release_flush_lock(doc_id).await;
+            return Ok(None);
+        }
+
+        let ops_count = ops.len();
+        let threshold = config.params_inline_threshold_bytes;
+
+        // Partition by size
+        let (small_ops, large_ops): (Vec<_>, Vec<_>) = ops
+            .iter()
+            .partition(|op| op.params.len() < threshold);
+
+        // Upload large params to S3
+        let mut uploaded_params = Vec::with_capacity(large_ops.len());
+        for chunk in large_ops.chunks(10) {
+            let upload_futures: Vec<_> = chunk
+                .iter()
+                .map(|op| storage_service.upload_operation_params_to_s3(uuid, op.rev, &op.params))
+                .collect();
+
+            let chunk_results = join_all(upload_futures).await;
+            for (i, result) in chunk_results.into_iter().enumerate() {
+                match result {
+                    Ok(uploaded) => uploaded_params.push(uploaded),
+                    Err(e) => {
+                        // Release lock on S3 upload failure
+                        let _ = cache_service.release_flush_lock(doc_id).await;
+                        return Err(e.context(format!("S3 upload failed for rev {}", chunk[i].rev)));
+                    }
+                }
+            }
+        }
+
+        // Insert storage records in transaction
+        if !uploaded_params.is_empty() {
+            let txn = db.begin().await?;
+            let storage_records: Vec<storage::ActiveModel> = uploaded_params
+                .iter()
+                .map(|u| u.storage_record.clone())
+                .collect();
+
+            for chunk in storage_records.chunks(25) {
+                if !chunk.is_empty() {
+                    storage::Entity::insert_many(chunk.to_vec())
+                        .exec(&txn)
+                        .await
+                        .context("Failed to insert storage records")?;
+                }
+            }
+            txn.commit().await?;
+        }
+
+        // Build COPY data
+        // Note: With opId-as-member Redis structure, duplicates are no longer possible
+        // Each opId maps to exactly one entry in the Sorted Set
+        let rev_to_storage_id: std::collections::HashMap<i64, Uuid> = uploaded_params
+            .iter()
+            .map(|u| (u.rev, u.storage_id))
+            .collect();
+
+        let mut copy_data = Vec::with_capacity(ops_count);
+        let mut max_rev = from_rev - 1;
+
+        for op in &ops {
+            max_rev = max_rev.max(op.rev);
+            let is_small = op.params.len() < threshold;
+            let storage_id = if is_small {
+                None
+            } else {
+                Some(*rev_to_storage_id.get(&op.rev).context("Missing storage_id")?)
+            };
+
+            copy_data.push(CopyOperationData {
+                doc_id: uuid,
+                rev: op.rev,
+                user_id: op.user_id.clone(),
+                mutation_id: op.mutation_id.clone(),
+                storage_id,
+                params: if is_small { Some(op.params.clone()) } else { None },
+                op_id: op.op_id.clone(),
+                created_at: chrono::DateTime::from_timestamp_millis(op.created_at)
+                    .unwrap_or_else(chrono::Utc::now),
+            });
+        }
+
+        // NOTE: Lock is NOT released here - it will be released after COPY succeeds
+        // This prevents race conditions where another worker picks up the same doc
+        // before COPY completes
+
+        Ok(Some(PreparedFlushData {
+            doc_id: doc_id.to_string(),
+            uuid,
+            max_rev,
+            cached_version,
+            copy_data,
+            ops_count,
+        }))
     }
 
     /// Flush a document with retries
@@ -351,12 +661,15 @@ impl WriteBehindWorker {
 
     /// Internal flush implementation
     ///
-    /// Optimized batch flow:
+    /// Optimized batch flow with inline params support:
     /// 1. Get ops from cache (with params)
-    /// 2. Batch upload params to S3 (concurrent)
-    /// 3. Batch insert storage records
-    /// 4. Batch insert operation_log records with storage_ids
-    /// 5. Update document version
+    /// 2. Partition ops by size: small (< threshold) vs large (>= threshold)
+    /// 3. Upload large ops params to S3 (concurrent)
+    /// 4. Batch insert storage records for large ops
+    /// 5. Batch insert operation_log records:
+    ///    - Small ops: params stored inline, storage_id = NULL
+    ///    - Large ops: params = NULL, storage_id references S3
+    /// 6. Update document version
     /// All DB operations in a single transaction for atomicity
     async fn flush_document_impl(
         db: &DatabaseConnection,
@@ -368,14 +681,67 @@ impl WriteBehindWorker {
         let start = Instant::now();
         let uuid = Uuid::parse_str(doc_id).context("Invalid document ID")?;
 
-        // Get current DB version
-        let db_version = documents::Entity::find_by_id(uuid)
-            .select_only()
-            .column(documents::Column::CurrentVersion)
-            .into_tuple::<i64>()
-            .one(db)
-            .await?
-            .context("Document not found")?;
+        // Get current DB version - prefer Redis cache to avoid DB query on every flush
+        // This is the key optimization: Redis lookup (~1ms) vs DB query (~50-100ms under load)
+        let db_version = match cache_service.get_db_version(uuid).await {
+            Ok(Some(v)) => {
+                debug!(
+                    "Cache hit for db_version: doc_id={}, version={}",
+                    doc_id, v
+                );
+                metrics::increment_db_version_cache_hits();
+                v
+            }
+            Ok(None) => {
+                // Cache miss (cold start or key expired) - query DB and cache the result
+                debug!(
+                    "Cache miss for db_version: doc_id={}, querying DB",
+                    doc_id
+                );
+                metrics::increment_db_version_cache_misses();
+
+                let query_start = Instant::now();
+                let v = documents::Entity::find_by_id(uuid)
+                    .select_only()
+                    .column(documents::Column::CurrentVersion)
+                    .into_tuple::<i64>()
+                    .one(db)
+                    .await?
+                    .context("Document not found")?;
+                metrics::record_db_query_latency(query_start.elapsed().as_secs_f64());
+                metrics::increment_db_queries();
+
+                // Cache the DB version for future flush cycles
+                if let Err(e) = cache_service.set_db_version(uuid, v).await {
+                    warn!(
+                        "Failed to cache db_version for doc {}: {}",
+                        doc_id, e
+                    );
+                    // Continue anyway - caching is optimization, not critical path
+                }
+                v
+            }
+            Err(e) => {
+                // Redis error - fall back to DB query
+                warn!(
+                    "Redis error getting db_version (falling back to DB): doc_id={}, error={}",
+                    doc_id, e
+                );
+                metrics::increment_db_version_cache_misses();
+
+                let query_start = Instant::now();
+                let v = documents::Entity::find_by_id(uuid)
+                    .select_only()
+                    .column(documents::Column::CurrentVersion)
+                    .into_tuple::<i64>()
+                    .one(db)
+                    .await?
+                    .context("Document not found")?;
+                metrics::record_db_query_latency(query_start.elapsed().as_secs_f64());
+                metrics::increment_db_queries();
+                v
+            }
+        };
 
         // Get operations to flush (from db_version + 1)
         // We use the cached version to determine the upper bound
@@ -404,14 +770,29 @@ impl WriteBehindWorker {
         }
 
         let ops_count = ops.len();
+        let threshold = config.params_inline_threshold_bytes;
 
-        // Step 1: Batch upload params to S3 (with concurrency limit)
-        // Process in chunks of 10 to avoid network resource exhaustion
+        // Step 1: Partition operations by params size
+        // Small operations (< threshold): store params inline in DB
+        // Large operations (>= threshold): upload to S3
+        let (small_ops, large_ops): (Vec<_>, Vec<_>) = ops
+            .iter()
+            .partition(|op| op.params.len() < threshold);
+
+        let small_count = small_ops.len();
+        let large_count = large_ops.len();
+
+        debug!(
+            "Partitioned {} ops for doc {}: {} small (inline), {} large (S3), threshold={}",
+            ops_count, doc_id, small_count, large_count, threshold
+        );
+
+        // Step 2: Upload large operation params to S3 (with concurrency limit)
         const S3_UPLOAD_CHUNK_SIZE: usize = 10;
         let s3_start = Instant::now();
 
-        let mut uploaded_params = Vec::with_capacity(ops_count);
-        for chunk in ops.chunks(S3_UPLOAD_CHUNK_SIZE) {
+        let mut uploaded_params = Vec::with_capacity(large_count);
+        for chunk in large_ops.chunks(S3_UPLOAD_CHUNK_SIZE) {
             let upload_futures: Vec<_> = chunk
                 .iter()
                 .map(|op| storage_service.upload_operation_params_to_s3(uuid, op.rev, &op.params))
@@ -419,7 +800,6 @@ impl WriteBehindWorker {
 
             let chunk_results = join_all(upload_futures).await;
 
-            // Process chunk results
             for (i, result) in chunk_results.into_iter().enumerate() {
                 match result {
                     Ok(uploaded) => uploaded_params.push(uploaded),
@@ -433,77 +813,160 @@ impl WriteBehindWorker {
                 }
             }
         }
-        debug!(
-            "S3 uploads completed for doc {}: {} ops in {:?}",
-            doc_id,
-            ops_count,
-            s3_start.elapsed()
-        );
 
-        // Step 2: Begin transaction for all DB operations
+        if large_count > 0 {
+            debug!(
+                "S3 uploads completed for doc {}: {} large ops in {:?}",
+                doc_id,
+                large_count,
+                s3_start.elapsed()
+            );
+        }
+
+        // Step 3: Begin transaction for all DB operations
+        let txn_start = Instant::now();
         let txn = db.begin().await?;
 
-        // Step 3: Batch insert storage records (in smaller chunks to avoid DB limits)
-        // Reduced to 25 to minimize per-INSERT latency and reduce COMMIT time
+        // Step 4: Batch insert storage records for large operations only
         const DB_INSERT_CHUNK_SIZE: usize = 25;
 
-        let storage_records: Vec<storage::ActiveModel> = uploaded_params
-            .iter()
-            .map(|u| u.storage_record.clone())
-            .collect();
+        if !uploaded_params.is_empty() {
+            let storage_records: Vec<storage::ActiveModel> = uploaded_params
+                .iter()
+                .map(|u| u.storage_record.clone())
+                .collect();
 
-        for chunk in storage_records.chunks(DB_INSERT_CHUNK_SIZE) {
-            if !chunk.is_empty() {
-                storage::Entity::insert_many(chunk.to_vec())
-                    .exec(&txn)
-                    .await
-                    .context("Failed to batch insert storage records")?;
+            for chunk in storage_records.chunks(DB_INSERT_CHUNK_SIZE) {
+                if !chunk.is_empty() {
+                    storage::Entity::insert_many(chunk.to_vec())
+                        .exec(&txn)
+                        .await
+                        .context("Failed to batch insert storage records")?;
+                }
             }
         }
 
-        // Step 4: Batch insert operation_log records with storage_ids
-        let mut operations_to_insert = Vec::with_capacity(ops_count);
-        let mut max_rev = from_rev - 1;
-
-        // Create a map of rev -> storage_id for quick lookup
+        // Step 5: Build COPY data for operation_logs
+        // Build a map of rev -> storage_id for large operations
+        // Note: With opId-as-member Redis structure, duplicates are no longer possible
+        // Each opId maps to exactly one entry in the Sorted Set
         let rev_to_storage_id: std::collections::HashMap<i64, Uuid> = uploaded_params
             .iter()
             .map(|u| (u.rev, u.storage_id))
             .collect();
 
-        for op in &ops {
-            let storage_id = rev_to_storage_id
-                .get(&op.rev)
-                .copied()
-                .context(format!("Missing storage_id for rev {}", op.rev))?;
+        let mut copy_data = Vec::with_capacity(ops_count);
+        let mut max_rev = from_rev - 1;
 
-            operations_to_insert.push(operation_log::ActiveModel {
-                doc_id: Set(uuid),
-                rev: Set(op.rev),
-                user_id: Set(op.user_id.clone()),
-                mutation_id: Set(op.mutation_id.clone()),
-                storage_id: Set(storage_id),
-                client_id: Set(op.client_id.clone()),
-                op_id: Set(op.op_id.clone()),
-                created_at: Set(chrono::DateTime::from_timestamp_millis(op.created_at)
-                    .unwrap_or_else(chrono::Utc::now)
-                    .into()),
-                ..Default::default()
-            });
+        for op in &ops {
             max_rev = max_rev.max(op.rev);
+
+            let is_small = op.params.len() < threshold;
+            let storage_id = if is_small {
+                None
+            } else {
+                Some(
+                    *rev_to_storage_id
+                        .get(&op.rev)
+                        .context(format!("Missing storage_id for rev {}", op.rev))?,
+                )
+            };
+
+            copy_data.push(CopyOperationData {
+                doc_id: uuid,
+                rev: op.rev,
+                user_id: op.user_id.clone(),
+                mutation_id: op.mutation_id.clone(),
+                storage_id,
+                params: if is_small {
+                    Some(op.params.clone())
+                } else {
+                    None
+                },
+                op_id: op.op_id.clone(),
+                created_at: chrono::DateTime::from_timestamp_millis(op.created_at)
+                    .unwrap_or_else(chrono::Utc::now),
+            });
         }
 
-        // Insert all operations (in chunks to avoid DB limits)
-        for chunk in operations_to_insert.chunks(DB_INSERT_CHUNK_SIZE) {
-            if !chunk.is_empty() {
-                operation_log::Entity::insert_many(chunk.to_vec())
-                    .exec(&txn)
-                    .await
-                    .context("Failed to insert operations")?;
+        // Commit transaction (storage records only)
+        // Version update moved to AFTER COPY succeeds to ensure atomicity
+        txn.commit().await?;
+
+        // Record transaction duration
+        metrics::record_db_transaction_duration(txn_start.elapsed().as_secs_f64());
+
+        // Step 6: COPY operation_logs (outside transaction for performance)
+        // COPY is 5-10x faster than INSERT for batch operations
+        // If COPY fails, operations are still in Redis cache and will be retried
+        let copy_start = Instant::now();
+        match copy_operations(db, &copy_data).await {
+            Ok(rows) => {
+                debug!(
+                    "COPY inserted {} operation_logs for doc {} in {:?}",
+                    rows, doc_id, copy_start.elapsed()
+                );
+            }
+            Err(e) => {
+                let error_str = format!("{:?}", e);
+                let is_duplicate_key = error_str.contains("duplicate key")
+                    || error_str.contains("23505");
+
+                if is_duplicate_key {
+                    // Duplicate key error - db_version cache is stale
+                    // Query actual max rev from operation_logs (not documents.current_version)
+                    // because operation_logs may have partial data from a previous crash
+                    warn!(
+                        "COPY duplicate key for doc {}, syncing from operation_logs max rev",
+                        doc_id
+                    );
+
+                    // Get actual max rev from operation_logs table
+                    let actual_max_rev = operation_log::Entity::find()
+                        .filter(operation_log::Column::DocId.eq(uuid))
+                        .select_only()
+                        .column(operation_log::Column::Rev)
+                        .order_by_desc(operation_log::Column::Rev)
+                        .into_tuple::<i64>()
+                        .one(db)
+                        .await
+                        .ok()
+                        .flatten()
+                        .unwrap_or(0);
+
+                    if actual_max_rev > 0 {
+                        // Update cache with actual max rev from operation_logs
+                        let _ = cache_service.set_db_version(uuid, actual_max_rev).await;
+                        // Remove already-flushed ops from Redis cache
+                        let _ = cache_service.remove_ops_up_to(uuid, actual_max_rev).await;
+                        debug!(
+                            "Synced db_version for doc {} from operation_logs: max_rev={}",
+                            doc_id, actual_max_rev
+                        );
+
+                        // Also update documents.current_version to match operation_logs
+                        let _ = documents::Entity::update_many()
+                            .col_expr(documents::Column::CurrentVersion, Expr::value(actual_max_rev))
+                            .filter(documents::Column::Id.eq(uuid))
+                            .filter(documents::Column::CurrentVersion.lt(actual_max_rev))
+                            .exec(db)
+                            .await;
+                    }
+                } else {
+                    warn!(
+                        "COPY failed for doc {}: {}, re-enqueueing for retry",
+                        doc_id, e
+                    );
+                }
+
+                let _ = cache_service.enqueue_doc(doc_id).await;
+                return Err(e.context("COPY operation_logs failed"));
             }
         }
 
-        // Step 5: Update document version
+        // Step 7: Update document version AFTER COPY succeeds
+        // This ensures atomicity: if COPY fails, version isn't updated,
+        // and retry will correctly re-fetch and re-insert the same operations
         documents::Entity::update_many()
             .col_expr(documents::Column::CurrentVersion, Expr::value(max_rev))
             .col_expr(
@@ -512,14 +975,22 @@ impl WriteBehindWorker {
             )
             .filter(documents::Column::Id.eq(uuid))
             .filter(documents::Column::CurrentVersion.lt(max_rev))
-            .exec(&txn)
+            .exec(db)
             .await?;
 
-        // Commit transaction (single COMMIT for all DB operations)
-        txn.commit().await?;
+        // Update db_version cache after successful flush
+        // This is critical for avoiding DB queries on subsequent flush cycles
+        if let Err(e) = cache_service.set_db_version(uuid, max_rev).await {
+            warn!(
+                "Failed to update db_version cache after flush for doc {}: {}",
+                doc_id, e
+            );
+            // Not critical - next flush will query DB once and re-cache
+        }
 
-        // Cache params in Redis for fast subsequent reads
-        for (op, uploaded) in ops.iter().zip(uploaded_params.iter()) {
+        // Cache params in Redis for fast subsequent reads (large ops only)
+        // Small ops are stored inline in DB, so we don't need Redis caching
+        for (op, uploaded) in large_ops.iter().zip(uploaded_params.iter()) {
             if let Err(e) = cache_service.cache_params(uploaded.storage_id, &op.params).await {
                 debug!("Failed to cache params after flush: {}", e);
                 // Non-critical - params can be fetched from S3
@@ -538,10 +1009,11 @@ impl WriteBehindWorker {
         // Record metrics
         let elapsed = start.elapsed();
         metrics::record_writebehind_flush_latency(elapsed.as_secs_f64());
+        metrics::increment_writebehind_ops_flushed_by(ops_count as u64);
 
         debug!(
-            "Flushed {} operations for doc {} (revs {}-{}) in {:?}",
-            ops_count, doc_id, from_rev, max_rev, elapsed
+            "Flushed {} operations for doc {} (revs {}-{}) in {:?}: {} inline, {} to S3",
+            ops_count, doc_id, from_rev, max_rev, elapsed, small_count, large_count
         );
 
         // If there are more operations to flush, re-enqueue the document
@@ -587,10 +1059,11 @@ mod tests {
     #[test]
     fn test_config_default() {
         let config = WriteBehindConfig::default();
-        assert_eq!(config.batch_size, 50); // Reduced to limit transaction size and COMMIT time
-        assert_eq!(config.flush_interval_ms, 50);
+        assert_eq!(config.batch_size, 200); // Increased to accumulate more ops per flush
+        assert_eq!(config.flush_interval_ms, 200); // Increased to allow more ops to accumulate
         assert_eq!(config.worker_count, 8);
-        assert_eq!(config.lock_ttl_ms, 3_000);
+        assert_eq!(config.lock_ttl_ms, 5_000); // Increased to allow larger batches
         assert_eq!(config.max_retry_count, 5);
+        assert_eq!(config.params_inline_threshold_bytes, 2048); // 2KB - PostgreSQL TOAST threshold
     }
 }

@@ -177,6 +177,29 @@ static REDIS_RETRIES_TOTAL: OnceLock<IntCounter> = OnceLock::new();
 /// Total number of Redis operation timeouts
 static REDIS_TIMEOUTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
 
+// ============================================================================
+// Database Metrics
+// ============================================================================
+
+/// Histogram of database query latency in seconds
+static DB_QUERY_LATENCY: OnceLock<Histogram> = OnceLock::new();
+/// Total number of database queries executed
+static DB_QUERIES_TOTAL: OnceLock<IntCounter> = OnceLock::new();
+/// Total number of database query errors
+static DB_QUERY_ERRORS: OnceLock<IntCounter> = OnceLock::new();
+/// Current number of active database connections
+static DB_CONNECTIONS_ACTIVE: OnceLock<IntGauge> = OnceLock::new();
+/// Current number of idle database connections in pool
+static DB_CONNECTIONS_IDLE: OnceLock<IntGauge> = OnceLock::new();
+/// Maximum database connections in pool
+static DB_CONNECTIONS_MAX: OnceLock<IntGauge> = OnceLock::new();
+/// DB version cache hits (optimization metric)
+static DB_VERSION_CACHE_HITS: OnceLock<IntCounter> = OnceLock::new();
+/// DB version cache misses (requires DB query)
+static DB_VERSION_CACHE_MISSES: OnceLock<IntCounter> = OnceLock::new();
+/// Histogram of database transaction duration in seconds
+static DB_TRANSACTION_DURATION: OnceLock<Histogram> = OnceLock::new();
+
 /// Initialize OpenTelemetry with Prometheus exporter
 pub fn init_opentelemetry() {
     info!("Initializing OpenTelemetry with Prometheus exporter");
@@ -686,6 +709,93 @@ pub fn init_writebehind_metrics() {
     info!("Write-behind caching metrics initialized");
 }
 
+/// Initialize database metrics
+pub fn init_db_metrics() {
+    // Query latency histogram: buckets from 1ms to 30s
+    let latency_buckets =
+        exponential_buckets(0.001, 2.0, 15).expect("Failed to create DB latency buckets");
+
+    DB_QUERY_LATENCY.get_or_init(|| {
+        register_histogram!(histogram_opts!(
+            "db_query_latency_seconds",
+            "Database query latency in seconds",
+            latency_buckets.clone()
+        ))
+        .expect("Failed to register db_query_latency_seconds")
+    });
+
+    DB_QUERIES_TOTAL.get_or_init(|| {
+        register_int_counter!(opts!(
+            "db_queries_total",
+            "Total number of database queries executed"
+        ))
+        .expect("Failed to register db_queries_total")
+    });
+
+    DB_QUERY_ERRORS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "db_query_errors_total",
+            "Total number of database query errors"
+        ))
+        .expect("Failed to register db_query_errors_total")
+    });
+
+    DB_CONNECTIONS_ACTIVE.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_connections_active",
+            "Current number of active database connections"
+        ))
+        .expect("Failed to register db_connections_active")
+    });
+
+    DB_CONNECTIONS_IDLE.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_connections_idle",
+            "Current number of idle database connections in pool"
+        ))
+        .expect("Failed to register db_connections_idle")
+    });
+
+    DB_CONNECTIONS_MAX.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_connections_max",
+            "Maximum database connections in pool"
+        ))
+        .expect("Failed to register db_connections_max")
+    });
+
+    DB_VERSION_CACHE_HITS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "db_version_cache_hits_total",
+            "Total number of DB version cache hits (avoided DB query)"
+        ))
+        .expect("Failed to register db_version_cache_hits_total")
+    });
+
+    DB_VERSION_CACHE_MISSES.get_or_init(|| {
+        register_int_counter!(opts!(
+            "db_version_cache_misses_total",
+            "Total number of DB version cache misses (required DB query)"
+        ))
+        .expect("Failed to register db_version_cache_misses_total")
+    });
+
+    // Transaction duration histogram: buckets from 1ms to 60s
+    let txn_buckets =
+        exponential_buckets(0.001, 2.0, 16).expect("Failed to create transaction duration buckets");
+
+    DB_TRANSACTION_DURATION.get_or_init(|| {
+        register_histogram!(histogram_opts!(
+            "db_transaction_duration_seconds",
+            "Database transaction duration in seconds",
+            txn_buckets
+        ))
+        .expect("Failed to register db_transaction_duration_seconds")
+    });
+
+    info!("Database metrics initialized");
+}
+
 /// Initialize all OT metrics
 ///
 /// This is a convenience function that initializes all OT-related metrics at once.
@@ -697,6 +807,7 @@ pub fn init_all_ot_metrics() {
     init_ot_session_metrics();
     init_ot_document_metrics();
     init_writebehind_metrics();
+    init_db_metrics();
     info!("All OT metrics initialized");
 }
 
@@ -1113,6 +1224,75 @@ pub fn decrement_online_users() {
 pub fn set_online_users(count: i64) {
     if let Some(gauge) = ONLINE_USERS.get() {
         gauge.set(count);
+    }
+}
+
+// ============================================================================
+// Database Metrics Functions
+// ============================================================================
+
+/// Record database query latency
+pub fn record_db_query_latency(latency_seconds: f64) {
+    if let Some(histogram) = DB_QUERY_LATENCY.get() {
+        histogram.observe(latency_seconds);
+    }
+}
+
+/// Increment the total database queries counter
+pub fn increment_db_queries() {
+    if let Some(counter) = DB_QUERIES_TOTAL.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the database query errors counter
+pub fn increment_db_query_errors() {
+    if let Some(counter) = DB_QUERY_ERRORS.get() {
+        counter.inc();
+    }
+}
+
+/// Set the active database connections count
+pub fn set_db_connections_active(count: i64) {
+    if let Some(gauge) = DB_CONNECTIONS_ACTIVE.get() {
+        gauge.set(count);
+    }
+}
+
+/// Set the idle database connections count
+pub fn set_db_connections_idle(count: i64) {
+    if let Some(gauge) = DB_CONNECTIONS_IDLE.get() {
+        gauge.set(count);
+    }
+}
+
+/// Set the maximum database connections
+pub fn set_db_connections_max(count: i64) {
+    if let Some(gauge) = DB_CONNECTIONS_MAX.get() {
+        gauge.set(count);
+    }
+}
+
+/// Increment the DB version cache hits counter
+/// Called when db_version is found in Redis cache (avoided DB query)
+pub fn increment_db_version_cache_hits() {
+    if let Some(counter) = DB_VERSION_CACHE_HITS.get() {
+        counter.inc();
+    }
+}
+
+/// Increment the DB version cache misses counter
+/// Called when db_version is not in Redis cache (required DB query)
+pub fn increment_db_version_cache_misses() {
+    if let Some(counter) = DB_VERSION_CACHE_MISSES.get() {
+        counter.inc();
+    }
+}
+
+/// Record database transaction duration
+pub fn record_db_transaction_duration(duration_seconds: f64) {
+    if let Some(histogram) = DB_TRANSACTION_DURATION.get() {
+        histogram.observe(duration_seconds);
     }
 }
 

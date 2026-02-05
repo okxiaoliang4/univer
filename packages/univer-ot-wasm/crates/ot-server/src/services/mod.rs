@@ -1,6 +1,8 @@
 pub mod auth;
 pub mod awareness;
 pub mod cache;
+pub mod compression;
+pub mod copy_writer;
 pub mod document;
 pub mod document_actor;
 pub mod etcd;
