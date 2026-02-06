@@ -1,14 +1,16 @@
 use axum::{
-    Router, extract::DefaultBodyLimit, http::Method, routing::{delete, get, post}
+    extract::DefaultBodyLimit,
+    http::Method,
+    routing::{delete, get, post},
+    Router,
 };
 use migration::{Migrator, MigratorTrait};
 use sea_orm::DatabaseConnection;
 use sea_orm::{ConnectOptions, Database, DbBackend, FromQueryResult, Statement};
 use socketioxide_redis::{RedisAdapter, RedisAdapterConfig, RedisAdapterCtr};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::{error, info, warn, log::LevelFilter};
+use tracing::{error, info, log::LevelFilter, warn};
 use uuid::Uuid;
 
 // No feature flags needed - mimalloc is always used in server
@@ -40,7 +42,9 @@ use state::ServerState;
 /// operation_logs will have their version properly reflected in the documents table.
 async fn recover_consistency(db: &DatabaseConnection) -> anyhow::Result<usize> {
     use database::entities::{documents, operation_log};
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, QueryOrder, sea_query::Expr};
+    use sea_orm::{
+        sea_query::Expr, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    };
 
     info!("Checking consistency between operation_logs and documents...");
 
@@ -53,8 +57,8 @@ async fn recover_consistency(db: &DatabaseConnection) -> anyhow::Result<usize> {
         actual_max_rev: i64,
     }
 
-    let inconsistent_docs: Vec<InconsistentDoc> = InconsistentDoc::find_by_statement(
-        Statement::from_sql_and_values(
+    let inconsistent_docs: Vec<InconsistentDoc> =
+        InconsistentDoc::find_by_statement(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"
             SELECT o.doc_id, d.current_version, MAX(o.rev) as actual_max_rev
@@ -64,10 +68,9 @@ async fn recover_consistency(db: &DatabaseConnection) -> anyhow::Result<usize> {
             HAVING MAX(o.rev) > d.current_version
             "#,
             [],
-        ),
-    )
-    .all(db)
-    .await?;
+        ))
+        .all(db)
+        .await?;
 
     if inconsistent_docs.is_empty() {
         info!("Consistency check complete. No inconsistencies found.");
@@ -89,17 +92,20 @@ async fn recover_consistency(db: &DatabaseConnection) -> anyhow::Result<usize> {
 
         // Update documents.current_version to match operation_logs.max(rev)
         documents::Entity::update_many()
-            .col_expr(documents::Column::CurrentVersion, Expr::value(doc.actual_max_rev))
-            .col_expr(documents::Column::UpdatedAt, Expr::value(chrono::Utc::now()))
+            .col_expr(
+                documents::Column::CurrentVersion,
+                Expr::value(doc.actual_max_rev),
+            )
+            .col_expr(
+                documents::Column::UpdatedAt,
+                Expr::value(chrono::Utc::now()),
+            )
             .filter(documents::Column::Id.eq(doc.doc_id))
             .exec(db)
             .await?;
     }
 
-    info!(
-        "Consistency recovery complete. Fixed {} documents.",
-        count
-    );
+    info!("Consistency recovery complete. Fixed {} documents.", count);
     Ok(count)
 }
 
@@ -270,7 +276,10 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting write-behind workers");
     // First, flush any pending operations from previous run (recovery)
     if let Err(e) = state.flush_writebehind().await {
-        warn!("Failed to flush pending write-behind operations on startup: {}", e);
+        warn!(
+            "Failed to flush pending write-behind operations on startup: {}",
+            e
+        );
     }
     let writebehind_handles = state.start_writebehind_workers();
     // Create Socket.IO layer with state
@@ -355,18 +364,12 @@ async fn main() -> anyhow::Result<()> {
             "/api/documents/{doc_id}",
             get(api::get_document).delete(api::delete_document),
         )
-        .route(
-            "/api/documents/{doc_id}/clone",
-            post(api::clone_document),
-        )
+        .route("/api/documents/{doc_id}/clone", post(api::clone_document))
         .route(
             "/api/documents/{doc_id}/restore",
             post(api::restore_document),
         )
-        .route(
-            "/api/documents/{doc_id}/changeset",
-            post(api::broadcast_op),
-        )
+        .route("/api/documents/{doc_id}/changeset", post(api::broadcast_op))
         // Snapshots
         .route(
             "/api/documents/{doc_id}/snapshots",
@@ -388,23 +391,19 @@ async fn main() -> anyhow::Result<()> {
             get(api::get_doc_id_from_storage_id),
         )
         .layer(
-            ServiceBuilder::new()
-                // CORS layer must be before Socket.IO layer to handle /socket.io/ requests
-                .layer(
-                    CorsLayer::new()
-                        .allow_origin(Any)
-                        .allow_methods([
-                            Method::GET,
-                            Method::POST,
-                            Method::PUT,
-                            Method::DELETE,
-                            Method::OPTIONS,
-                        ])
-                        .allow_headers(Any)
-                        .expose_headers([axum::http::header::CONTENT_TYPE]),
-                )
-                .layer(layer),
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers(Any)
+                .expose_headers([axum::http::header::CONTENT_TYPE]),
         )
+        .layer(layer)
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(state.clone());
 
