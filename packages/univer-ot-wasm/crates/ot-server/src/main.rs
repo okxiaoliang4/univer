@@ -6,7 +6,7 @@ use axum::{
 };
 use migration::{Migrator, MigratorTrait};
 use sea_orm::DatabaseConnection;
-use sea_orm::{ConnectOptions, Database, DbBackend, FromQueryResult, Statement};
+use sea_orm::{ConnectOptions, Database};
 use socketioxide_redis::{RedisAdapter, RedisAdapterConfig, RedisAdapterCtr};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower_http::cors::{Any, CorsLayer};
@@ -31,83 +31,6 @@ use config::Config;
 use handlers::{api, socketio};
 use socketioxide::SocketIo;
 use state::ServerState;
-
-/// Recover consistency between operation_logs and documents tables
-///
-/// This handles the case where a crash occurred after COPY to operation_logs
-/// but before documents.current_version was updated. On restart, we scan for
-/// documents where operation_logs.max(rev) > documents.current_version and fix them.
-///
-/// This ensures no data loss on abnormal shutdown - operations already in
-/// operation_logs will have their version properly reflected in the documents table.
-async fn recover_consistency(db: &DatabaseConnection) -> anyhow::Result<usize> {
-    use database::entities::{documents, operation_log};
-    use sea_orm::{
-        sea_query::Expr, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    };
-
-    info!("Checking consistency between operation_logs and documents...");
-
-    // Query for documents where operation_logs.max(rev) > documents.current_version
-    // This indicates a crash happened after COPY but before version update
-    #[derive(Debug, FromQueryResult)]
-    struct InconsistentDoc {
-        doc_id: Uuid,
-        current_version: i64,
-        actual_max_rev: i64,
-    }
-
-    let inconsistent_docs: Vec<InconsistentDoc> =
-        InconsistentDoc::find_by_statement(Statement::from_sql_and_values(
-            DbBackend::Postgres,
-            r#"
-            SELECT o.doc_id, d.current_version, MAX(o.rev) as actual_max_rev
-            FROM operation_logs o
-            JOIN documents d ON o.doc_id = d.id
-            GROUP BY o.doc_id, d.current_version
-            HAVING MAX(o.rev) > d.current_version
-            "#,
-            [],
-        ))
-        .all(db)
-        .await?;
-
-    if inconsistent_docs.is_empty() {
-        info!("Consistency check complete. No inconsistencies found.");
-        return Ok(0);
-    }
-
-    let count = inconsistent_docs.len();
-    warn!(
-        "Found {} documents with inconsistent versions. Fixing...",
-        count
-    );
-
-    // Fix each inconsistent document using SeaORM's update_many
-    for doc in &inconsistent_docs {
-        warn!(
-            "Fixing doc {}: current_version={} -> actual_max_rev={}",
-            doc.doc_id, doc.current_version, doc.actual_max_rev
-        );
-
-        // Update documents.current_version to match operation_logs.max(rev)
-        documents::Entity::update_many()
-            .col_expr(
-                documents::Column::CurrentVersion,
-                Expr::value(doc.actual_max_rev),
-            )
-            .col_expr(
-                documents::Column::UpdatedAt,
-                Expr::value(chrono::Utc::now()),
-            )
-            .filter(documents::Column::Id.eq(doc.doc_id))
-            .exec(db)
-            .await?;
-    }
-
-    info!("Consistency recovery complete. Fixed {} documents.", count);
-    Ok(count)
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -190,22 +113,6 @@ async fn main() -> anyhow::Result<()> {
     }
     info!("Database migrations completed successfully");
 
-    // Recover consistency on startup
-    // This fixes documents where operation_logs.max(rev) > documents.current_version
-    // which can happen if a crash occurs after COPY but before version update
-    match recover_consistency(&db).await {
-        Ok(fixed) if fixed > 0 => {
-            info!("Recovered {} documents with inconsistent versions", fixed);
-        }
-        Ok(_) => {
-            info!("No consistency issues found");
-        }
-        Err(e) => {
-            warn!("Consistency recovery failed (continuing anyway): {}", e);
-            // Don't fail startup - the inconsistency will be detected and fixed
-            // when the affected documents are next accessed
-        }
-    }
 
     // Connect to etcd first (needed for auth service discovery)
     info!("Connecting to etcd at {:?}", config.etcd_endpoints);
@@ -238,13 +145,13 @@ async fn main() -> anyhow::Result<()> {
     info!("Auth service initialized");
 
     // Create application state
+    // Note: WriteBehind worker has been moved to a separate crate (writebehind-worker)
+    // that runs as an independent process. It will receive notifications via Redis Pub/Sub.
     info!("Creating server state");
     info!(
-        "Write-behind config: batch_size={}, flush_interval_ms={}, worker_count={}, params_inline_threshold={}",
-        config.writebehind_batch_size,
-        config.writebehind_flush_interval_ms,
-        config.writebehind_worker_count,
-        config.params_inline_threshold_bytes
+        "Cache config: ttl_seconds={}, batch_size={}",
+        config.writebehind_ttl_seconds,
+        config.writebehind_batch_size
     );
 
     let state = Arc::new(
@@ -262,26 +169,12 @@ async fn main() -> anyhow::Result<()> {
             etcd_service,
             grpc_client,
             auth_service,
-            config.writebehind_batch_size,
-            config.writebehind_flush_interval_ms,
-            config.writebehind_worker_count,
             config.writebehind_ttl_seconds,
-            config.params_inline_threshold_bytes,
+            config.writebehind_batch_size,
         )
         .await,
     );
     info!("Server state created successfully");
-
-    // Start write-behind workers
-    info!("Starting write-behind workers");
-    // First, flush any pending operations from previous run (recovery)
-    if let Err(e) = state.flush_writebehind().await {
-        warn!(
-            "Failed to flush pending write-behind operations on startup: {}",
-            e
-        );
-    }
-    let writebehind_handles = state.start_writebehind_workers();
     // Create Socket.IO layer with state
     let client = redis::Client::open(config.redis_url.clone())?;
 
@@ -447,12 +340,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting HTTP server");
     if let Err(e) = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal(
-            registration,
-            grpc_server,
-            state.clone(),
-            writebehind_handles,
-        ))
+        .with_graceful_shutdown(shutdown_signal(registration, grpc_server))
         .await
     {
         error!("HTTP server error: {}", e);
@@ -467,32 +355,12 @@ async fn main() -> anyhow::Result<()> {
 async fn shutdown_signal(
     registration: services::etcd::EtcdRegistration,
     grpc_server: tokio::task::JoinHandle<anyhow::Result<()>>,
-    state: Arc<ServerState>,
-    writebehind_handles: Vec<tokio::task::JoinHandle<()>>,
 ) {
     info!("Waiting for shutdown signal");
     if let Err(e) = tokio::signal::ctrl_c().await {
         warn!("Failed to wait for shutdown signal: {}", e);
     } else {
         info!("Shutdown signal received");
-    }
-
-    // Shutdown write-behind workers first (to stop accepting new work)
-    if !writebehind_handles.is_empty() {
-        info!("Shutting down write-behind workers");
-        state.shutdown_writebehind();
-
-        // Wait for workers to finish current work (with timeout)
-        for handle in writebehind_handles {
-            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
-        }
-
-        // Flush any remaining pending operations
-        info!("Flushing remaining write-behind operations");
-        match state.flush_writebehind().await {
-            Ok(count) => info!("Flushed {} pending operations", count),
-            Err(e) => warn!("Failed to flush pending operations: {}", e),
-        }
     }
 
     info!("Revoking etcd registration");

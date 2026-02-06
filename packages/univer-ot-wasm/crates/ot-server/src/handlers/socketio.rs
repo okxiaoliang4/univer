@@ -9,13 +9,12 @@ use crate::types::{
 };
 use anyhow::Result;
 use dashmap::DashMap;
-use ot_core::MutationInfoWithOpId;
 use socketioxide::adapter::Adapter;
 use socketioxide::extract::AckSender;
 use socketioxide::extract::{Data, SocketRef, State};
 use std::collections::HashSet;
-use std::sync::OnceLock;
-use std::time::Instant;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -25,6 +24,32 @@ pub struct SocketAuthData {
     pub user_info: AuthUserInfo,
     pub access_token: String,
 }
+
+/// Pre-computed per-socket context for hot-path optimization.
+/// Stored in socket extensions alongside SocketAuthData.
+///
+/// The `doc_cache` holds parsed UUIDs, pre-formatted room strings, and
+/// locally cached permissions — eliminating repeated UUID parsing, string
+/// formatting, and DashMap lookups on every changeset.
+#[derive(Debug, Clone)]
+struct SocketContext {
+    /// Pre-allocated user_id for zero-copy sharing in spawned tasks
+    user_id: Arc<String>,
+    /// Per-document cache: doc_id_str → CachedDocInfo
+    doc_cache: Arc<DashMap<String, CachedDocInfo>>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedDocInfo {
+    uuid: Uuid,
+    room: String,
+    writable: bool,
+    perm_checked_at: Instant,
+}
+
+/// Local permission cache TTL — how long to trust the locally cached
+/// writable flag before re-verifying through auth_service.
+const PERM_CACHE_TTL: Duration = Duration::from_secs(30);
 
 /// Track which sockets are in which document rooms
 /// Key: doc_id, Value: set of socket IDs
@@ -133,7 +158,12 @@ pub async fn on_connect<A: Adapter>(
         }
     };
 
-    // Store auth data in socket extensions for use in event handlers
+    // Store auth data and pre-computed context in socket extensions
+    let user_id = Arc::new(user_info.uid.clone());
+    socket.extensions.insert(SocketContext {
+        user_id,
+        doc_cache: Arc::new(DashMap::new()),
+    });
     socket.extensions.insert(SocketAuthData {
         user_info,
         access_token: token,
@@ -172,18 +202,8 @@ async fn on_join_doc<A: Adapter>(
                 ">>> [join_doc] Success: doc_id={}, version={:?}",
                 req.doc_id, ack_data.version
             );
-            match serde_json::to_value(&ack_data) {
-                Ok(json) => {
-                    info!(">>> [join_doc] Sending ACK: {:?}", json);
-                    if let Err(e) = ack.send(&json) {
-                        error!(">>> [join_doc] Failed to send ACK: {:?}", e);
-                    } else {
-                        info!(">>> [join_doc] ACK sent successfully");
-                    }
-                }
-                Err(e) => {
-                    error!(">>> [join_doc] Failed to serialize ACK: {}", e);
-                }
+            if let Err(e) = ack.send(&ack_data) {
+                error!(">>> [join_doc] Failed to send ACK: {:?}", e);
             }
         }
         Err(e) => {
@@ -194,11 +214,7 @@ async fn on_join_doc<A: Adapter>(
                 content: None,
                 message: Some(e.to_string()),
             };
-            if let Ok(json) = serde_json::to_value(&error_ack) {
-                if let Err(e) = ack.send(&json) {
-                    error!(">>> [join_doc] Failed to send error ACK: {:?}", e);
-                }
-            }
+            let _ = ack.send(&error_ack);
         }
     }
 }
@@ -212,9 +228,7 @@ async fn on_awareness_init<A: Adapter>(
 ) {
     match handle_awareness_init(&socket, &state, req).await {
         Ok(ack_data) => {
-            if let Ok(json) = serde_json::to_value(&ack_data) {
-                let _ = ack.send(&json);
-            }
+            let _ = ack.send(&ack_data);
         }
         Err(e) => {
             error!("Error initializing awareness: {}", e);
@@ -222,9 +236,7 @@ async fn on_awareness_init<A: Adapter>(
                 status: "error".to_string(),
                 states: vec![],
             };
-            if let Ok(json) = serde_json::to_value(&error_ack) {
-                let _ = ack.send(&json);
-            }
+            let _ = ack.send(&error_ack);
         }
     }
 }
@@ -247,9 +259,7 @@ async fn on_changeset<A: Adapter>(
     );
     match handle_changeset(&socket, &state, req).await {
         Ok(ack_data) => {
-            if let Ok(json) = serde_json::to_value(&ack_data) {
-                let _ = ack.send(&json);
-            }
+            let _ = ack.send(&ack_data);
         }
         Err(e) => {
             error!("Error applying changeset: {}", e);
@@ -259,9 +269,7 @@ async fn on_changeset<A: Adapter>(
                 op_ids: None,
                 message: Some(e.to_string()),
             };
-            if let Ok(json) = serde_json::to_value(&error_ack) {
-                let _ = ack.send(&json);
-            }
+            let _ = ack.send(&error_ack);
         }
     }
 }
@@ -284,18 +292,8 @@ async fn on_fetch_ops<A: Adapter>(
                 ">>> [fetch_ops] Success: doc_id={}, ops_count={}",
                 req.doc_id, ops_count
             );
-            match serde_json::to_value(&ack_data) {
-                Ok(json) => {
-                    info!(">>> [fetch_ops] Sending ACK with {} operations", ops_count);
-                    if let Err(e) = ack.send(&json) {
-                        error!(">>> [fetch_ops] Failed to send ACK: {:?}", e);
-                    } else {
-                        info!(">>> [fetch_ops] ACK sent successfully");
-                    }
-                }
-                Err(e) => {
-                    error!(">>> [fetch_ops] Failed to serialize ACK: {}", e);
-                }
+            if let Err(e) = ack.send(&ack_data) {
+                error!(">>> [fetch_ops] Failed to send ACK: {:?}", e);
             }
         }
         Err(e) => {
@@ -305,11 +303,7 @@ async fn on_fetch_ops<A: Adapter>(
                 operations: None,
                 message: Some(e.to_string()),
             };
-            if let Ok(json) = serde_json::to_value(&error_ack) {
-                if let Err(e) = ack.send(&json) {
-                    error!(">>> [fetch_ops] Failed to send error ACK: {:?}", e);
-                }
-            }
+            let _ = ack.send(&error_ack);
         }
     }
 }
@@ -376,8 +370,22 @@ async fn handle_join_doc<A: Adapter>(
         .await?
         .ok_or_else(|| anyhow::anyhow!("Document not found: {}", req.doc_id))?;
 
+    // Cache parsed UUID, room string, and permission for hot-path use
+    let room = format!("doc:{}", req.doc_id);
+    if let Some(ctx) = socket.extensions.get::<SocketContext>() {
+        ctx.doc_cache.insert(
+            req.doc_id.clone(),
+            CachedDocInfo {
+                uuid: doc_id,
+                room: room.clone(),
+                writable: permissions.writable,
+                perm_checked_at: Instant::now(),
+            },
+        );
+    }
+
     // Join the room
-    socket.join(format!("doc:{}", req.doc_id));
+    socket.join(room);
     info!(
         "Socket {} (user {}) joined room {}",
         socket.id, auth_data.user_info.uid, req.doc_id
@@ -404,7 +412,7 @@ async fn handle_join_doc<A: Adapter>(
     Ok(JoinDocAck {
         status: "ok".to_string(),
         version: Some(version),
-        content: None, // Don't return content - client should load from API or use existing local state
+        content: None,
         message: None,
     })
 }
@@ -476,43 +484,86 @@ async fn handle_changeset<A: Adapter>(
         req.mutations.len()
     );
 
-    // Get auth data from socket extensions
-    let auth_data = socket
+    // Get pre-computed socket context (Arc clone, cheap)
+    let ctx = socket
         .extensions
-        .get::<SocketAuthData>()
-        .ok_or_else(|| anyhow::anyhow!("Socket not authenticated"))?;
+        .get::<SocketContext>()
+        .ok_or_else(|| anyhow::anyhow!("Socket not initialized"))?;
 
-    let doc_id =
-        Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
+    // Try local doc cache first: avoids UUID parsing + 2 DashMap lookups in auth_service.
+    //
+    // IMPORTANT: Extract data from the DashMap Ref and drop it BEFORE the match.
+    // DashMap::get() returns a Ref that holds a read lock on the shard. If we
+    // matched directly on get() and the guard failed, the Ref would stay alive
+    // as a match scrutinee temporary, and the subsequent insert() in the fallback
+    // arm would deadlock trying to acquire a write lock on the same shard.
+    let cached_snapshot = ctx.doc_cache.get(&req.doc_id).map(|entry| {
+        (entry.uuid, entry.room.clone(), entry.writable, entry.perm_checked_at)
+    });
+    // Ref is now dropped — no DashMap lock held
 
-    // Check document permissions - must have write permission
-    let permissions = state
-        .auth_service
-        .check_document_permission(
-            &socket.id.to_string(),
-            &auth_data.user_info.uid,
-            &req.doc_id,
-            &auth_data.access_token,
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("Permission check failed: {}", e))?;
+    let (doc_uuid, room) = match cached_snapshot {
+        Some((uuid, room, writable, checked_at)) if checked_at.elapsed() < PERM_CACHE_TTL => {
+            // Cache hit, permission still valid
+            if !writable {
+                return Err(anyhow::anyhow!(
+                    "Permission denied: user {} cannot write to document {}",
+                    ctx.user_id,
+                    req.doc_id
+                ));
+            }
+            (uuid, room)
+        }
+        _ => {
+            // Cache miss or permission TTL expired — re-verify through auth_service
+            let auth_data = socket
+                .extensions
+                .get::<SocketAuthData>()
+                .ok_or_else(|| anyhow::anyhow!("Socket not authenticated"))?;
 
-    if !permissions.writable {
-        return Err(anyhow::anyhow!(
-            "Permission denied: user {} cannot write to document {}",
-            auth_data.user_info.uid,
-            req.doc_id
-        ));
-    }
+            let uuid = Uuid::parse_str(&req.doc_id)
+                .map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
 
-    // Convert ChangesetRequest to Changeset for OTService
-    let mutations: Vec<MutationInfoWithOpId> = req.mutations;
+            let permissions = state
+                .auth_service
+                .check_document_permission(
+                    &socket.id.to_string(),
+                    &auth_data.user_info.uid,
+                    &req.doc_id,
+                    &auth_data.access_token,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Permission check failed: {}", e))?;
 
-    // Use authenticated user_id from token instead of socket.id
+            let room = format!("doc:{}", req.doc_id);
+
+            // Safe to insert — no DashMap Ref is held
+            ctx.doc_cache.insert(
+                req.doc_id.clone(),
+                CachedDocInfo {
+                    uuid,
+                    room: room.clone(),
+                    writable: permissions.writable,
+                    perm_checked_at: Instant::now(),
+                },
+            );
+
+            if !permissions.writable {
+                return Err(anyhow::anyhow!(
+                    "Permission denied: user {} cannot write to document {}",
+                    ctx.user_id,
+                    req.doc_id
+                ));
+            }
+            (uuid, room)
+        }
+    };
+
+    // Build changeset using pre-allocated user_id (Arc deref, no allocation)
     let changeset = Changeset {
         base_rev: req.base_rev,
-        user_id: auth_data.user_info.uid.clone(),
-        mutations,
+        user_id: (*ctx.user_id).clone(),
+        mutations: req.mutations,
         client_id: req
             .client_id
             .clone()
@@ -520,23 +571,17 @@ async fn handle_changeset<A: Adapter>(
     };
 
     // Apply changeset via DocumentActorManager
-    // Within a single instance: requests are serialized via Actor's mpsc channel (no lock contention)
-    // Across instances: OTService's distributed lock ensures cross-instance coordination
-    // This reduces lock contention from N:1 (all requests) to M:1 (one per instance)
     let result = state
         .document_actor_manager
-        .apply_changeset(doc_id, changeset)
+        .apply_changeset(doc_uuid, changeset)
         .await?;
 
     debug!(
-        "Changeset applied successfully: doc_id={}, user_id={}, server_rev={}, mutations_count={}",
-        req.doc_id,
-        auth_data.user_info.uid,
-        result.server_rev,
-        result.mutations.len()
+        "Changeset applied: doc_id={}, server_rev={}, mutations={}",
+        req.doc_id, result.server_rev, result.mutations.len()
     );
 
-    // Prepare ACK response first (before broadcast)
+    // Prepare ACK response
     let ack_response = ChangesetAck {
         status: "ok".to_string(),
         server_rev: Some(result.server_rev),
@@ -545,56 +590,44 @@ async fn handle_changeset<A: Adapter>(
     };
 
     // Broadcast to room asynchronously (fire-and-forget, doesn't block ACK)
-    let room = format!("doc:{}", req.doc_id);
     let pushed = ChangesetPushed {
         doc_id: req.doc_id.clone(),
         server_rev: result.server_rev,
         user_id: result.user_id.clone(),
     };
     let socket_clone = socket.clone();
+    let user_id = ctx.user_id.clone(); // Arc clone, ~10ns
+    let doc_id_str = req.doc_id;
     let grpc_client = state.grpc_client.clone();
-    let user_id = auth_data.user_info.uid.clone();
-    let doc_id_for_notify = req.doc_id.clone();
+    let debouncer = state.notify_debouncer.clone();
+
     tokio::spawn(async move {
+        // Broadcast changeset_pushed to room
         let broadcast_start = Instant::now();
-        match serde_json::to_value(&pushed) {
-            Ok(json) => {
-                match socket_clone
-                    .to(room.clone())
-                    .emit("changeset_pushed", &json)
-                    .await
-                {
-                    Ok(_) => {
-                        metrics::record_broadcast_latency(broadcast_start.elapsed().as_secs_f64());
-                        debug!(
-                            "Broadcasted changeset_pushed to room {}: server_rev={}",
-                            room, pushed.server_rev
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to broadcast changeset_pushed to room {}: {}",
-                            room, e
-                        );
-                    }
-                }
+        match socket_clone
+            .to(room)
+            .emit("changeset_pushed", &pushed)
+            .await
+        {
+            Ok(_) => {
+                metrics::record_broadcast_latency(broadcast_start.elapsed().as_secs_f64());
             }
             Err(e) => {
-                error!(
-                    "Failed to serialize changeset_pushed for room {}: {}",
-                    room, e
-                );
+                error!("Failed to broadcast changeset_pushed: {}", e);
             }
         }
 
-        if let Err(e) = grpc_client
-            .notify_modify_document(&user_id, &doc_id_for_notify)
-            .await
-        {
-            warn!(
-                "Failed to notify document modification: doc_id={}, user_id={}, error={}",
-                doc_id_for_notify, user_id, e
-            );
+        // Rate-limited gRPC notification (at most once per 5s per doc)
+        if debouncer.should_notify(&doc_id_str) {
+            if let Err(e) = grpc_client
+                .notify_modify_document(&user_id, &doc_id_str)
+                .await
+            {
+                warn!(
+                    "Failed to notify document modification: doc_id={}, error={}",
+                    doc_id_str, e
+                );
+            }
         }
     });
 
@@ -602,12 +635,19 @@ async fn handle_changeset<A: Adapter>(
 }
 
 async fn handle_fetch_ops<A: Adapter>(
-    _socket: &SocketRef<A>,
+    socket: &SocketRef<A>,
     state: &AppState,
     req: FetchOpsRequest,
 ) -> Result<FetchOpsAck> {
-    let doc_id =
-        Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))?;
+    // Use cached UUID if available, otherwise parse
+    let doc_id = socket
+        .extensions
+        .get::<SocketContext>()
+        .and_then(|ctx| ctx.doc_cache.get(&req.doc_id).map(|c| c.uuid))
+        .map(Ok)
+        .unwrap_or_else(|| {
+            Uuid::parse_str(&req.doc_id).map_err(|e| anyhow::anyhow!("Invalid doc_id: {}", e))
+        })?;
 
     // Get operations since start_rev
     let ops = state

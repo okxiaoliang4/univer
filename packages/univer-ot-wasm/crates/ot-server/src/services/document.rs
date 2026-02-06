@@ -1,8 +1,8 @@
 use crate::database::entities::{document_snapshot, documents, operation_log};
 use crate::metrics;
-use crate::services::cache::CacheService;
 use crate::services::params_codec;
-use crate::services::storage::{StoredSnapshot, StorageService};
+use ot_common::CacheService;
+use ot_common::storage::{StorageService, StoredSnapshot};
 use anyhow::{Context, Result};
 use futures::TryStreamExt;
 use sea_orm::{
@@ -873,13 +873,11 @@ impl DocumentService {
         // Try cache first
         match self.cache_service.get_version(doc_id).await {
             Ok(Some(v)) => {
-                metrics::increment_writebehind_cache_hits();
                 debug!("Cache hit for version: doc_id={}, version={}", doc_id, v);
                 return Ok(Some(v));
             }
             Ok(None) => {
                 // Cache miss (key expired) - need to reconcile with pending ops
-                metrics::increment_writebehind_cache_misses();
                 debug!("Cache miss for version: doc_id={}", doc_id);
                 // Fall back to database with reconciliation
                 return self.reconcile_version_on_cache_miss(doc_id, true).await;
@@ -888,7 +886,6 @@ impl DocumentService {
                 // Redis error (timeout/connection issue) - skip reconciliation
                 // If get_version failed, get_max_cached_rev will also fail
                 debug!("Cache error getting version: doc_id={}, error={}", doc_id, e);
-                metrics::increment_writebehind_cache_misses();
                 // Fall back directly to DB without reconciliation
                 return self.get_current_version_from_db(doc_id).await;
             }
@@ -1044,7 +1041,6 @@ impl DocumentService {
             Ok(cached_ops) => {
                 if cached_ops.is_empty() {
                     // Nothing in cache - use DB
-                    metrics::increment_writebehind_cache_misses();
                     return self
                         .get_operations(doc_id, since_rev + 1, None, None)
                         .await;
@@ -1078,7 +1074,6 @@ impl DocumentService {
                 }
 
                 // Cache has all the ops we need
-                metrics::increment_writebehind_cache_hits();
                 debug!(
                     "Cache hit for operations: doc_id={}, count={}",
                     doc_id,
@@ -1090,7 +1085,6 @@ impl DocumentService {
             Err(e) => {
                 // Cache error - fall back to DB
                 warn!("Cache error getting operations, falling back to DB: {}", e);
-                metrics::increment_writebehind_cache_misses();
                 self.get_operations(doc_id, since_rev + 1, None, None).await
             }
         }
@@ -1100,7 +1094,7 @@ impl DocumentService {
     /// Cached ops have params directly (they haven't been flushed to S3 yet)
     fn convert_cached_ops_to_operation_info(
         &self,
-        ops: Vec<crate::services::cache::CachedOperationInfo>,
+        ops: Vec<ot_common::CachedOperationInfo>,
     ) -> Result<Vec<OperationInfo>> {
         let mut result = Vec::with_capacity(ops.len());
 

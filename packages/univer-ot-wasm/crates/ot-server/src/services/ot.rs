@@ -1,10 +1,11 @@
 use crate::database::entities::{documents, operation_log};
 use crate::metrics;
-use crate::services::cache::{CacheService, OperationEntry};
 use crate::services::document::DocumentService;
 use crate::services::op_queue::OpQueueService;
 use crate::services::params_codec;
 use anyhow::{Context, Result};
+use ot_common::{CacheService, CachedOperationInfo, OperationEntry, StreamQueueService};
+use ot_common::StorageService;
 use ot_core::{MutationInfo, MutationInfoWithOpId, TransformService};
 use rand::Rng;
 use rslock::LockManager;
@@ -46,8 +47,6 @@ pub struct ChangesetApplied {
     pub user_id: String,
 }
 
-use crate::services::storage::StorageService;
-
 #[derive(Clone)]
 pub struct OTService {
     db: Arc<DatabaseConnection>,
@@ -57,6 +56,7 @@ pub struct OTService {
     lock_manager: Arc<LockManager>,
     cache_service: Arc<CacheService>,
     storage_service: Arc<StorageService>,
+    queue_service: Arc<StreamQueueService>,
 }
 
 impl OTService {
@@ -67,6 +67,7 @@ impl OTService {
         redis_url: &str,
         cache_service: Arc<CacheService>,
         storage_service: Arc<StorageService>,
+        queue_service: Arc<StreamQueueService>,
     ) -> Self {
         Self {
             db,
@@ -76,6 +77,7 @@ impl OTService {
             lock_manager: Arc::new(LockManager::new(vec![redis_url.to_string()])),
             cache_service,
             storage_service,
+            queue_service,
         }
     }
 
@@ -505,8 +507,8 @@ impl OTService {
                 anyhow::anyhow!("Redis cache write failed: {}", e)
             })?;
 
-        // Step 6: Enqueue for background flush
-        if let Err(e) = self.cache_service.enqueue_doc(&doc_id.to_string()).await {
+        // Step 6: Enqueue for background flush via Redis Streams
+        if let Err(e) = self.queue_service.enqueue(&doc_id.to_string()).await {
             warn!("Failed to enqueue doc for flush: {}", e);
             // Not critical - operations are in cache and will be picked up eventually
         }
@@ -587,7 +589,7 @@ impl OTService {
     /// Cached ops have params directly, so just decode them
     fn convert_cached_ops_to_operation_info(
         &self,
-        ops: Vec<crate::services::cache::CachedOperationInfo>,
+        ops: Vec<CachedOperationInfo>,
     ) -> Result<Vec<crate::services::document::OperationInfo>> {
         let mut result = Vec::with_capacity(ops.len());
 

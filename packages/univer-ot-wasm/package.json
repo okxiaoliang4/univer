@@ -56,6 +56,7 @@
         "dev": "wasm-pack build crates/ot-wasm --target bundler --out-dir ../../pkg --dev",
         "start:server": "cargo r -p ot-server",
         "dev:server": "cargo watch -x 'run --release -p ot-server'",
+        "dev:writebehind-worker": "cargo watch -x 'run --release -p writebehind-worker'",
         "clean": "cargo clean && rm -rf pkg pkg-node",
         "lint": "cargo clippy --workspace --all-targets",
         "prepare": "cargo --version && rustc --version"

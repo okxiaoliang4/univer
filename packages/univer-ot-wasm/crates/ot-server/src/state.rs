@@ -1,12 +1,50 @@
 use crate::services::{
     AuthService, AwarenessService, CacheConfig, CacheService, DocumentActorManager,
     DocumentService, EtcdService, GrpcClientService, OTService, OpQueueService, StorageService,
-    WriteBehindConfig, WriteBehindWorker,
+    StreamQueueService,
 };
+use dashmap::DashMap;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 pub type AppState = Arc<ServerState>;
+
+/// Rate limiter for gRPC document modification notifications.
+///
+/// Prevents flooding the notification service during high-frequency editing.
+/// Uses leading-edge rate limiting: first call passes immediately, subsequent
+/// calls within the interval are suppressed.
+#[derive(Clone)]
+pub struct NotifyDebouncer {
+    last_notify: Arc<DashMap<String, Instant>>,
+    interval: Duration,
+}
+
+impl NotifyDebouncer {
+    pub fn new(interval_secs: u64) -> Self {
+        Self {
+            last_notify: Arc::new(DashMap::new()),
+            interval: Duration::from_secs(interval_secs),
+        }
+    }
+
+    /// Returns true if enough time has passed since last notification for this doc.
+    /// Uses DashMap entry API for atomic check-and-update.
+    pub fn should_notify(&self, doc_id: &str) -> bool {
+        let now = Instant::now();
+        let mut entry = self
+            .last_notify
+            .entry(doc_id.to_string())
+            .or_insert(now - self.interval * 2);
+        if now.duration_since(*entry) >= self.interval {
+            *entry = now;
+            true
+        } else {
+            false
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -21,10 +59,16 @@ pub struct ServerState {
     pub op_queue_service: Arc<OpQueueService>,
     pub auth_service: Arc<AuthService>,
     pub cache_service: Arc<CacheService>,
-    pub writebehind_worker: Arc<WriteBehindWorker>,
+    pub queue_service: Arc<StreamQueueService>,
+    pub notify_debouncer: NotifyDebouncer,
 }
 
 impl ServerState {
+    /// Create a new ServerState
+    ///
+    /// Note: WriteBehind worker has been moved to a separate crate (writebehind-worker)
+    /// that runs as an independent process. The StreamQueueService uses Redis Streams
+    /// to notify the external worker when documents need to be flushed.
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         db: DatabaseConnection,
@@ -40,11 +84,8 @@ impl ServerState {
         etcd_service: Arc<EtcdService>,
         grpc_client: Arc<GrpcClientService>,
         auth_service: Arc<AuthService>,
-        writebehind_batch_size: usize,
-        writebehind_flush_interval_ms: u64,
-        writebehind_worker_count: usize,
-        writebehind_ttl_seconds: u64,
-        params_inline_threshold_bytes: usize,
+        cache_ttl_seconds: u64,
+        cache_batch_size: usize,
     ) -> Self {
         let db_arc = Arc::new(db);
         let storage_service = Arc::new(
@@ -72,14 +113,19 @@ impl ServerState {
 
         // Initialize cache service with ConnectionManager for efficient connection reuse
         let cache_config = CacheConfig {
-            ttl_seconds: writebehind_ttl_seconds,
-            batch_size: writebehind_batch_size,
+            ttl_seconds: cache_ttl_seconds,
+            batch_size: cache_batch_size,
         };
         let cache_service = Arc::new(
             CacheService::new(redis_client, cache_config)
                 .await
                 .expect("Failed to initialize CacheService with ConnectionManager"),
         );
+
+        // Initialize StreamQueueService (reuses CacheService connections)
+        let queue_service = Arc::new(StreamQueueService::new(
+            cache_service.connection_managers(),
+        ));
 
         // Initialize services with cache
         let document_service = Arc::new(DocumentService::new(
@@ -95,24 +141,13 @@ impl ServerState {
             &redis_url,
             cache_service.clone(),
             storage_service.clone(),
-        ));
-
-        // Initialize write-behind worker
-        let wb_config = WriteBehindConfig {
-            batch_size: writebehind_batch_size,
-            flush_interval_ms: writebehind_flush_interval_ms,
-            worker_count: writebehind_worker_count,
-            params_inline_threshold_bytes,
-            ..Default::default()
-        };
-        let writebehind_worker = Arc::new(WriteBehindWorker::new(
-            db_arc.clone(),
-            cache_service.clone(),
-            storage_service.clone(),
-            wb_config,
+            queue_service.clone(),
         ));
 
         let document_actor_manager = Arc::new(DocumentActorManager::new(ot_service.clone()));
+
+        // gRPC notification rate limiter: at most one notify per doc per 5 seconds
+        let notify_debouncer = NotifyDebouncer::new(5);
 
         Self {
             db: db_arc,
@@ -126,22 +161,8 @@ impl ServerState {
             op_queue_service,
             auth_service,
             cache_service,
-            writebehind_worker,
+            queue_service,
+            notify_debouncer,
         }
-    }
-
-    /// Start write-behind workers (call after state is created)
-    pub fn start_writebehind_workers(&self) -> Vec<tokio::task::JoinHandle<()>> {
-        self.writebehind_worker.start()
-    }
-
-    /// Flush all pending write-behind operations (call on shutdown)
-    pub async fn flush_writebehind(&self) -> anyhow::Result<usize> {
-        self.writebehind_worker.flush_all().await
-    }
-
-    /// Shutdown write-behind workers
-    pub fn shutdown_writebehind(&self) {
-        self.writebehind_worker.shutdown();
     }
 }

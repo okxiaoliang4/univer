@@ -368,6 +368,11 @@ export class CollaborationService
         BehaviorSubject<IDocumentSyncState>
     >();
 
+    private readonly _lastDocumentStates = new Map<
+        string,
+        IDocumentSyncState['state']
+    >();
+
     private readonly _savedStatusSubjects = new Map<
         string,
         BehaviorSubject<boolean>
@@ -634,6 +639,11 @@ export class CollaborationService
         this.disposeWithMe(
             model.state$.subscribe((state) => {
                 stateSubject.next(state);
+                const previousState = this._lastDocumentStates.get(docId);
+                this._lastDocumentStates.set(docId, state.state);
+                if (state.state === 'pending' && state.pendingCount > 0 && previousState !== 'pending') {
+                    this._scheduleFlush(docId);
+                }
                 // Notify main thread via callback
                 if (this._callbackService) {
                     this._callbackService.onDocumentStateChange(docId, state);
@@ -744,6 +754,8 @@ export class CollaborationService
             this._networkService.leaveDoc(docId);
             this._joinedDocs.delete(docId);
         }
+
+        this._lastDocumentStates.delete(docId);
 
         this._logger.log(`CollaborationService: Disposed model for ${docId}`);
     }
@@ -871,6 +883,8 @@ export class CollaborationService
         this._documentStateSubjects.clear();
         this._savedStatusSubjects.forEach((subject) => subject.complete());
         this._savedStatusSubjects.clear();
+
+        this._lastDocumentStates.clear();
 
         this._flushTimers.forEach((timer) => clearTimeout(timer));
         this._flushTimers.clear();

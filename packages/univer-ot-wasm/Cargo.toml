@@ -1,8 +1,10 @@
 [workspace]
 members = [
     "crates/ot-core",
+    "crates/ot-common",
     "crates/ot-wasm",
     "crates/ot-server",
+    "crates/writebehind-worker",
     "migration",
 ]
 resolver = "2"

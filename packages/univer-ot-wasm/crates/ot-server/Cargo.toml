@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 ot-core = { path = "../ot-core" }
+ot-common = { path = "../ot-common" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 zstd = "0.13"

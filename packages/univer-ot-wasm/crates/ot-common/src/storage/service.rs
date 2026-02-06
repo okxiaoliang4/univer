@@ -1,3 +1,5 @@
+//! Storage service for S3-based object storage
+
 use crate::database::entities::storage;
 use anyhow::{Context, Result};
 use aws_credential_types::Credentials;
@@ -71,6 +73,36 @@ impl StorageService {
         let redis_client = redis::Client::open(redis_url)?;
         Ok(Self {
             db: Arc::new(db),
+            s3_client,
+            redis_client,
+            endpoint,
+            region,
+            bucket,
+            server_env,
+        })
+    }
+
+    /// Create from existing database connection (Arc)
+    pub fn new_with_db(
+        db: Arc<sea_orm::DatabaseConnection>,
+        endpoint: String,
+        region: String,
+        bucket: String,
+        access_key: String,
+        secret_key: String,
+        server_env: String,
+        redis_client: redis::Client,
+    ) -> Result<Self> {
+        let credentials = Credentials::new(access_key, secret_key, None, None, "static");
+        let s3_config = S3ConfigBuilder::new()
+            .credentials_provider(credentials)
+            .region(Region::new(region.clone()))
+            .endpoint_url(endpoint.clone())
+            .force_path_style(true)
+            .build();
+        let s3_client = S3Client::from_conf(s3_config);
+        Ok(Self {
+            db,
             s3_client,
             redis_client,
             endpoint,
@@ -225,13 +257,11 @@ impl StorageService {
 
     /// Store operation params to S3
     /// Returns storage_id for the uploaded content
-    ///
-    /// Path structure: {env}/documents/{doc_id}/operations/{rev}_{hash}.msgpack
     pub async fn store_operation_params(
         &self,
         doc_id: Uuid,
         rev: i64,
-        params: &[u8], // MessagePack encoded params
+        params: &[u8],
     ) -> Result<Uuid> {
         let hash = format!("{:x}", md5::compute(params));
         let size = params.len() as i64;
@@ -313,13 +343,11 @@ impl StorageService {
 
     /// Upload operation params to S3 only (for batch processing)
     /// Returns the storage info without inserting to DB - caller handles batch insert
-    ///
-    /// This is used by the write-behind worker to batch uploads and DB inserts
     pub async fn upload_operation_params_to_s3(
         &self,
         doc_id: Uuid,
         rev: i64,
-        params: &[u8], // MessagePack encoded params
+        params: &[u8],
     ) -> Result<UploadedOperationParams> {
         let hash = format!("{:x}", md5::compute(params));
         let size = params.len() as i64;
@@ -390,7 +418,6 @@ impl StorageService {
     }
 
     /// Fetch operation params from S3
-    /// Returns raw MessagePack encoded bytes
     pub async fn fetch_operation_params(&self, storage_id: Uuid) -> Result<Vec<u8>> {
         let storage = self.get_storage_location(storage_id).await?;
 

@@ -1,0 +1,86 @@
+[package]
+name = "ot-common"
+
+version.workspace = true
+
+edition.workspace = true
+
+license.workspace = true
+
+authors.workspace = true
+
+description = "Shared library for OT server and writebehind worker"
+
+[dependencies]
+# Workspace dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Compression
+zstd = "0.13"
+
+# Async runtime
+tokio = { version = "1", features = [
+    "sync",
+    "time",
+    "rt"
+] }
+futures = "0.3"
+
+# Database ORM
+sea-orm = { version = "2.0.0-rc.30", features = [
+    "runtime-tokio-native-tls",
+    "sqlx-postgres",
+    "macros"
+] }
+# sqlx for COPY operations (must match sea-orm's sqlx version)
+sqlx = { version = "0.8", features = [
+    "postgres",
+    "runtime-tokio"
+] }
+
+# Redis
+redis = { version = "1", features = [
+    "tokio-comp",
+    "cluster",
+    "connection-manager"
+] }
+
+# AWS S3
+aws-credential-types = "1"
+aws-sdk-s3 = { version = "1", features = [ "behavior-version-latest" ] }
+
+# Utilities
+uuid = { version = "1.20", features = [
+    "v4",
+    "serde"
+] }
+chrono = { version = "0.4", features = [ "serde" ] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+md5 = "0.7"
+
+# Metrics (optional, for shared metric definitions)
+prometheus = "0.14"
+
+[dev-dependencies]
+tokio = { version = "1", features = [
+    "full",
+    "test-util"
+] }
+criterion = { version = "0.5", features = [
+    "async_tokio",
+    "html_reports"
+] }
+rand = "0.8"
+fake = { version = "2.9", features = [
+    "derive",
+    "uuid",
+    "chrono"
+] }
+dotenvy = "0.15"
+
+[[bench]]
+name = "db_write_bench"
+harness = false
