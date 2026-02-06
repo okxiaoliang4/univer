@@ -53,3 +53,38 @@ jobs:
                       type=gha,scope=ot-server-${{ github.ref_name }}
                   cache-to: |
                       type=gha,mode=max,scope=ot-server-${{ github.ref_name }}
+
+    build-writebehind-worker:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Generate Docker tags
+              id: docker_meta
+              run: |
+                  safe_branch=$(echo "${{ github.ref_name }}" | tr '/' '-')
+                  echo "tags=ghcr.io/${{ github.repository }}/writebehind-worker:$safe_branch" >> $GITHUB_OUTPUT
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push Docker image
+              uses: docker/build-push-action@v5
+              with:
+                  context: packages/univer-ot-wasm
+                  file: ./packages/univer-ot-wasm/Dockerfile.writebehind
+                  push: true
+                  tags: ${{ steps.docker_meta.outputs.tags }}
+                  cache-from: |
+                      type=gha,scope=writebehind-worker-${{ github.ref_name }}
+                  cache-to: |
+                      type=gha,mode=max,scope=writebehind-worker-${{ github.ref_name }}

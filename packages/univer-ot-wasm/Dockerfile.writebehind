@@ -28,15 +28,19 @@ COPY proto ./proto
 # Create dummy source files to cache dependencies
 RUN mkdir -p crates/ot-core/src \
     crates/ot-common/src \
+    crates/ot-common/benches \
     crates/ot-wasm/src \
     crates/ot-server/src \
     crates/writebehind-worker/src \
+    crates/writebehind-worker/examples \
     migration/src && \
     echo "pub fn main() {}" > crates/ot-core/src/lib.rs && \
     echo "pub fn main() {}" > crates/ot-common/src/lib.rs && \
+    echo "fn main() {}" > crates/ot-common/benches/db_write_bench.rs && \
     echo "pub fn main() {}" > crates/ot-wasm/src/lib.rs && \
     echo "fn main() {}" > crates/ot-server/src/main.rs && \
     echo "fn main() {}" > crates/writebehind-worker/src/main.rs && \
+    echo "fn main() {}" > crates/writebehind-worker/examples/test_pubsub.rs && \
     echo "pub fn main() {}" > migration/src/lib.rs
 
 # Build dependencies (may fail due to dummy files, that's OK)
