@@ -22,7 +22,7 @@ COPY crates/ot-server/build.rs ./crates/ot-server/
 COPY crates/writebehind-worker/Cargo.toml ./crates/writebehind-worker/
 COPY migration/Cargo.toml ./migration/
 
-# Copy proto files for gRPC (build.rs expects them at workspace root)
+# Copy proto files (needed for workspace resolution with ot-server)
 COPY proto ./proto
 
 # Create dummy source files to cache dependencies
@@ -40,7 +40,7 @@ RUN mkdir -p crates/ot-core/src \
     echo "pub fn main() {}" > migration/src/lib.rs
 
 # Build dependencies (may fail due to dummy files, that's OK)
-RUN cargo build -p ot-server --release || true
+RUN cargo build -p writebehind-worker --release || true
 
 # Remove dummy source files and build artifacts
 RUN rm -rf crates/ot-core/src \
@@ -49,22 +49,16 @@ RUN rm -rf crates/ot-core/src \
     crates/ot-server/src \
     crates/writebehind-worker/src \
     migration/src && \
-    rm -f target/release/ot-server \
-    target/release/deps/ot_server* \
-    target/release/deps/libot_core* \
-    target/release/deps/libot_common* \
-    target/release/deps/libot_wasm* \
-    target/release/deps/libmigration*
+    rm -f target/release/writebehind-worker \
+    target/release/deps/writebehind_worker* \
+    target/release/deps/libot_common*
 
-# Copy real source code
-COPY crates/ot-core/src ./crates/ot-core/src
+# Copy real source code (only what writebehind-worker needs)
 COPY crates/ot-common/src ./crates/ot-common/src
-COPY crates/ot-wasm/src ./crates/ot-wasm/src
-COPY crates/ot-server/src ./crates/ot-server/src
-COPY migration/src ./migration/src
+COPY crates/writebehind-worker/src ./crates/writebehind-worker/src
 
 # Build the actual binary (will use cached dependencies)
-RUN cargo build -p ot-server --release
+RUN cargo build -p writebehind-worker --release
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -83,17 +77,17 @@ RUN groupadd -g 1000 appuser && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/ot-server /app/ot-server
+COPY --from=builder /app/target/release/writebehind-worker /app/writebehind-worker
 
 # Set permissions
-RUN chmod +x /app/ot-server && \
-    chown appuser:appuser /app/ot-server
+RUN chmod +x /app/writebehind-worker && \
+    chown appuser:appuser /app/writebehind-worker
 
 USER appuser
 
-EXPOSE 3000 50051
+EXPOSE 8810
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:8810/health || exit 1
 
-CMD ["/app/ot-server"]
+CMD ["/app/writebehind-worker"]

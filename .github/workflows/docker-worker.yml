@@ -46,7 +46,7 @@ jobs:
               uses: docker/build-push-action@v5
               with:
                   context: packages/univer-ot-wasm
-                  file: ./packages/univer-ot-wasm/Dockerfile
+                  file: ./packages/univer-ot-wasm/Dockerfile.writebehind
                   push: true
                   tags: ${{ steps.docker_meta.outputs.tags }}
                   cache-from: |
