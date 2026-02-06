@@ -46,13 +46,11 @@ RUN mkdir -p crates/ot-core/src \
 # Build dependencies (may fail due to dummy files, that's OK)
 RUN cargo build -p writebehind-worker --release || true
 
-# Remove dummy source files and build artifacts
-RUN rm -rf crates/ot-core/src \
-    crates/ot-common/src \
-    crates/ot-wasm/src \
-    crates/ot-server/src \
-    crates/writebehind-worker/src \
-    migration/src && \
+# Remove dummy source files only for crates we'll replace with real source
+# Keep dummies for other workspace members (ot-core, ot-wasm, ot-server, migration)
+# so Cargo can still resolve the workspace
+RUN rm -rf crates/ot-common/src \
+    crates/writebehind-worker/src && \
     rm -f target/release/writebehind-worker \
     target/release/deps/writebehind_worker* \
     target/release/deps/libot_common*
