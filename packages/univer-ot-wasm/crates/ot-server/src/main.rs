@@ -141,6 +141,7 @@ async fn main() -> anyhow::Result<()> {
     let auth_service = Arc::new(services::AuthService::new(
         grpc_client.clone(),
         config.permission_cache_ttl_seconds,
+        config.skip_permission_check,
     ));
     info!("Auth service initialized");
 

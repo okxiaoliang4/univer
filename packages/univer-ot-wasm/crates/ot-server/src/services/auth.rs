@@ -55,6 +55,8 @@ pub struct AuthService {
     cache_ttl: Duration,
     /// Whether to skip token verification (for development/testing)
     skip_token_verification: bool,
+    /// Whether to skip permission check and return full permissions (for local development)
+    skip_permission_check: bool,
 }
 
 impl AuthService {
@@ -63,15 +65,15 @@ impl AuthService {
     /// # Arguments
     /// * `grpc_client` - GrpcClientService for making gRPC calls
     /// * `cache_ttl_secs` - TTL for permission cache in seconds
-    pub fn new(grpc_client: Arc<GrpcClientService>, cache_ttl_secs: u64) -> Self {
+    pub fn new(grpc_client: Arc<GrpcClientService>, cache_ttl_secs: u64, skip_permission_check: bool) -> Self {
         // Check if token verification should be skipped (for development/testing)
         let skip_token_verification = std::env::var("SKIP_TOKEN_VERIFICATION")
             .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
             .unwrap_or(false);
 
         info!(
-            "Initializing AuthService with cache_ttl={}s, skip_token_verification={}",
-            cache_ttl_secs, skip_token_verification
+            "Initializing AuthService with cache_ttl={}s, skip_token_verification={}, skip_permission_check={}",
+            cache_ttl_secs, skip_token_verification, skip_permission_check
         );
 
         Self {
@@ -79,6 +81,7 @@ impl AuthService {
             permission_cache: Arc::new(DashMap::new()),
             cache_ttl: Duration::from_secs(cache_ttl_secs),
             skip_token_verification,
+            skip_permission_check,
         }
     }
 
@@ -152,6 +155,20 @@ impl AuthService {
         doc_id: &str,
         access_token: &str,
     ) -> Result<DocumentPermissions> {
+        // Skip permission check for local development
+        if self.skip_permission_check {
+            info!(
+                "Skipping permission check for user: {}, doc: {} (SKIP_PERMISSION_CHECK=true)",
+                user_id, doc_id
+            );
+            return Ok(DocumentPermissions {
+                readable: true,
+                commentable: true,
+                writable: true,
+                owner: true,
+            });
+        }
+
         // Check cache first
         if let Some(socket_cache) = self.permission_cache.get(socket_id) {
             if let Some(cached) = socket_cache.get(doc_id) {

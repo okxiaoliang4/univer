@@ -34,6 +34,7 @@ pub struct Config {
     // directly in the database instead of S3. Default: 2048 (2KB) aligns with
     // PostgreSQL's TOAST threshold for optimal storage performance.
     pub params_inline_threshold_bytes: usize,
+    pub skip_permission_check: bool,
 }
 
 impl Config {
@@ -119,12 +120,16 @@ impl Config {
                 .unwrap_or_else(|_| "2048".to_string())
                 .parse()
                 .expect("PARAMS_INLINE_THRESHOLD_BYTES must be a valid usize"),
+            skip_permission_check: env::var("SKIP_PERMISSION_CHECK")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .expect("SKIP_PERMISSION_CHECK must be a valid bool"),
         }
     }
 
     pub fn log_summary(&self) {
         info!(
-            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}, writebehind_enabled={}, writebehind_batch_size={}, writebehind_flush_interval_ms={}, writebehind_worker_count={}, writebehind_ttl_seconds={}, params_inline_threshold_bytes={}",
+            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}, writebehind_enabled={}, writebehind_batch_size={}, writebehind_flush_interval_ms={}, writebehind_worker_count={}, writebehind_ttl_seconds={}, params_inline_threshold_bytes={}, skip_permission_check={}",
             redact_url(&self.database_url),
             self.server_env,
             self.server_port,
@@ -150,7 +155,8 @@ impl Config {
             self.writebehind_flush_interval_ms,
             self.writebehind_worker_count,
             self.writebehind_ttl_seconds,
-            self.params_inline_threshold_bytes
+            self.params_inline_threshold_bytes,
+            self.skip_permission_check
         );
     }
 }
