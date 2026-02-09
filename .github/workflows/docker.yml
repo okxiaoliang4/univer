@@ -48,6 +48,7 @@ jobs:
                   context: packages/univer-ot-wasm
                   file: ./packages/univer-ot-wasm/Dockerfile
                   push: true
+                  platforms: linux/amd64,linux/arm64/v8
                   tags: ${{ steps.docker_meta.outputs.tags }}
                   cache-from: |
                       type=gha,scope=ot-server-${{ github.ref_name }}
@@ -83,6 +84,7 @@ jobs:
                   context: packages/univer-ot-wasm
                   file: ./packages/univer-ot-wasm/Dockerfile.writebehind
                   push: true
+                  platforms: linux/amd64,linux/arm64/v8
                   tags: ${{ steps.docker_meta.outputs.tags }}
                   cache-from: |
                       type=gha,scope=writebehind-worker-${{ github.ref_name }}
@@ -120,6 +122,7 @@ jobs:
                   context: packages/ws-gateway
                   file: ./packages/ws-gateway/Dockerfile
                   push: true
+                  platforms: linux/amd64,linux/arm64/v8
                   tags: ${{ steps.docker_meta.outputs.tags }}
                   build-args: |
                       GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
