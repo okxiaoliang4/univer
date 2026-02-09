@@ -1,10 +1,14 @@
 use anyhow::Result;
+use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 
+/// Operation queue service for managing snapshot queue.
+///
+/// Uses ConnectionManager for efficient Redis connection reuse.
 #[derive(Clone)]
 pub struct OpQueueService {
-    redis_client: redis::Client,
+    conn_manager: ConnectionManager,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,12 +18,13 @@ pub struct PendingDoc {
 }
 
 impl OpQueueService {
-    pub fn new(redis_client: redis::Client) -> Self {
-        Self { redis_client }
+    pub async fn new(redis_client: redis::Client) -> Result<Self> {
+        let conn_manager = ConnectionManager::new(redis_client).await?;
+        Ok(Self { conn_manager })
     }
 
     pub async fn enqueue_doc(&self, doc_id: &str) -> Result<()> {
-        let mut conn = self.redis_client.get_multiplexed_async_connection().await?;
+        let mut conn = self.conn_manager.clone();
         let lock_key = format!("snapshot:lock:{}", doc_id);
         let dedupe_set_key = "snapshot:doc-queue:set";
         let lock_exists: bool = conn.exists(&lock_key).await?;
@@ -40,7 +45,7 @@ impl OpQueueService {
     }
 
     pub async fn drain_doc_queue(&self, limit: usize) -> Result<Vec<PendingDoc>> {
-        let mut conn = self.redis_client.get_multiplexed_async_connection().await?;
+        let mut conn = self.conn_manager.clone();
         let dedupe_set_key = "snapshot:doc-queue:set";
         let mut result = Vec::new();
         for _ in 0..limit {

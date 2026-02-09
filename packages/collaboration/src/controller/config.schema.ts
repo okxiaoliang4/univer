@@ -22,6 +22,11 @@ export const configSymbol = Symbol(COLLABORATION_PLUGIN_CONFIG_KEY);
 
 export interface ICollaborationConfig {
     wsUrl: string;
+    /**
+     * URL for the ot-server HTTP API (changeset, fetch_ops, document CRUD).
+     * If not set, derived from wsUrl by switching to HTTP on port 3000.
+     */
+    apiBaseUrl?: string;
     accessToken: string;
     params?: Record<string, string | number | boolean>;
     override?: DependencyOverride;

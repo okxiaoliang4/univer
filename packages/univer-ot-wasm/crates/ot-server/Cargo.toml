@@ -52,12 +52,6 @@ chrono = { version = "0.4", features = [ "serde" ] }
 async-trait = "0.1"
 dotenvy = "0.15"
 migration = { path = "../../migration" }
-socketioxide = { version = "0.18", features = [
-    "extensions",
-    "state",
-    "tracing"
-] }
-socketioxide-redis = { version = "0.4", features = [ "redis-cluster" ] }
 aws-credential-types = "1"
 aws-sdk-s3 = { version = "1", features = [ "behavior-version-latest" ] }
 redis = { version = "1", features = [
@@ -87,6 +81,7 @@ futures = "0.3"
 rand = "0.8"
 jsonwebtoken = "9"
 rslock = "0.7"
+moka = { version = "0.12", features = [ "future" ] }
 
 [dev-dependencies]
 sysinfo = "0.34"

@@ -1,9 +1,9 @@
 pub mod auth;
-pub mod awareness;
 pub mod document;
 pub mod document_actor;
 pub mod etcd;
 pub mod grpc_client;
+pub mod local_cache;
 pub mod op_queue;
 pub mod ot;
 pub mod params_codec;
@@ -16,7 +16,6 @@ pub use ot_common::compression;
 pub use ot_common::copy_writer;
 
 pub use auth::AuthService;
-pub use awareness::AwarenessService;
 pub use document::DocumentService;
 pub use document_actor::DocumentActorManager;
 pub use etcd::EtcdService;

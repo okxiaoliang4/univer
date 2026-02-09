@@ -1,6 +1,7 @@
 use crate::database::entities::{documents, operation_log};
 use crate::metrics;
 use crate::services::document::DocumentService;
+use crate::services::local_cache::LocalCache;
 use crate::services::op_queue::OpQueueService;
 use crate::services::params_codec;
 use anyhow::{Context, Result};
@@ -57,6 +58,7 @@ pub struct OTService {
     cache_service: Arc<CacheService>,
     storage_service: Arc<StorageService>,
     queue_service: Arc<StreamQueueService>,
+    local_cache: LocalCache,
 }
 
 impl OTService {
@@ -68,6 +70,7 @@ impl OTService {
         cache_service: Arc<CacheService>,
         storage_service: Arc<StorageService>,
         queue_service: Arc<StreamQueueService>,
+        local_cache: LocalCache,
     ) -> Self {
         Self {
             db,
@@ -78,6 +81,7 @@ impl OTService {
             cache_service,
             storage_service,
             queue_service,
+            local_cache,
         }
     }
 
@@ -301,7 +305,13 @@ impl OTService {
         changeset: Changeset,
         e2e_start: Instant,
     ) -> Result<ChangesetApplied> {
-        // Step 1: Get current version - prefer cache, fall back to DB on cache miss OR error
+        // ========== STEP 1: Get current version (L2: Redis → L3: DB) ==========
+        // NOTE: Version is NOT cached in L1 (LocalCache) because in multi-instance deployments,
+        // another instance may have advanced the version. A stale L1 version would cause
+        // incorrect drift calculation and missing concurrent ops in OT transform.
+        // L1 is only used for ops cache (with proper gap detection against authoritative version).
+        let version_start = Instant::now();
+        // Prefer cache, fall back to DB on cache miss OR error
         // Graceful degradation: Redis errors fall back to DB read to maintain availability
         //
         // IMPORTANT: When cache miss occurs (version key expired), we must check for pending
@@ -376,6 +386,10 @@ impl OTService {
             current_version
         };
 
+        let version_elapsed = version_start.elapsed();
+        info!("changeset [get_version] doc_id={}, version={}, elapsed={:.1}ms",
+              doc_id, current_version, version_elapsed.as_secs_f64() * 1000.0);
+
         // Record version drift
         let version_drift = current_version - changeset.base_rev;
         metrics::record_version_drift(version_drift as f64);
@@ -397,7 +411,8 @@ impl OTService {
             ));
         }
 
-        // Step 2: Get concurrent operations for OT transformation
+        // ========== STEP 2: Get concurrent operations for OT transformation ==========
+        let concurrent_start = Instant::now();
         // Fast path: skip query entirely when no version drift (most common case)
         let (concurrent_mutations, has_conflict) = if version_drift == 0 {
             // No concurrent operations - client is up to date
@@ -409,7 +424,7 @@ impl OTService {
         } else {
             // Slow path: need to fetch concurrent ops for OT transform
             let concurrent_ops = self
-                .get_concurrent_ops(doc_id, changeset.base_rev)
+                .get_concurrent_ops(doc_id, changeset.base_rev, current_version)
                 .await?;
 
             let mutations: Vec<MutationInfo> = concurrent_ops
@@ -426,6 +441,9 @@ impl OTService {
             }
             (mutations, has_conflict)
         };
+        let concurrent_elapsed = concurrent_start.elapsed();
+        info!("changeset [get_concurrent_ops] doc_id={}, drift={}, concurrent_count={}, elapsed={:.1}ms",
+              doc_id, version_drift, concurrent_mutations.len(), concurrent_elapsed.as_secs_f64() * 1000.0);
 
         // Extract metadata before consuming
         let op_ids: Vec<String> = changeset
@@ -445,13 +463,14 @@ impl OTService {
             })
             .collect();
 
-        // Step 3: Transform operations
+        // ========== STEP 3: Transform operations ==========
         let transform_start = Instant::now();
         let (m1_primes, _, error) = self
             .transform_service
             .transform_list(&m1_internal, &concurrent_mutations);
 
-        metrics::record_transform_latency(transform_start.elapsed().as_secs_f64());
+        let transform_elapsed = transform_start.elapsed();
+        metrics::record_transform_latency(transform_elapsed.as_secs_f64());
 
         if !concurrent_mutations.is_empty() {
             metrics::record_transform_complexity(concurrent_mutations.len() as f64);
@@ -466,8 +485,10 @@ impl OTService {
         if has_conflict {
             metrics::increment_conflicts_resolved();
         }
+        info!("changeset [transform] doc_id={}, elapsed={:.1}ms", doc_id, transform_elapsed.as_secs_f64() * 1000.0);
 
-        // Step 4: Build cache entries
+        // ========== STEP 4: Build cache entries ==========
+        let build_start = Instant::now();
         let mutations_count = m1_primes.len();
         let mut cache_entries = Vec::with_capacity(mutations_count);
         let mut transformed_mutations = Vec::with_capacity(mutations_count);
@@ -495,8 +516,12 @@ impl OTService {
         }
 
         let new_version = current_version + mutations_count as i64;
+        let build_elapsed = build_start.elapsed();
+        info!("changeset [build_entries] doc_id={}, count={}, elapsed={:.1}ms",
+              doc_id, mutations_count, build_elapsed.as_secs_f64() * 1000.0);
 
-        // Step 5: Write to Redis cache atomically
+        // ========== STEP 5: Write to Redis cache atomically ==========
+        let cache_write_start = Instant::now();
         self.cache_service
             .write_ops(doc_id, &cache_entries, new_version)
             .await
@@ -506,27 +531,59 @@ impl OTService {
                 metrics::record_operation_e2e_latency(e2e_start.elapsed().as_secs_f64());
                 anyhow::anyhow!("Redis cache write failed: {}", e)
             })?;
+        let cache_write_elapsed = cache_write_start.elapsed();
+        info!("changeset [redis_write] doc_id={}, elapsed={:.1}ms", doc_id, cache_write_elapsed.as_secs_f64() * 1000.0);
 
-        // Step 6: Enqueue for background flush via Redis Streams
-        if let Err(e) = self.queue_service.enqueue(&doc_id.to_string()).await {
-            warn!("Failed to enqueue doc for flush: {}", e);
-            // Not critical - operations are in cache and will be picked up eventually
+        // ========== STEP 5b: Write-through to LocalCache ==========
+        // This ensures subsequent reads hit L1 even after write-behind worker clears Redis
+        let local_ops: Vec<CachedOperationInfo> = cache_entries
+            .iter()
+            .map(|e| CachedOperationInfo {
+                rev: e.rev,
+                user_id: e.user_id.clone(),
+                mutation_id: e.mutation_id.clone(),
+                params: e.params.clone(),
+                op_id: e.op_id.clone(),
+                created_at: chrono::DateTime::from_timestamp_millis(e.created_at)
+                    .unwrap_or_else(chrono::Utc::now),
+            })
+            .collect();
+        self.local_cache.put_ops(doc_id, &local_ops).await;
+
+        // ========== STEP 6: Enqueue for background flush (fire-and-forget) ==========
+        // Enqueue is non-critical: ops are already in Redis cache and will be picked up
+        // by background workers eventually. By spawning instead of awaiting, we remove
+        // 4+ Redis commands from the critical path, eliminating ~3s of head-of-line
+        // blocking under high concurrency.
+        {
+            let queue_service = self.queue_service.clone();
+            let op_queue_service = self.op_queue_service.clone();
+            let doc_id_str = doc_id.to_string();
+            tokio::spawn(async move {
+                if let Err(e) = queue_service.enqueue(&doc_id_str).await {
+                    warn!("Failed to enqueue doc for flush: {}", e);
+                }
+                if let Err(e) = op_queue_service.enqueue_doc(&doc_id_str).await {
+                    warn!("Failed to enqueue doc for snapshot: {}", e);
+                }
+            });
         }
-
-        // Also enqueue for snapshot processing
-        let _ = self
-            .op_queue_service
-            .enqueue_doc(&doc_id.to_string())
-            .await;
 
         // Record metrics
         metrics::increment_operations_success();
         metrics::increment_writebehind_ops_buffered_by(mutations_count as u64);
-        metrics::record_operation_e2e_latency(e2e_start.elapsed().as_secs_f64());
+        let total_elapsed = e2e_start.elapsed();
+        metrics::record_operation_e2e_latency(total_elapsed.as_secs_f64());
 
-        debug!(
-            "Write-behind complete: doc_id={}, new_version={}, ops_buffered={}",
-            doc_id, new_version, mutations_count
+        info!(
+            "changeset [apply_inner] COMPLETE: doc_id={}, new_version={}, total={:.1}ms (version={:.1}ms, concurrent={:.1}ms, transform={:.1}ms, build={:.1}ms, redis={:.1}ms, enqueue=async)",
+            doc_id, new_version,
+            total_elapsed.as_secs_f64() * 1000.0,
+            version_elapsed.as_secs_f64() * 1000.0,
+            concurrent_elapsed.as_secs_f64() * 1000.0,
+            transform_elapsed.as_secs_f64() * 1000.0,
+            build_elapsed.as_secs_f64() * 1000.0,
+            cache_write_elapsed.as_secs_f64() * 1000.0
         );
 
         Ok(ChangesetApplied {
@@ -538,14 +595,41 @@ impl OTService {
     }
 
     /// Get concurrent operations for OT transformation
-    /// Tries cache first, supplements from DB if there's a gap
+    /// Tries L1 (LocalCache) first, then L2 (Redis), then L3 (DB)
     /// Cached ops have params directly, DB ops use storage_id
+    ///
+    /// `current_version` is the authoritative version from L2/L3, used to validate
+    /// that L1 cache has complete coverage (both start AND end).
     async fn get_concurrent_ops(
         &self,
         doc_id: Uuid,
         since_rev: i64,
+        current_version: i64,
     ) -> Result<Vec<crate::services::document::OperationInfo>> {
-        // Try to get from cache first
+        // === L1: LocalCache (unaffected by write-behind worker's Redis cleanup) ===
+        if let Some(local_ops) = self.local_cache.get_ops_since(doc_id, since_rev).await {
+            let first_rev = local_ops.first().map(|o| o.rev).unwrap_or(i64::MAX);
+            let last_rev = local_ops.last().map(|o| o.rev).unwrap_or(0);
+            // Must check BOTH start and end coverage:
+            // - Start: first_rev <= since_rev + 1 (no gap at beginning)
+            // - End: last_rev >= current_version (covers up to authoritative version)
+            // Without end check, another instance's ops would be silently missed.
+            if first_rev <= since_rev + 1 && last_rev >= current_version {
+                metrics::increment_local_cache_hits();
+                debug!(
+                    "Local cache hit for concurrent ops: doc_id={}, since_rev={}, count={}, range=[{},{}]",
+                    doc_id, since_rev, local_ops.len(), first_rev, last_rev
+                );
+                return self.convert_cached_ops_to_operation_info(local_ops);
+            }
+            // L1 has partial data - fall through to fill from L2/L3
+            debug!(
+                "Local cache partial: doc_id={}, since_rev={}, cached=[{},{}], need_up_to={}",
+                doc_id, since_rev, first_rev, last_rev, current_version
+            );
+        }
+
+        // === L2: Redis CacheService (may be empty due to write-behind worker cleanup) ===
         match self.cache_service.get_ops_since(doc_id, since_rev).await {
             Ok(cached_ops) if !cached_ops.is_empty() => {
                 // Check if we need to supplement from DB
@@ -579,10 +663,21 @@ impl OTService {
             }
         }
 
-        // Fall back to DB
-        self.document_service
-            .get_operations_since(doc_id, since_rev)
-            .await
+        // === L3: DB with timeout protection ===
+        let db_result = tokio::time::timeout(
+            Duration::from_secs(3),
+            self.document_service.get_operations_since(doc_id, since_rev),
+        )
+        .await
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "DB query timeout for concurrent ops: doc_id={}, since_rev={}",
+                doc_id,
+                since_rev
+            )
+        })??;
+
+        Ok(db_result)
     }
 
     /// Convert cached operations to OperationInfo

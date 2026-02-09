@@ -24,6 +24,7 @@ use prometheus::{
     register_int_counter, register_int_gauge, Encoder, Gauge, Histogram, IntCounter, IntGauge,
     TextEncoder,
 };
+use sea_orm::ConnectionTrait;
 use std::sync::{Mutex, OnceLock};
 use tracing::{error, info};
 
@@ -41,10 +42,6 @@ struct CpuState {
 }
 
 static CPU_STATE: OnceLock<Mutex<CpuState>> = OnceLock::new();
-
-// Socket.IO metrics
-static ONLINE_DOCUMENTS: OnceLock<IntGauge> = OnceLock::new();
-static ONLINE_USERS: OnceLock<IntGauge> = OnceLock::new();
 
 // ============================================================================
 // OT Core Performance Metrics
@@ -137,6 +134,30 @@ static WRITEBEHIND_CACHE_HITS: OnceLock<IntCounter> = OnceLock::new();
 /// Total number of cache misses
 static WRITEBEHIND_CACHE_MISSES: OnceLock<IntCounter> = OnceLock::new();
 
+// ============================================================================
+// Local (L1) Cache Metrics
+// ============================================================================
+
+/// Total number of local (process-in-memory) cache hits
+static LOCAL_CACHE_HITS: OnceLock<IntCounter> = OnceLock::new();
+
+// ============================================================================
+// Database Connection Pool Metrics
+// ============================================================================
+
+/// Total number of database connections (from pg_stat_activity)
+static DB_POOL_TOTAL_CONNECTIONS: OnceLock<IntGauge> = OnceLock::new();
+/// Number of active database connections (state = 'active')
+static DB_POOL_ACTIVE_CONNECTIONS: OnceLock<IntGauge> = OnceLock::new();
+/// Number of idle database connections (state = 'idle')
+static DB_POOL_IDLE_CONNECTIONS: OnceLock<IntGauge> = OnceLock::new();
+/// Number of idle in transaction connections (state = 'idle in transaction')
+static DB_POOL_IDLE_IN_TRANSACTION: OnceLock<IntGauge> = OnceLock::new();
+/// Maximum configured connections (from pg_settings.max_connections)
+static DB_POOL_MAX_CONNECTIONS: OnceLock<IntGauge> = OnceLock::new();
+/// Connection usage percentage
+static DB_POOL_USAGE_PERCENT: OnceLock<Gauge> = OnceLock::new();
+
 /// Initialize OpenTelemetry with Prometheus exporter
 pub fn init_opentelemetry() {
     info!("Initializing OpenTelemetry with Prometheus exporter");
@@ -197,27 +218,6 @@ pub fn init_process_metrics() {
     });
 
     info!("Process metrics initialized");
-}
-
-/// Initialize Socket.IO metrics collectors
-pub fn init_socketio_metrics() {
-    ONLINE_DOCUMENTS.get_or_init(|| {
-        register_int_gauge!(opts!(
-            "socketio_online_documents_total",
-            "Number of online documents with active connections"
-        ))
-        .expect("Failed to register socketio_online_documents_total")
-    });
-
-    ONLINE_USERS.get_or_init(|| {
-        register_int_gauge!(opts!(
-            "socketio_online_users_total",
-            "Number of online users (connected sockets)"
-        ))
-        .expect("Failed to register socketio_online_users_total")
-    });
-
-    info!("Socket.IO metrics initialized");
 }
 
 /// Initialize OT core performance metrics
@@ -490,7 +490,68 @@ pub fn init_writebehind_metrics() {
         .expect("Failed to register writebehind_cache_misses_total")
     });
 
+    LOCAL_CACHE_HITS.get_or_init(|| {
+        register_int_counter!(opts!(
+            "local_cache_hits_total",
+            "Total number of local (L1) cache hits"
+        ))
+        .expect("Failed to register local_cache_hits_total")
+    });
+
     info!("Write-behind cache metrics initialized");
+}
+
+/// Initialize database connection pool metrics
+pub fn init_db_pool_metrics() {
+    DB_POOL_TOTAL_CONNECTIONS.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_pool_total_connections",
+            "Total number of database connections (from pg_stat_activity)"
+        ))
+        .expect("Failed to register db_pool_total_connections")
+    });
+
+    DB_POOL_ACTIVE_CONNECTIONS.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_pool_active_connections",
+            "Number of active database connections (state = 'active')"
+        ))
+        .expect("Failed to register db_pool_active_connections")
+    });
+
+    DB_POOL_IDLE_CONNECTIONS.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_pool_idle_connections",
+            "Number of idle database connections (state = 'idle')"
+        ))
+        .expect("Failed to register db_pool_idle_connections")
+    });
+
+    DB_POOL_IDLE_IN_TRANSACTION.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_pool_idle_in_transaction",
+            "Number of idle in transaction connections (state = 'idle in transaction')"
+        ))
+        .expect("Failed to register db_pool_idle_in_transaction")
+    });
+
+    DB_POOL_MAX_CONNECTIONS.get_or_init(|| {
+        register_int_gauge!(opts!(
+            "db_pool_max_connections",
+            "Maximum configured database connections"
+        ))
+        .expect("Failed to register db_pool_max_connections")
+    });
+
+    DB_POOL_USAGE_PERCENT.get_or_init(|| {
+        register_gauge!(opts!(
+            "db_pool_usage_percent",
+            "Database connection pool usage percentage"
+        ))
+        .expect("Failed to register db_pool_usage_percent")
+    });
+
+    info!("Database connection pool metrics initialized");
 }
 
 /// Initialize all OT metrics
@@ -504,6 +565,7 @@ pub fn init_all_ot_metrics() {
     init_ot_session_metrics();
     init_ot_document_metrics();
     init_writebehind_metrics();
+    init_db_pool_metrics();
     info!("All OT metrics initialized");
 }
 
@@ -732,34 +794,49 @@ pub fn increment_writebehind_cache_misses() {
 }
 
 // ============================================================================
-// Socket.IO Metric Helpers
+// Local (L1) Cache Metric Helpers
 // ============================================================================
 
-/// Increment the online documents counter
-pub fn increment_online_documents() {
-    if let Some(gauge) = ONLINE_DOCUMENTS.get() {
-        gauge.inc();
+/// Increment the local cache hits counter
+pub fn increment_local_cache_hits() {
+    if let Some(counter) = LOCAL_CACHE_HITS.get() {
+        counter.inc();
     }
 }
 
-/// Decrement the online documents counter
-pub fn decrement_online_documents() {
-    if let Some(gauge) = ONLINE_DOCUMENTS.get() {
-        gauge.dec();
-    }
-}
 
-/// Increment the online users counter
-pub fn increment_online_users() {
-    if let Some(gauge) = ONLINE_USERS.get() {
-        gauge.inc();
-    }
-}
+// ============================================================================
+// Database Connection Pool Metric Helpers
+// ============================================================================
 
-/// Decrement the online users counter
-pub fn decrement_online_users() {
-    if let Some(gauge) = ONLINE_USERS.get() {
-        gauge.dec();
+/// Update database connection pool metrics from pg_stat_activity query results
+pub fn update_db_pool_metrics(
+    total: i64,
+    active: i64,
+    idle: i64,
+    idle_in_transaction: i64,
+    max_connections: i64,
+) {
+    if let Some(gauge) = DB_POOL_TOTAL_CONNECTIONS.get() {
+        gauge.set(total);
+    }
+    if let Some(gauge) = DB_POOL_ACTIVE_CONNECTIONS.get() {
+        gauge.set(active);
+    }
+    if let Some(gauge) = DB_POOL_IDLE_CONNECTIONS.get() {
+        gauge.set(idle);
+    }
+    if let Some(gauge) = DB_POOL_IDLE_IN_TRANSACTION.get() {
+        gauge.set(idle_in_transaction);
+    }
+    if let Some(gauge) = DB_POOL_MAX_CONNECTIONS.get() {
+        gauge.set(max_connections);
+    }
+    if let Some(gauge) = DB_POOL_USAGE_PERCENT.get() {
+        if max_connections > 0 {
+            let usage = (total as f64 / max_connections as f64) * 100.0;
+            gauge.set(usage);
+        }
     }
 }
 
@@ -915,6 +992,52 @@ pub fn start_metrics_collection() {
         }
     });
     info!("Metrics collection task started");
+}
+
+/// Start background task for database connection pool monitoring
+///
+/// This spawns a tokio task that queries PostgreSQL every 15 seconds
+/// to collect connection pool statistics from pg_stat_activity
+pub fn start_db_pool_monitoring(db: std::sync::Arc<sea_orm::DatabaseConnection>) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
+        let pool = db.get_postgres_connection_pool();
+
+        loop {
+            interval.tick().await;
+
+            // Query pg_stat_activity for connection statistics
+            let sql = r#"
+                SELECT
+                    count(*) as total,
+                    count(*) FILTER (WHERE state = 'active') as active,
+                    count(*) FILTER (WHERE state = 'idle') as idle,
+                    count(*) FILTER (WHERE state = 'idle in transaction') as idle_in_transaction,
+                    (SELECT setting::int FROM pg_settings WHERE name = 'max_connections') as max_connections
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+            "#;
+
+            match sqlx::query_as::<_, (i64, i64, i64, i64, i32)>(sql)
+                .fetch_one(pool)
+                .await
+            {
+                Ok((total, active, idle, idle_in_transaction, max_connections)) => {
+                    update_db_pool_metrics(
+                        total,
+                        active,
+                        idle,
+                        idle_in_transaction,
+                        max_connections as i64,
+                    );
+                }
+                Err(e) => {
+                    error!("Failed to query database connection pool stats: {}", e);
+                }
+            }
+        }
+    });
+    info!("Database connection pool monitoring task started");
 }
 
 /// Handler for Prometheus metrics endpoint

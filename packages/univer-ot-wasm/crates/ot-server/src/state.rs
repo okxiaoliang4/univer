@@ -1,12 +1,14 @@
 use crate::services::{
-    AuthService, AwarenessService, CacheConfig, CacheService, DocumentActorManager,
+    AuthService, CacheConfig, CacheService, DocumentActorManager,
     DocumentService, EtcdService, GrpcClientService, OTService, OpQueueService, StorageService,
     StreamQueueService,
 };
+use crate::services::local_cache::LocalCache;
 use dashmap::DashMap;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tracing::{info, warn};
 
 pub type AppState = Arc<ServerState>;
 
@@ -46,6 +48,40 @@ impl NotifyDebouncer {
     }
 }
 
+/// Redis Pub/Sub publisher for broadcasting changeset notifications to ws-gateway.
+///
+/// Uses ConnectionManager for efficient connection reuse and automatic reconnection.
+#[derive(Clone)]
+pub struct RedisBroadcastPublisher {
+    conn_manager: redis::aio::ConnectionManager,
+}
+
+impl RedisBroadcastPublisher {
+    pub async fn new(redis_url: &str) -> Self {
+        let client = redis::Client::open(redis_url).expect("Failed to create Redis broadcast client");
+        let conn_manager = redis::aio::ConnectionManager::new(client)
+            .await
+            .expect("Failed to create Redis ConnectionManager for broadcast");
+        info!("RedisBroadcastPublisher: ConnectionManager initialized");
+        Self { conn_manager }
+    }
+
+    /// Publish a message to the `ws:broadcast` channel.
+    ///
+    /// Uses a cloned ConnectionManager which reuses the underlying connection.
+    pub async fn publish(&self, message: &str) {
+        let mut conn = self.conn_manager.clone();
+        let result: Result<(), _> = redis::cmd("PUBLISH")
+            .arg("ws:broadcast")
+            .arg(message)
+            .query_async(&mut conn)
+            .await;
+        if let Err(e) = result {
+            warn!("Failed to publish to ws:broadcast: {}", e);
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ServerState {
     pub db: Arc<DatabaseConnection>,
@@ -53,14 +89,15 @@ pub struct ServerState {
     pub ot_service: Arc<OTService>,
     pub document_actor_manager: Arc<DocumentActorManager>,
     pub storage_service: Arc<StorageService>,
-    pub awareness_service: Arc<AwarenessService>,
     pub etcd_service: Arc<EtcdService>,
     pub grpc_client: Arc<GrpcClientService>,
     pub op_queue_service: Arc<OpQueueService>,
     pub auth_service: Arc<AuthService>,
     pub cache_service: Arc<CacheService>,
     pub queue_service: Arc<StreamQueueService>,
+    pub local_cache: LocalCache,
     pub notify_debouncer: NotifyDebouncer,
+    pub redis_broadcast: RedisBroadcastPublisher,
 }
 
 impl ServerState {
@@ -79,8 +116,6 @@ impl ServerState {
         s3_secret_key: String,
         server_env: String,
         redis_url: String,
-        awareness_redis_enabled: bool,
-        awareness_ttl_seconds: u64,
         etcd_service: Arc<EtcdService>,
         grpc_client: Arc<GrpcClientService>,
         auth_service: Arc<AuthService>,
@@ -88,27 +123,32 @@ impl ServerState {
         cache_batch_size: usize,
     ) -> Self {
         let db_arc = Arc::new(db);
+
+        // Create Redis client first (will be cloned for multiple services)
+        let redis_client =
+            redis::Client::open(redis_url.clone()).expect("Failed to initialize redis client");
+
+        // Initialize StorageService with Arc<DatabaseConnection> and redis_client clone
+        // This avoids unnecessary DatabaseConnection clone + Arc::new in StorageService::new
         let storage_service = Arc::new(
-            StorageService::new(
-                (*db_arc).clone(),
+            StorageService::new_with_db(
+                db_arc.clone(),
                 s3_endpoint,
                 s3_region,
                 s3_bucket,
                 s3_access_key,
                 s3_secret_key,
                 server_env,
-                redis_url.clone(),
+                redis_client.clone(),
             )
-            .unwrap(),
+            .await
+            .expect("Failed to initialize StorageService with ConnectionManager"),
         );
 
-        let redis_client =
-            redis::Client::open(redis_url.clone()).expect("Failed to initialize redis client");
-        let op_queue_service = Arc::new(OpQueueService::new(redis_client.clone()));
-
-        let awareness_service = Arc::new(
-            AwarenessService::new(redis_url.clone(), awareness_redis_enabled, awareness_ttl_seconds)
-                .unwrap(),
+        let op_queue_service = Arc::new(
+            OpQueueService::new(redis_client.clone())
+                .await
+                .expect("Failed to initialize OpQueueService with ConnectionManager"),
         );
 
         // Initialize cache service with ConnectionManager for efficient connection reuse
@@ -134,6 +174,12 @@ impl ServerState {
             cache_service.clone(),
         ));
 
+        // Process-local LRU cache (L1): survives write-behind worker's Redis cleanup
+        let local_cache = LocalCache::new(
+            10_000, // max 10,000 documents cached
+            300,    // TTL 300 seconds (5 minutes)
+        );
+
         let ot_service = Arc::new(OTService::new(
             db_arc.clone(),
             document_service.clone(),
@@ -142,6 +188,7 @@ impl ServerState {
             cache_service.clone(),
             storage_service.clone(),
             queue_service.clone(),
+            local_cache.clone(),
         ));
 
         let document_actor_manager = Arc::new(DocumentActorManager::new(ot_service.clone()));
@@ -149,20 +196,24 @@ impl ServerState {
         // gRPC notification rate limiter: at most one notify per doc per 5 seconds
         let notify_debouncer = NotifyDebouncer::new(5);
 
+        // Redis Pub/Sub publisher for ws-gateway broadcast (uses ConnectionManager for connection reuse)
+        let redis_broadcast = RedisBroadcastPublisher::new(&redis_url).await;
+
         Self {
             db: db_arc,
             document_service,
             ot_service,
             document_actor_manager,
             storage_service,
-            awareness_service,
             etcd_service,
             grpc_client,
             op_queue_service,
             auth_service,
             cache_service,
             queue_service,
+            local_cache,
             notify_debouncer,
+            redis_broadcast,
         }
     }
 }

@@ -52,16 +52,11 @@ import {
     ICollaborationService,
 } from './services/collaboration.service';
 import { INetworkService } from './services/network.service';
-import {
-    NoopNetworkService,
-    NoopSocketService,
-} from './services/noop-services';
+import { NoopNetworkService } from './services/noop-services';
 import {
     IPendingMutationSerivce,
     PendingMutationSerivce,
 } from './services/offline-storage.service';
-import { SocketNetworkService } from './services/socket-network.service';
-import { ISocketService, SocketService } from './services/socket.service';
 import {
     ITransformService,
     TransformService,
@@ -71,6 +66,7 @@ import {
     UndoRedoTransformService,
 } from './services/undo-redo-transform.service';
 import { CollaborationUndoRedoService } from './services/undo-redo.service';
+import { WsNetworkService } from './services/ws-network.service';
 
 /**
  * Unified Collaboration Plugin
@@ -80,7 +76,7 @@ import { CollaborationUndoRedoService } from './services/undo-redo.service';
  * ## Mode 1: Remote Side (isRemoteSide: true)
  * For worker/server contexts. Registers actual implementations:
  * - TransformService (WASM OT)
- * - NetworkService (socket.io)
+ * - WsNetworkService (native WebSocket + HTTP)
  * - CollaborationService (orchestrator)
  * - UndoRedoTransformService
  * Exposes services via RPC for client to consume.
@@ -144,7 +140,7 @@ export class CollaborationPlugin extends Plugin {
         registerDependencies(this._injector, [
             // Core transform and network services
             [ITransformService, { useClass: TransformService }],
-            [INetworkService, { useClass: SocketNetworkService }],
+            [INetworkService, { useClass: WsNetworkService }],
             [IUndoRedoTransformService, { useClass: UndoRedoTransformService }],
 
             // Offline storage for pending mutations persistence
@@ -162,9 +158,8 @@ export class CollaborationPlugin extends Plugin {
      * Register services for client with remote context (default mode)
      *
      * Note: In this mode, network communication happens in the remote context.
-     * The main thread uses noop services for ISocketService and INetworkService
-     * to satisfy dependency requirements. Actual socket/network operations
-     * are handled in the remote context.
+     * The main thread uses NoopNetworkService to satisfy dependency requirements.
+     * Actual network operations are handled in the remote context.
      *
      * AwarenessService runs in main thread (to access UI state) and calls
      * AwarenessRemoteProxyService which forwards to worker via RPC.
@@ -174,8 +169,7 @@ export class CollaborationPlugin extends Plugin {
             // Offline storage for pending mutations
             [IPendingMutationSerivce, { useClass: PendingMutationSerivce }],
 
-            // Noop services for main thread - actual implementations run in remote
-            [ISocketService, { useClass: NoopSocketService }],
+            // Noop network service for main thread - actual implementation runs in remote
             [INetworkService, { useClass: NoopNetworkService }],
 
             // Awareness remote proxy - forwards to worker via RPC
@@ -202,8 +196,7 @@ export class CollaborationPlugin extends Plugin {
         const dependencies: Dependency[] = [
             // Core services
             [IPendingMutationSerivce, { useClass: PendingMutationSerivce }],
-            [ISocketService, { useClass: SocketService }],
-            [INetworkService, { useClass: SocketNetworkService }],
+            [INetworkService, { useClass: WsNetworkService }],
 
             // Awareness remote service (runs locally in main thread)
             [IAwarenessRemoteService, { useClass: AwarenessRemoteService }],
