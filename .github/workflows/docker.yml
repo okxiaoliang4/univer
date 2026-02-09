@@ -91,7 +91,9 @@ jobs:
 
     build-ws-gateway:
         runs-on: ubuntu-latest
-
+        env:
+            GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+            PRIVATE_REGISTRY_TOKEN: ${{secrets.PRIVATE_REGISTRY_TOKEN}}
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -119,6 +121,9 @@ jobs:
                   file: ./packages/ws-gateway/Dockerfile
                   push: true
                   tags: ${{ steps.docker_meta.outputs.tags }}
+                  build-args: |
+                      GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+                      PRIVATE_REGISTRY_TOKEN=${{ secrets.PRIVATE_REGISTRY_TOKEN }}
                   cache-from: |
                       type=gha,scope=ws-gateway-${{ github.ref_name }}
                   cache-to: |
