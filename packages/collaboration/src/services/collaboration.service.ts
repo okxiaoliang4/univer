@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { UnitModel } from '@univerjs/core';
+import type { IMutationInfo, UnitModel } from '@univerjs/core';
 import type { Observable } from 'rxjs';
 import type {
     IDocumentSyncState,
@@ -26,7 +26,6 @@ import type {
     IDocumentPersistence,
     IDocumentTransformOperations,
 } from '../models/collaboration-document.model';
-import type { IChangeset } from './socket.service';
 import {
     CommandType,
     createIdentifier,
@@ -107,7 +106,7 @@ export interface ICollaborationService {
      * @deprecated In remote-first architecture, mutations are automatically
      * captured and sent by the remote context.
      */
-    sendChangeset?(changeset: IChangeset): Promise<void>;
+    sendChangeset?(changeset: { unitId: string; baseRev: number; mutations: IMutationInfo[] }): Promise<void>;
 }
 
 export const ICollaborationService = createIdentifier<ICollaborationService>(

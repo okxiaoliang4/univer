@@ -26,14 +26,14 @@ describe('offline conflict ordering', () => {
         //     [ITransformService, { useClass: TransformService }],
         //     [IOfflineStorageService, { useClass: OfflineStorageService }],
         //     [ICollaborationService, { useClass: CollaborationService }],
-        //     [ISocketService, { useClass: SocketService }],
+        //     [INetworkService, { useClass: WsNetworkService }],
         // ]);
         // const clientB = await createE2ETestBed(docId, [
         //     [CollaborationController],
         //     [ITransformService, { useClass: TransformService }],
         //     [IOfflineStorageService, { useClass: OfflineStorageService }],
         //     [ICollaborationService, { useClass: CollaborationService }],
-        //     [ISocketService, { useClass: SocketService }],
+        //     [INetworkService, { useClass: WsNetworkService }],
         // ]);
 
         // await clientA.commandService.executeCommand(SetRangeValuesMutation.id, {

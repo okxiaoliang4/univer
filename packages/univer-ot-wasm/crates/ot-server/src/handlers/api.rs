@@ -1,7 +1,8 @@
+use crate::services::auth::AuthUserInfo;
 use crate::state::AppState;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{StatusCode, request::Parts},
     response::Json,
 };
 use ot_core::MutationInfoWithOpId;
@@ -9,6 +10,52 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tracing::{error, info, warn};
 use uuid::Uuid;
+
+// ─── Auth Extractor ─────────────────────────────────────────
+
+/// Authenticated user extracted from `Authorization: Bearer <token>` header.
+///
+/// Implements `FromRequestParts` so it can be used as an Axum extractor.
+/// When present, it verifies the token and extracts user info.
+pub struct AuthUser {
+    pub user_info: AuthUserInfo,
+    pub token: String,
+}
+
+impl axum::extract::FromRequestParts<AppState> for AuthUser {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth_header = parts
+            .headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+
+        let token = if let Some(token) = auth_header.strip_prefix("Bearer ") {
+            token.to_string()
+        } else {
+            warn!("Missing or invalid Authorization header");
+            return Err(StatusCode::UNAUTHORIZED);
+        };
+
+        let user_info = state
+            .auth_service
+            .verify_token(&token)
+            .await
+            .map_err(|e| {
+                warn!("Token verification failed: {}", e);
+                StatusCode::UNAUTHORIZED
+            })?;
+
+        Ok(AuthUser { user_info, token })
+    }
+}
+
+// ─── Request/Response Types ─────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDocumentRequest {
@@ -81,10 +128,6 @@ pub struct DocumentResponse {
 #[derive(Debug, Deserialize)]
 pub struct GetOperationsQuery {
     pub from_rev: Option<i64>,
-    pub to_rev: Option<i64>,
-    /// Maximum number of operations to return.
-    /// Defaults to DEFAULT_OPERATIONS_LIMIT if not specified.
-    pub limit: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -166,8 +209,22 @@ pub struct MutationInput {
 pub struct BroadcastOpResponse {
     pub success: bool,
     pub server_rev: i64,
+    pub op_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// Redis broadcast message for ws-gateway
+#[derive(Debug, Serialize)]
+struct ChangesetPushedBroadcast {
+    #[serde(rename = "type")]
+    msg_type: String,
+    #[serde(rename = "docId")]
+    doc_id: String,
+    #[serde(rename = "serverRev")]
+    server_rev: i64,
+    #[serde(rename = "userId")]
+    user_id: String,
 }
 
 /// POST /api/documents - Create a new document
@@ -316,21 +373,80 @@ pub async fn get_document(
 }
 
 /// GET /api/documents/:doc_id/operations - Get operation logs
+///
+/// Requires authentication. Checks readable permission.
+/// Uses three-tier cache: L1 (LocalCache) → L2/L3 (Redis/DB via DocumentService).
 pub async fn get_operations(
     State(state): State<AppState>,
     Path(doc_id): Path<String>,
+    auth: AuthUser,
     Query(query): Query<GetOperationsQuery>,
 ) -> Result<Json<OperationsResponse>, StatusCode> {
     let doc_uuid = Uuid::parse_str(&doc_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
+    // Check readable permission
+    let permissions = state
+        .auth_service
+        .check_document_permission(
+            "http",
+            &auth.user_info.uid,
+            &doc_id,
+            &auth.token,
+        )
+        .await
+        .map_err(|e| {
+            warn!("Permission check failed: {}", e);
+            StatusCode::FORBIDDEN
+        })?;
+
+    if !permissions.readable {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     let from_rev = query.from_rev.unwrap_or(0);
-    // Use provided limit or default to DEFAULT_OPERATIONS_LIMIT for API calls
-    let limit = query.limit.or(Some(crate::services::document::DocumentService::DEFAULT_OPERATIONS_LIMIT));
+
+    // === L1: Try LocalCache (same instance used by OTService write-through) ===
+    if let Some(local_ops) = state.local_cache.get_ops_since(doc_uuid, from_rev).await {
+        // Validate coverage against authoritative version from Redis
+        if let Ok(Some(current_version)) = state.cache_service.get_version(doc_uuid).await {
+            let first_rev = local_ops.first().map(|o| o.rev).unwrap_or(i64::MAX);
+            let last_rev = local_ops.last().map(|o| o.rev).unwrap_or(0);
+            if first_rev <= from_rev + 1 && last_rev >= current_version {
+                // L1 has complete coverage — decode and return directly
+                let mut operation_responses = Vec::with_capacity(local_ops.len());
+                for op in local_ops {
+                    let params = crate::services::params_codec::decode_params(&op.params)
+                        .map_err(|e| {
+                            error!("Failed to decode cached params: rev={}, error={}", op.rev, e);
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        })?;
+                    operation_responses.push(OperationResponse {
+                        rev: op.rev,
+                        user_id: op.user_id,
+                        mutation_id: op.mutation_id,
+                        params,
+                        op_id: op.op_id,
+                        created_at: op.created_at.to_rfc3339(),
+                    });
+                }
+                crate::metrics::increment_local_cache_hits();
+                return Ok(Json(OperationsResponse {
+                    operations: operation_responses,
+                }));
+            }
+        }
+        // L1 incomplete or version check failed — fall through
+    }
+
+    // === L2/L3: Redis ops cache → DB (via DocumentService) ===
     let operations = state
         .document_service
-        .get_operations(doc_uuid, from_rev, query.to_rev, limit)
+        .get_operations_since(doc_uuid, from_rev)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            error!("Failed to get operations: doc_id={}, error={}", doc_id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let operation_responses: Vec<OperationResponse> = operations
         .into_iter()
@@ -581,14 +697,25 @@ pub async fn get_doc_id_from_storage_id(
 }
 
 /// POST /api/documents/:doc_id/changeset - Apply a changeset (broadcast operation)
+///
+/// Requires authentication. Uses token-extracted user_id (not request body).
+/// After successful OT, publishes to Redis Pub/Sub for ws-gateway broadcast
+/// and sends rate-limited gRPC notification.
 pub async fn broadcast_op(
     State(state): State<AppState>,
     Path(doc_id): Path<String>,
+    auth: AuthUser,
     Json(req): Json<BroadcastOpRequest>,
-) -> Result<Json<BroadcastOpResponse>, StatusCode> {
+) -> Result<(StatusCode, Json<BroadcastOpResponse>), StatusCode> {
+    use std::time::Instant;
+    let request_start = Instant::now();
+
+    // Use user_id from verified token, not from request body (prevents spoofing)
+    let user_id = auth.user_info.uid.clone();
+
     info!(
-        "broadcast_op request: doc_id={}, base_rev={}, user_id={}, mutations_count={}",
-        doc_id, req.base_rev, req.user_id, req.mutations.len()
+        "changeset START: doc_id={}, base_rev={}, user_id={}, mutations_count={}",
+        doc_id, req.base_rev, user_id, req.mutations.len()
     );
 
     let doc_uuid = Uuid::parse_str(&doc_id).map_err(|e| {
@@ -596,6 +723,31 @@ pub async fn broadcast_op(
         StatusCode::BAD_REQUEST
     })?;
 
+    // === PHASE 1: Permission Check ===
+    let perm_start = Instant::now();
+    let permissions = state
+        .auth_service
+        .check_document_permission(
+            "http",
+            &user_id,
+            &doc_id,
+            &auth.token,
+        )
+        .await
+        .map_err(|e| {
+            warn!("Permission check failed for broadcast_op: {}", e);
+            StatusCode::FORBIDDEN
+        })?;
+
+    if !permissions.writable {
+        warn!("Permission denied: user {} cannot write to document {}", user_id, doc_id);
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let perm_elapsed = perm_start.elapsed();
+    info!("changeset [permission_check] doc_id={}, elapsed={:.1}ms", doc_id, perm_elapsed.as_secs_f64() * 1000.0);
+
+    // === PHASE 2: Data Preparation ===
+    let prep_start = Instant::now();
     let mutations: Vec<MutationInfoWithOpId> = req
         .mutations
         .into_iter()
@@ -608,35 +760,119 @@ pub async fn broadcast_op(
 
     let changeset = crate::services::ot::Changeset {
         base_rev: req.base_rev,
-        user_id: req.user_id.clone(),
+        user_id: user_id.clone(),
         mutations,
         client_id: req.client_id.clone(),
     };
+    let prep_elapsed = prep_start.elapsed();
+    info!("changeset [data_preparation] doc_id={}, elapsed={:.1}ms", doc_id, prep_elapsed.as_secs_f64() * 1000.0);
 
+    // === PHASE 3: Apply Changeset (OT Transform + DB Write) ===
+    let apply_start = Instant::now();
     let result = state
         .document_actor_manager
         .apply_changeset(doc_uuid, changeset)
-        .await
-        .map_err(|e| {
-            error!("Failed to apply changeset: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .await;
 
-    info!(
-        "broadcast_op completed: doc_id={}, server_rev={}",
-        doc_id, result.server_rev
-    );
+    match result {
+        Ok(result) => {
+            let apply_elapsed = apply_start.elapsed();
+            info!("changeset [apply_changeset] doc_id={}, server_rev={}, elapsed={:.1}ms",
+                  doc_id, result.server_rev, apply_elapsed.as_secs_f64() * 1000.0);
 
-    Ok(Json(BroadcastOpResponse {
-        success: true,
-        server_rev: result.server_rev,
-        error: None,
-    }))
+            let total_elapsed = request_start.elapsed();
+            info!(
+                "changeset DONE: doc_id={}, server_rev={}, total={:.1}ms (perm={:.1}ms, prep={:.1}ms, apply={:.1}ms)",
+                doc_id, result.server_rev,
+                total_elapsed.as_secs_f64() * 1000.0,
+                perm_elapsed.as_secs_f64() * 1000.0,
+                prep_elapsed.as_secs_f64() * 1000.0,
+                apply_elapsed.as_secs_f64() * 1000.0
+            );
+
+            // Publish changeset_pushed to Redis for ws-gateway broadcast (fire-and-forget)
+            let broadcast_msg = ChangesetPushedBroadcast {
+                msg_type: "changeset_pushed".to_string(),
+                doc_id: doc_id.clone(),
+                server_rev: result.server_rev,
+                user_id: user_id.clone(),
+            };
+            let redis_broadcast = state.redis_broadcast.clone();
+            let doc_id_for_notify = doc_id.clone();
+            let user_id_for_notify = user_id.clone();
+            let grpc_client = state.grpc_client.clone();
+            let debouncer = state.notify_debouncer.clone();
+
+            tokio::spawn(async move {
+                // Publish to Redis Pub/Sub
+                if let Ok(payload) = serde_json::to_string(&broadcast_msg) {
+                    redis_broadcast.publish(&payload).await;
+                }
+
+                // Rate-limited gRPC notification (at most once per 5s per doc)
+                if debouncer.should_notify(&doc_id_for_notify) {
+                    if let Err(e) = grpc_client
+                        .notify_modify_document(&user_id_for_notify, &doc_id_for_notify)
+                        .await
+                    {
+                        warn!(
+                            "Failed to notify document modification: doc_id={}, error={}",
+                            doc_id_for_notify, e
+                        );
+                    }
+                }
+            });
+
+            Ok((StatusCode::OK, Json(BroadcastOpResponse {
+                success: true,
+                server_rev: result.server_rev,
+                op_ids: result.op_ids,
+                error: None,
+            })))
+        }
+        Err(e) => {
+            let error_msg = e.to_string();
+            let (status, client_msg) = classify_changeset_error(&error_msg);
+            warn!("Changeset failed: doc_id={}, status={}, error={}", doc_id, status.as_u16(), error_msg);
+            Ok((status, Json(BroadcastOpResponse {
+                success: false,
+                server_rev: -1,
+                op_ids: vec![],
+                error: Some(client_msg),
+            })))
+        }
+    }
 }
 
 /// GET /health - Health check
 pub async fn health_check() -> &'static str {
     "OK"
+}
+
+/// Classify changeset errors into appropriate HTTP status codes.
+///
+/// Maps internal OT error strings to client-meaningful status codes:
+/// - 409 Conflict: version drift / mismatch (client should re-fetch document)
+/// - 503 Service Unavailable: lock timeout / Redis failure (client should retry)
+/// - 422 Unprocessable Entity: transform error (client should report)
+/// - 404 Not Found: document not found
+/// - 500 Internal Server Error: unexpected errors
+fn classify_changeset_error(error_msg: &str) -> (StatusCode, String) {
+    if error_msg.starts_with("VERSION_DRIFT_TOO_LARGE:") {
+        (StatusCode::CONFLICT, error_msg.to_string())
+    } else if error_msg.contains("Version mismatch") {
+        (StatusCode::CONFLICT, error_msg.to_string())
+    } else if error_msg.contains("Failed to acquire document lock") {
+        (StatusCode::SERVICE_UNAVAILABLE, "Server busy, please retry".to_string())
+    } else if error_msg.starts_with("Transform error") {
+        (StatusCode::UNPROCESSABLE_ENTITY, error_msg.to_string())
+    } else if error_msg.contains("Redis cache write failed") {
+        (StatusCode::SERVICE_UNAVAILABLE, "Temporary storage error".to_string())
+    } else if error_msg.contains("Document not found") {
+        (StatusCode::NOT_FOUND, "Document not found".to_string())
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+    }
 }
 
 fn to_snapshot_response(snapshot: crate::services::document::DocumentSnapshotInfo) -> SnapshotResponse {

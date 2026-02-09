@@ -17,11 +17,14 @@ use uuid::Uuid;
 const SIGNED_URL_TTL_SECONDS: u64 = 60 * 60 * 3;
 const SIGNED_URL_CACHE_SAFETY_SECONDS: u64 = 60;
 
+/// Storage service for S3-based object storage.
+///
+/// Uses ConnectionManager for efficient Redis connection reuse.
 #[derive(Clone)]
 pub struct StorageService {
     db: Arc<sea_orm::DatabaseConnection>,
     s3_client: S3Client,
-    redis_client: redis::Client,
+    conn_manager: redis::aio::ConnectionManager,
     endpoint: String,
     region: String,
     bucket: String,
@@ -52,7 +55,7 @@ pub struct UploadedOperationParams {
 }
 
 impl StorageService {
-    pub fn new(
+    pub async fn new(
         db: sea_orm::DatabaseConnection,
         endpoint: String,
         region: String,
@@ -71,10 +74,11 @@ impl StorageService {
             .build();
         let s3_client = S3Client::from_conf(s3_config);
         let redis_client = redis::Client::open(redis_url)?;
+        let conn_manager = redis::aio::ConnectionManager::new(redis_client).await?;
         Ok(Self {
             db: Arc::new(db),
             s3_client,
-            redis_client,
+            conn_manager,
             endpoint,
             region,
             bucket,
@@ -83,7 +87,7 @@ impl StorageService {
     }
 
     /// Create from existing database connection (Arc)
-    pub fn new_with_db(
+    pub async fn new_with_db(
         db: Arc<sea_orm::DatabaseConnection>,
         endpoint: String,
         region: String,
@@ -101,10 +105,11 @@ impl StorageService {
             .force_path_style(true)
             .build();
         let s3_client = S3Client::from_conf(s3_config);
+        let conn_manager = redis::aio::ConnectionManager::new(redis_client).await?;
         Ok(Self {
             db,
             s3_client,
-            redis_client,
+            conn_manager,
             endpoint,
             region,
             bucket,
@@ -133,7 +138,7 @@ impl StorageService {
             storage.bucket, storage.path, storage.version_id
         );
 
-        let mut conn = self.redis_client.get_multiplexed_async_connection().await?;
+        let mut conn = self.conn_manager.clone();
         if let Ok(Some(cached)) = conn.get::<_, Option<String>>(&cache_key).await {
             if !cached.is_empty() {
                 return Ok(cached);

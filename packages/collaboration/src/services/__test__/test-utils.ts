@@ -24,115 +24,17 @@ import type {
     IExecutionOptions,
     ILogService,
     IMutationInfo,
-    Nullable,
     UnitModel,
     UnitType,
 } from '@univerjs/core';
-import type { Socket } from 'socket.io-client';
-import type { ICollaborationConfig } from '../../controller/config.schema';
 import type { IMutationWithOpId } from '../collaboration.types';
 import type { IPendingMutations, IPendingMutationSerivce } from '../offline-storage.service';
-import type { IChangesetAck, IChangesetPushed, IFetchOpsAck, IJoinDocAck, ISocketService } from '../socket.service';
 import { CommandType, UniverInstanceType } from '@univerjs/core';
 import { InsertColMutation, InsertRowMutation, RemoveColMutation, RemoveRowMutation, SetRangeValuesMutation } from '@univerjs/sheets';
 import { BehaviorSubject, Subject } from 'rxjs';
 
 export const TEST_UNIT_ID = 'unit-1';
 export const TEST_SUB_UNIT_ID = 'sheet-1';
-
-export interface IMockSocket {
-    id: string;
-    disconnected: boolean;
-    disconnect: () => void;
-}
-
-export class MockSocketService implements ISocketService {
-    private _socket: IMockSocket | null = null;
-    private _connected$ = new Subject<void>();
-    private _disconnected$ = new Subject<void>();
-    private _changesetPushed$ = new Subject<IChangesetPushed>();
-    connected$ = this._connected$.asObservable();
-    connected = false;
-    disconnected$ = this._disconnected$.asObservable();
-    changesetPushed$ = this._changesetPushed$.asObservable();
-
-    createdUrl: string | null = null;
-    emitted: Array<{ event: string; args: unknown[] }> = [];
-    nextJoinAck: IJoinDocAck = { status: 'ok', version: 1 };
-    nextChangesetAck: IChangesetAck = { status: 'ok', serverRev: 1 };
-    nextFetchOpsAck: IFetchOpsAck = { status: 'ok', operations: [] };
-
-    createSocket(config: ICollaborationConfig): Nullable<Socket> {
-        this.createdUrl = config.wsUrl;
-        this._socket = {
-            id: 'socket-1',
-            disconnected: false,
-            disconnect: () => {
-                if (this._socket) {
-                    this._socket.disconnected = true;
-                }
-            },
-        };
-        return this._socket as unknown as Socket;
-    }
-
-    getSocket(): Socket | null {
-        return this._socket as unknown as Socket;
-    }
-
-    setSocketState(connected: boolean): void {
-        this.connected = connected;
-        if (!this._socket) {
-            this._socket = {
-                id: 'socket-1',
-                disconnected: !connected,
-                disconnect: () => {
-                    if (this._socket) {
-                        this._socket.disconnected = true;
-                    }
-                },
-            };
-        } else {
-            this._socket.disconnected = !connected;
-        }
-    }
-
-    emitConnected(): void {
-        this.connected = true;
-        this._connected$.next();
-    }
-
-    emitDisconnected(): void {
-        this.connected = false;
-        this._disconnected$.next();
-    }
-
-    emitChangesetPushed(payload: IChangesetPushed): void {
-        this._changesetPushed$.next(payload);
-    }
-
-    emit(event: string, ...args: unknown[]): void {
-        this.emitted.push({ event, args });
-        const maybeAck = args[args.length - 1] as ((payload: unknown) => void) | undefined;
-        if (typeof maybeAck !== 'function') {
-            return;
-        }
-
-        if (event === 'join_doc') {
-            maybeAck(this.nextJoinAck);
-            return;
-        }
-
-        if (event === 'changeset') {
-            maybeAck(this.nextChangesetAck);
-            return;
-        }
-
-        if (event === 'fetch_ops') {
-            maybeAck(this.nextFetchOpsAck);
-        }
-    }
-}
 
 export class MockOfflineStorageService implements IPendingMutationSerivce {
     private _store = new Map<string, IPendingMutations>();

@@ -14,61 +14,18 @@
  * limitations under the License.
  */
 
-import type { Nullable } from '@univerjs/core';
-import type { Socket } from 'socket.io-client';
 import type {
     IChangesetAck,
-    IChangesetPushed as IChangesetPushedType,
+    IChangesetPushed,
     IChangesetRequest,
     IFetchOpsResult,
     IJoinDocAck,
     IUserAwareness,
     NetworkConnectionStatus,
 } from '../common/types';
-import type { ICollaborationConfig } from '../controller/config.schema';
 import type { IAwarenessInitResult, INetworkService } from './network.service';
-import type { IChangesetPushed, ISocketService } from './socket.service';
 import { Disposable } from '@univerjs/core';
 import { BehaviorSubject, Subject } from 'rxjs';
-
-/**
- * Noop SocketService for client-with-remote mode.
- *
- * In remote mode, socket communication happens in the remote context (worker),
- * so the main thread doesn't need an actual socket. This noop implementation
- * satisfies the dependency requirement of CollaborationController.
- */
-export class NoopSocketService extends Disposable implements ISocketService {
-    private _connected$ = new Subject<void>();
-    private _disconnected$ = new Subject<void>();
-    private _changesetPushed$ = new Subject<IChangesetPushed>();
-
-    readonly connected$ = this._connected$.asObservable();
-    readonly connected = false;
-    readonly disconnected$ = this._disconnected$.asObservable();
-    readonly changesetPushed$ = this._changesetPushed$.asObservable();
-
-    createSocket(_config: ICollaborationConfig): Nullable<Socket> {
-        // In remote mode, socket is created in the worker context
-        // Return null to indicate no socket is needed in main thread
-        return null;
-    }
-
-    getSocket(): Nullable<Socket> {
-        return null;
-    }
-
-    emit(_event: string, ..._args: unknown[]): void {
-        // Noop - socket operations handled in remote context
-    }
-
-    override dispose(): void {
-        super.dispose();
-        this._connected$.complete();
-        this._disconnected$.complete();
-        this._changesetPushed$.complete();
-    }
-}
 
 /**
  * Noop NetworkService for client-with-remote mode.
@@ -79,7 +36,7 @@ export class NoopSocketService extends Disposable implements ISocketService {
  */
 export class NoopNetworkService extends Disposable implements INetworkService {
     private readonly _connectionStatus$ = new BehaviorSubject<NetworkConnectionStatus>('disconnected');
-    private readonly _changesetPushed$ = new Subject<IChangesetPushedType>();
+    private readonly _changesetPushed$ = new Subject<IChangesetPushed>();
     private readonly _awarenessUpdate$ = new Subject<IUserAwareness>();
 
     readonly connectionStatus$ = this._connectionStatus$.asObservable();

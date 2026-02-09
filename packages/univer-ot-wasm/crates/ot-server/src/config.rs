@@ -6,7 +6,6 @@ pub struct Config {
     pub database_url: String,
     pub server_env: String,
     pub server_port: u16,
-    pub ws_path: String,
     pub snapshot_interval: u64,
     pub s3_endpoint: String,
     pub s3_region: String,
@@ -14,8 +13,6 @@ pub struct Config {
     pub s3_access_key: String,
     pub s3_secret_key: String,
     pub redis_url: String,
-    pub awareness_redis_enabled: bool,
-    pub awareness_ttl_seconds: u64,
     pub etcd_endpoints: Vec<String>,
     pub etcd_lease_ttl_seconds: u64,
     pub etcd_registration_ip: Option<String>,
@@ -47,7 +44,6 @@ impl Config {
                 .unwrap_or_else(|_| "3000".to_string())
                 .parse()
                 .expect("SERVER_PORT must be a valid u16"),
-            ws_path: env::var("WS_PATH").unwrap_or_else(|_| "/ws".to_string()),
             snapshot_interval: env::var("SNAPSHOT_INTERVAL")
                 .unwrap_or_else(|_| "50".to_string())
                 .parse()
@@ -61,14 +57,6 @@ impl Config {
             s3_secret_key: env::var("S3_SECRET_ACCESS_KEY")
                 .expect("S3_SECRET_ACCESS_KEY environment variable must be set"),
             redis_url: env::var("REDIS_URL").expect("REDIS_URL environment variable must be set"),
-            awareness_redis_enabled: env::var("AWARENESS_REDIS_ENABLED")
-                .unwrap_or_else(|_| "false".to_string())
-                .parse()
-                .expect("AWARENESS_REDIS_ENABLED must be a valid bool"),
-            awareness_ttl_seconds: env::var("AWARENESS_TTL_SECONDS")
-                .unwrap_or_else(|_| "120".to_string())
-                .parse()
-                .expect("AWARENESS_TTL_SECONDS must be a valid u64"),
             etcd_endpoints: env::var("ETCD_ENDPOINTS")
                 .unwrap_or_else(|_| "http://127.0.0.1:2379".to_string())
                 .split(',')
@@ -129,12 +117,11 @@ impl Config {
 
     pub fn log_summary(&self) {
         info!(
-            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, ws_path={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, awareness_redis_enabled={}, awareness_ttl_seconds={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}, writebehind_enabled={}, writebehind_batch_size={}, writebehind_flush_interval_ms={}, writebehind_worker_count={}, writebehind_ttl_seconds={}, params_inline_threshold_bytes={}, skip_permission_check={}",
+            "Config loaded: database_url={}, server_env={}, server_port={}, grpc_server_port={}, snapshot_interval={}, s3_endpoint={}, s3_region={}, s3_bucket={}, s3_access_key={}, s3_secret_key={}, redis_url={}, etcd_endpoints={:?}, etcd_lease_ttl_seconds={}, etcd_registration_ip={:?}, user_rpc_prefix={}, document_rpc_prefix={}, permission_cache_ttl_seconds={}, writebehind_enabled={}, writebehind_batch_size={}, writebehind_flush_interval_ms={}, writebehind_worker_count={}, writebehind_ttl_seconds={}, params_inline_threshold_bytes={}, skip_permission_check={}",
             redact_url(&self.database_url),
             self.server_env,
             self.server_port,
             self.grpc_server_port,
-            self.ws_path,
             self.snapshot_interval,
             self.s3_endpoint,
             self.s3_region,
@@ -142,8 +129,6 @@ impl Config {
             redact_secret(&self.s3_access_key),
             redact_secret(&self.s3_secret_key),
             redact_url(&self.redis_url),
-            self.awareness_redis_enabled,
-            self.awareness_ttl_seconds,
             self.etcd_endpoints,
             self.etcd_lease_ttl_seconds,
             self.etcd_registration_ip,

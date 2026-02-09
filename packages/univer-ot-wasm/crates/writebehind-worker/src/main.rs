@@ -22,6 +22,7 @@ use axum::{routing::get, Router};
 use mimalloc::MiMalloc;
 use ot_common::{CacheConfig, CacheService, StorageService, StreamQueueService};
 use prometheus::{Encoder, TextEncoder};
+use sea_orm;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::signal;
@@ -53,12 +54,32 @@ async fn main() -> Result<()> {
     info!("  STREAM_BATCH_SIZE: {}", config.stream_batch_size);
 
     // Connect to database (no migration - ot-server handles that)
-    info!("Connecting to database...");
-    let db = ot_common::database::connect(&config.database_url)
-        .await
-        .context("Failed to connect to database")?;
-    let db = Arc::new(db);
-    info!("Database connection established");
+    info!("Connecting to database at {}", config.database_url);
+    let mut connect_options = sea_orm::ConnectOptions::new(&config.database_url);
+    connect_options
+        // Increased from default 100 to 150 for high-throughput batch writes
+        // WriteBehind worker handles concurrent stream consumers + batch COPY operations
+        .max_connections(150)
+        // Increased from default 5 to 10 for faster warmup
+        .min_connections(10)
+        .connect_timeout(std::time::Duration::from_secs(10))
+        // 10s acquire timeout - batch writes can tolerate slightly longer waits
+        .acquire_timeout(std::time::Duration::from_secs(10))
+        .idle_timeout(std::time::Duration::from_secs(600))
+        .max_lifetime(std::time::Duration::from_secs(1800))
+        .sqlx_logging(false);
+
+    let db = match sea_orm::Database::connect(connect_options).await {
+        Ok(db) => {
+            info!("Connected to database successfully");
+            Arc::new(db)
+        }
+        Err(e) => {
+            error!("Failed to connect to database: {}", e);
+            return Err(e.into());
+        }
+    };
+    info!("Database connection pool: max=150, min=10");
 
     // Create Redis client
     let redis_client =
@@ -92,6 +113,7 @@ async fn main() -> Result<()> {
         config.server_env.clone(),
         redis_client,
     )
+    .await
     .context("Failed to create StorageService")?;
     let storage_service = Arc::new(storage_service);
     info!("StorageService created");

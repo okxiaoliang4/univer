@@ -7,7 +7,6 @@ use axum::{
 use migration::{Migrator, MigratorTrait};
 use sea_orm::DatabaseConnection;
 use sea_orm::{ConnectOptions, Database};
-use socketioxide_redis::{RedisAdapter, RedisAdapterConfig, RedisAdapterCtr};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info, log::LevelFilter, warn};
@@ -23,13 +22,13 @@ mod database;
 mod grpc;
 mod handlers;
 mod metrics;
+mod middleware;
 mod services;
 mod state;
 mod types;
 
 use config::Config;
-use handlers::{api, socketio};
-use socketioxide::SocketIo;
+use handlers::api;
 use state::ServerState;
 
 #[tokio::main]
@@ -50,9 +49,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize process metrics
     metrics::init_process_metrics();
-
-    // Initialize Socket.IO metrics
-    metrics::init_socketio_metrics();
 
     // Initialize all OT collaboration metrics
     metrics::init_all_ot_metrics();
@@ -148,6 +144,8 @@ async fn main() -> anyhow::Result<()> {
     // Create application state
     // Note: WriteBehind worker has been moved to a separate crate (writebehind-worker)
     // that runs as an independent process. It will receive notifications via Redis Pub/Sub.
+    // Note: WebSocket connections are now handled by ws-gateway service.
+    // This server only provides HTTP API and gRPC services.
     info!("Creating server state");
     info!(
         "Cache config: ttl_seconds={}, batch_size={}",
@@ -165,8 +163,6 @@ async fn main() -> anyhow::Result<()> {
             config.s3_secret_key.clone(),
             config.server_env.clone(),
             config.redis_url.clone(),
-            config.awareness_redis_enabled,
-            config.awareness_ttl_seconds,
             etcd_service,
             grpc_client,
             auth_service,
@@ -176,34 +172,10 @@ async fn main() -> anyhow::Result<()> {
         .await,
     );
     info!("Server state created successfully");
-    // Create Socket.IO layer with state
-    let client = redis::Client::open(config.redis_url.clone())?;
 
-    // Configure Redis adapter with increased timeouts and buffers for high load
-    // - request_timeout: 15s (from 5s) for cross-instance broadcast under load
-    // - stream_buffer: 4096 (from 1024) for handling message bursts
-    // - ack_response_buffer: 1024 (from 255) for high-throughput ack responses
-    let redis_adapter_config = RedisAdapterConfig::default()
-        .with_request_timeout(Duration::from_secs(15))
-        .with_stream_buffer(4096)
-        .with_ack_response_buffer(1024);
-    let adapter = RedisAdapterCtr::new_with_redis_config(&client, redis_adapter_config).await?;
-
-    info!("Initializing Socket.IO layer");
-    // Configure Socket.IO with optimized timeouts for production load:
-    // - ping_interval: 15s (from 25s) for faster disconnect detection
-    // - ping_timeout: 30s (from 20s) more time for client response under load
-    // - max_buffer_size: 256 (from 128) for high-throughput broadcasting
-    // - ack_timeout: 10s (from 5s) more time for client ack under network latency
-    let (layer, io) = SocketIo::builder()
-        .ping_interval(Duration::from_secs(15))
-        .ping_timeout(Duration::from_secs(30))
-        .max_buffer_size(256)
-        .ack_timeout(Duration::from_secs(10))
-        .with_state(state.clone())
-        .with_adapter::<RedisAdapter<_>>(adapter)
-        .build_layer();
-    info!("Socket.IO layer initialized with optimized config: ping_interval=15s, ping_timeout=30s, max_buffer_size=256, ack_timeout=10s");
+    // Start database connection pool monitoring
+    metrics::start_db_pool_monitoring(state.db.clone());
+    info!("Database connection pool monitoring started");
 
     let instance_id = Uuid::new_v4();
     info!("Registering instance {} with etcd", instance_id);
@@ -217,7 +189,6 @@ async fn main() -> anyhow::Result<()> {
     });
     let endpoint = format!("{}:{}", registration_ip, config.grpc_server_port);
     info!("Registering endpoint: {}", endpoint);
-    // etcd_service was moved earlier, so we need to clone or Arc it if necessary.
     let registration = match state
         .etcd_service
         .register_with_lease(
@@ -238,12 +209,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    // Setup Socket.IO event handlers
-    info!("Setting up Socket.IO event handlers");
-    io.ns("/ws", socketio::on_connect).await?;
-    info!("Socket.IO event handlers configured");
-
-    // Build application with routes
+    // Build application with routes (HTTP only, no Socket.IO)
     info!("Building application routes");
     let app = Router::new()
         .route("/health", get(api::health_check))
@@ -284,6 +250,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/storage/{storage_id}/doc-id",
             get(api::get_doc_id_from_storage_id),
         )
+        .layer(axum::middleware::from_fn(middleware::log_request))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -297,7 +264,6 @@ async fn main() -> anyhow::Result<()> {
                 .allow_headers(Any)
                 .expose_headers([axum::http::header::CONTENT_TYPE]),
         )
-        .layer(layer)
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(state.clone());
 

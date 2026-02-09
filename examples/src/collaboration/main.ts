@@ -126,7 +126,8 @@ async function createNewInstance() {
     });
 
     const collaborationConfig = {
-        wsUrl: 'ws://192.168.2.100:8800/ws',
+        wsUrl: 'ws://192.168.2.100:8080/ws',
+        apiBaseUrl: 'http://192.168.2.100:8800',
         accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
         useRemote: true,
     };
@@ -136,7 +137,8 @@ async function createNewInstance() {
             worker.postMessage({
                 type: 'setConfig',
                 config: {
-                    wsUrl: 'ws://192.168.2.100:8800/ws',
+                    wsUrl: 'ws://192.168.2.100:8080/ws',
+                    apiBaseUrl: 'http://192.168.2.100:8800',
                     accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjczYWJjNzUwYmM3NjQ0ZmM4YjUyZjgxYzQwNjJhMGU2IiwiZW1haWwiOiJva3hpYW9saWFuZzRAZ21haWwuY29tIiwiZW5kcG9pbnRAODlfSUQiOiI0Y2JjZTY5NGVhMjY0MDY2YTFkNjgwY2FhNDMyYmVjYSIsInBsYXQiOjAsImV4cCI6MTc3MDA5NjUxMiwiaWF0IjoxNzcwMDEwMTEyfQ.gEoE-8DSyj1iN_1GfpsdZNQGPIX5gMTsdLL02gCTzXc',
                 },
             });
@@ -208,7 +210,7 @@ async function createNewInstance() {
     const userManagerService = injector.get(UserManagerService);
     userManagerService.setCurrentUser(mockUser);
 
-    const docId = '3e4259ae-46b0-4867-8863-e57902a84541';
+    const docId = '019c3d48-53da-76ed-ac3e-ff9229e7086a';
     const doc = await fetch(`http://192.168.2.100:8800/api/documents/${docId}`)
         .then((res) => res.json());
 

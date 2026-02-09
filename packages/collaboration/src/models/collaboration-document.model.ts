@@ -356,6 +356,19 @@ export class CollaborationDocumentModel extends Disposable implements IDisposabl
             `localRev=${context.serverRev}, state=${currentState}`
         );
 
+        // Ignore changeset_pushed when in awaiting state.
+        // When we're awaiting our own changeset ACK, the changeset_pushed
+        // broadcast might be for our own changeset. The SEND_SUCCESS event
+        // will handle the server revision update, so we don't need to fetch.
+        // This prevents duplicate fetchOps calls.
+        if (currentState === 'awaiting' || currentState === 'awaitingWithPending') {
+            console.warn(
+                `[DocumentModel:${this.docId}] Ignoring changeset_pushed while in ${currentState} state ` +
+                '(waiting for our own ACK)'
+            );
+            return;
+        }
+
         // Always trigger fetch when we receive a changeset_pushed notification
         // The state machine will handle it appropriately based on current state
         if (serverRev > context.serverRev) {

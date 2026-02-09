@@ -386,56 +386,71 @@ impl CacheService {
             args.push(serialized);
         }
 
-        let script = redis::Script::new(
-            r#"
-            local version_key = KEYS[1]
-            local ops_key = KEYS[2]
-            local ops_data_key = KEYS[3]
-            local new_version = tonumber(ARGV[1])
-            local ttl = tonumber(ARGV[2])
-            local ops_count = tonumber(ARGV[3])
+        // Use Pipeline instead of Lua script to reduce Redis single-thread blocking.
+        // Lua EVALSHA blocks Redis for 10-42ms (per SLOWLOG), causing head-of-line
+        // blocking for all other clients. Pipeline allows Redis to interleave other
+        // clients' commands between individual pipeline commands (~0.1ms each).
+        //
+        // Write order: ops data first, then version last.
+        // This ensures readers either see old version (skip new ops) or see new version
+        // with ops already available. Acceptable for write-behind cache where DB is
+        // the source of truth.
+        self.with_retry("write_ops", |mut conn| {
+            let version_key = version_key.clone();
+            let ops_key = ops_key.clone();
+            let ops_data_key = ops_data_key.clone();
+            let args = args.clone();
+            let ops_count = ops_count;
+            let ttl_seconds = ttl_seconds;
+            let new_version = new_version;
+            async move {
+                let mut pipe = redis::pipe();
 
-            redis.call('SET', version_key, new_version, 'EX', ttl)
+                // Step 1: Write ops data (ZADD + HSET for each operation)
+                for i in 0..ops_count {
+                    let base = 3 + i * 3;
+                    let op_id = &args[base];       // op_id bytes
+                    let rev = &args[base + 1];     // rev bytes
+                    let data = &args[base + 2];    // serialized data
 
-            for i = 1, ops_count do
-                local base = 3 + (i-1)*3
-                local op_id = ARGV[base + 1]
-                local rev = tonumber(ARGV[base + 2])
-                local data = ARGV[base + 3]
-
-                redis.call('ZADD', ops_key, rev, op_id)
-                redis.call('HSET', ops_data_key, op_id, data)
-            end
-
-            redis.call('EXPIRE', ops_key, ttl)
-            redis.call('EXPIRE', ops_data_key, ttl)
-
-            return ops_count
-            "#,
-        );
-
-        let result: i64 = self
-            .with_retry("write_ops", |mut conn| {
-                let version_key = version_key.clone();
-                let ops_key = ops_key.clone();
-                let ops_data_key = ops_data_key.clone();
-                let args = args.clone();
-                let script = script.clone();
-                async move {
-                    script
-                        .key(&version_key)
-                        .key(&ops_key)
-                        .key(&ops_data_key)
-                        .arg(args)
-                        .invoke_async(&mut conn)
-                        .await
+                    pipe.cmd("ZADD")
+                        .arg(&ops_key)
+                        .arg(rev.as_slice())
+                        .arg(op_id.as_slice())
+                        .ignore();
+                    pipe.cmd("HSET")
+                        .arg(&ops_data_key)
+                        .arg(op_id.as_slice())
+                        .arg(data.as_slice())
+                        .ignore();
                 }
-            })
-            .await?;
+
+                // Step 2: Set TTL on ops keys
+                pipe.cmd("EXPIRE")
+                    .arg(&ops_key)
+                    .arg(ttl_seconds)
+                    .ignore();
+                pipe.cmd("EXPIRE")
+                    .arg(&ops_data_key)
+                    .arg(ttl_seconds)
+                    .ignore();
+
+                // Step 3: Update version LAST (readers see new version only after ops are ready)
+                pipe.cmd("SET")
+                    .arg(&version_key)
+                    .arg(new_version)
+                    .arg("EX")
+                    .arg(ttl_seconds)
+                    .ignore();
+
+                pipe.query_async::<()>(&mut conn).await
+            }
+        })
+        .await?;
 
         debug!(
             "Cache write_ops: doc_id={}, ops_count={}, new_version={}",
-            doc_id, result, new_version
+            doc_id, ops_count, new_version
         );
         Ok(())
     }

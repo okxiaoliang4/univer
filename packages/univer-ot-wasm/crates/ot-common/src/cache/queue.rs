@@ -31,7 +31,7 @@ use tracing::{debug, info, warn};
 // Stream configuration
 const STREAM_KEY: &str = "ot:{wb}:stream";
 const GROUP_NAME: &str = "writebehind-workers";
-const STREAM_MAXLEN: i64 = 100_000;
+const STREAM_MAXLEN: i64 = 1_000_000;
 
 // Retry configuration (same as CacheService)
 const MAX_RETRIES: u32 = 3;
